@@ -1,6 +1,6 @@
 use std::iter;
 use log::debug;
-use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, ShaderModule, SurfaceConfiguration, TextureFormat, VertexBufferLayout};
+use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, ShaderModule, SurfaceConfiguration, Texture, TextureFormat, VertexBufferLayout};
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
 use winit::window::Window;
@@ -103,9 +103,12 @@ pub struct State {
     light_uniform:LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
-    
+
+    multisampled_framebuffer: wgpu::TextureView
 
 }
+
+pub const SAMPLE_COUNT: u32 = 1; //4;
 
 impl State {
     pub async fn new(window: Window) -> Self {
@@ -280,6 +283,8 @@ impl State {
                 }],
                 label: None,
             });
+        
+        
 
         Self {
             surface,
@@ -301,7 +306,7 @@ impl State {
                     &device.create_shader_module(wgpu::ShaderModuleDescriptor {
                         label: Some("Light Shader"),
                         source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
-                    })
+                    }), 1
                 )
             },
             
@@ -344,10 +349,42 @@ impl State {
                 a: 1.0,
             },
             depth_texture: texture::Texture::create_depth_texture(&device, &config, "depth_texture"),
+            multisampled_framebuffer: Self::create_multisampled_framebuffer(&device, &config,SAMPLE_COUNT),
+            
             config,
             device,
-            queue
+            queue,
+            
+            
         }
+        
+    }
+
+    fn create_multisampled_framebuffer(
+        device: &wgpu::Device,
+        sc_desc: &SurfaceConfiguration,
+        sample_count: u32,
+    ) -> wgpu::TextureView {
+        let multisampled_texture_extent = wgpu::Extent3d {
+            width: sc_desc.width,
+            height: sc_desc.height,
+            depth_or_array_layers: 1,
+        };
+        let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
+            size: multisampled_texture_extent,
+            mip_level_count: 1,
+            sample_count,
+            dimension: wgpu::TextureDimension::D2,
+            format: sc_desc.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            label: None,
+            view_formats: &[sc_desc.format],
+        };
+
+        device
+            .create_texture(multisampled_frame_descriptor)
+            .create_view(&wgpu::TextureViewDescriptor::default())
+        
     }
 
     fn render_pipeline(
@@ -374,10 +411,10 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        Self::create_render_pipeline(device, &render_pipeline_layout, config.format, &[model::ModelVertex::desc(), InstanceRaw::desc()], &shader)
+        Self::create_render_pipeline(device, &render_pipeline_layout, config.format, &[model::ModelVertex::desc(), InstanceRaw::desc()], &shader, SAMPLE_COUNT)
     }
 
-    fn create_render_pipeline(device: &Device, render_pipeline_layout: &PipelineLayout, format: wgpu::TextureFormat, buffers: &[wgpu::VertexBufferLayout], shader: &wgpu::ShaderModule) -> RenderPipeline {
+    fn create_render_pipeline(device: &Device, render_pipeline_layout: &PipelineLayout, format: wgpu::TextureFormat, buffers: &[wgpu::VertexBufferLayout], shader: &wgpu::ShaderModule, multisample_count: u32) -> RenderPipeline {
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -419,7 +456,7 @@ impl State {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: multisample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -472,15 +509,10 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &view, //&self.multisampled_framebuffer,
+                    resolve_target: None, //Some(&view),
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 0.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
                         store: true,
                     },
                 })],
