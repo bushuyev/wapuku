@@ -1,11 +1,12 @@
 mod state;
 mod resources;
-mod model;
+mod mesh_model;
 mod texture;
 mod camera;
 mod light;
 
 
+use std::sync::Arc;
 use log::{debug, trace};
 use winit::{
     event::*,
@@ -19,9 +20,20 @@ use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
 
+// use datafusion_execution::config::SessionConfig;
+// use datafusion_execution::runtime_env::RuntimeEnv;
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
+
+    struct X {
+        
+    }
+    
+    let runtime = Arc::new(X {});
+
+    // let runtime = RuntimeEnv::default();
+    // let config  = SessionConfig::default();
     
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");

@@ -4,8 +4,8 @@ use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, Shade
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
 use winit::window::Window;
-use crate::model::{DrawModel, Model, Vertex};
-use crate::{model, resources, texture};
+use crate::mesh_model::{DrawModel, MeshModel, Vertex};
+use crate::{mesh_model, resources, texture};
 use cgmath::prelude::*;
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
@@ -19,9 +19,7 @@ struct Instance {
 impl Instance {
     fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(self.position)
-                * cgmath::Matrix4::from(self.rotation))
-                .into(),
+            model: (cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation)).into(),
         }
     }
 }
@@ -86,7 +84,7 @@ pub struct State {
     instances: Vec<Instance>,
     #[allow(dead_code)]
     instance_buffer: wgpu::Buffer,
-    obj_model: Model,
+    obj_model: MeshModel,
     
     color:Color,
     light_render_pipeline: wgpu::RenderPipeline,
@@ -302,7 +300,7 @@ impl State {
                         push_constant_ranges: &[],
                     }),
                     config.format,
-                    &[model::ModelVertex::desc()],
+                    &[mesh_model::ModelVertex::desc()],
                     &device.create_shader_module(wgpu::ShaderModuleDescriptor {
                         label: Some("Light Shader"),
                         source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
@@ -411,7 +409,7 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        Self::create_render_pipeline(device, &render_pipeline_layout, config.format, &[model::ModelVertex::desc(), InstanceRaw::desc()], &shader, SAMPLE_COUNT)
+        Self::create_render_pipeline(device, &render_pipeline_layout, config.format, &[mesh_model::ModelVertex::desc(), InstanceRaw::desc()], &shader, SAMPLE_COUNT)
     }
 
     fn create_render_pipeline(device: &Device, render_pipeline_layout: &PipelineLayout, format: wgpu::TextureFormat, buffers: &[wgpu::VertexBufferLayout], shader: &wgpu::ShaderModule, multisample_count: u32) -> RenderPipeline {
@@ -536,6 +534,7 @@ impl State {
             );
             
             render_pass.set_pipeline(&self.render_pipeline);
+
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,

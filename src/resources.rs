@@ -1,8 +1,8 @@
 use std::io::{BufReader, Cursor};
 use log::debug;
 use wgpu::util::DeviceExt;
-use crate::model;
-use crate::model::Model;
+use crate::mesh_model;
+use crate::mesh_model::MeshModel;
 use crate::texture::Texture;
 
 fn format_url(file_name: &str) -> reqwest::Url {
@@ -51,7 +51,7 @@ pub async fn load_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
-) -> anyhow::Result<model::Model> {
+) -> anyhow::Result<mesh_model::MeshModel> {
     debug!("load_model: obj file_name={:?}", file_name);
     
     let obj_text = load_string(file_name).await?;
@@ -93,7 +93,7 @@ pub async fn load_model(
             label: None,
         });
 
-        materials.push(model::Material {
+        materials.push(mesh_model::Material {
             name: m.name,
             diffuse_texture,
             bind_group,
@@ -105,7 +105,7 @@ pub async fn load_model(
         .into_iter()
         .map(|m| {
             let vertices = (0..m.mesh.positions.len() / 3)
-                .map(|i| model::ModelVertex {
+                .map(|i| mesh_model::ModelVertex {
                     position: [
                         m.mesh.positions[i * 3],
                         m.mesh.positions[i * 3 + 1],
@@ -133,7 +133,7 @@ pub async fn load_model(
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-            model::Mesh {
+            mesh_model::Mesh {
                 name: file_name.to_string(),
                 vertex_buffer,
                 index_buffer,
@@ -145,7 +145,7 @@ pub async fn load_model(
     
     debug!("load_model: meshes={:?}", meshes);
 
-    Ok(model::Model { meshes, materials })
+    Ok(mesh_model::MeshModel { meshes, materials })
 }
 
 #[cfg(test)]
