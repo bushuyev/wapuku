@@ -40,8 +40,8 @@ web-sys = { version = "0.3", features = [
 ]}
 
 
-
-datafusion = { path = "../arrow-datafusion/datafusion/core", version = "22.0.0", default-features = false, features = ["js"]   }
+wapuku-model = {path = "wapuku-model"}
+#datafusion = { path = "../arrow-datafusion/datafusion/core", version = "22.0.0", default-features = false, features = ["js"]   }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

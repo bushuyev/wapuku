@@ -19,18 +19,14 @@ use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
-
+use wapuku_model::parquet_scan::*;
 // use datafusion_execution::config::SessionConfig;
 // use datafusion_execution::runtime_env::RuntimeEnv;
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
 
-    struct X {
-        
-    }
     
-    let runtime = Arc::new(X {});
 
     // let runtime = RuntimeEnv::default();
     // let config  = SessionConfig::default();
@@ -39,6 +35,8 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
     debug!("run");
+
+    parquet_scan();
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
