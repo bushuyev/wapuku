@@ -20,8 +20,6 @@ use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
 use wapuku_model::parquet_scan::*;
-// use datafusion_execution::config::SessionConfig;
-// use datafusion_execution::runtime_env::RuntimeEnv;
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 

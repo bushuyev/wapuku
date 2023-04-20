@@ -50,7 +50,7 @@ mod tests {
         CombinedLogger::init(
             vec![
                 TermLogger::new(LevelFilter::Trace, Config::default(), TerminalMode::Mixed, ColorChoice::Auto),
-            ]
+            ]                                                                                                                                   
         ).unwrap_or_else(|_|{});
     }
 
