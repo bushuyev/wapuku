@@ -65,6 +65,7 @@ impl TableSource for JsTableSource {
 }
 
 pub fn parquet_scan(){
+    // let x = ListingTable
     let parquet_bytes = include_bytes!("../data/d2_transactions_pi_message.par");
 
     // let footer_bytes = parquet_bytes[parquet_bytes.len() - 8..parquet_bytes.len()].try_into().unwrap();
@@ -89,7 +90,7 @@ pub fn parquet_scan(){
     ).unwrap();
 
     // let expr = col("PAYMENT_REF").is_not_null();
-    let c = Column { relation: Some(OwnedTableReference::Bare { table: Cow::from("?table?") }), name: String::from("PAYMENT_REF") };
+    let c = Column { relation: Some(OwnedTableReference::Bare { table: Cow::from(UNNAMED_TABLE) }), name: String::from("PAYMENT_REF") };
 
     let r = logical_plan_builder.filter(Expr::Column(c).is_not_null()).unwrap().build().unwrap();
 
