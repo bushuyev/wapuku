@@ -14,8 +14,9 @@ tobj = { version = "3.2"}
 #arrow = { version = "37.0.0", features = ["prettyprint"] }
 #arrow-schema = { version = "37.0.0", default-features = false }
 #parquet = { version = "37.0.0", default-features = false, features= ["arrow", "snap", "brotli", "flate2", "base64"] }
-polars = {path = "../../polars/polars", default-features = false, features=["parquet", "csv"]}
+polars = {path = "../../polars/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "fmt"]} # "fmt"
 
+smartstring = "1.0.1"
 bytes = "1.4"
 log = "0.4.17"
 #comfy-table = {version = "6.1.4", default-features = false}
