@@ -1,0 +1,30 @@
+[package]
+name = "wapuku-model"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "wapuku_model"
+path = "src/lib.rs"
+
+[dependencies]
+tobj = { version = "3.2"}
+
+#arrow = { version = "37.0.0", features = ["prettyprint"] }
+#arrow-schema = { version = "37.0.0", default-features = false }
+#parquet = { version = "37.0.0", default-features = false, features= ["arrow", "snap", "brotli", "flate2", "base64"] }
+polars = {path = "../../polars/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "fmt"]} # "fmt"
+
+smartstring = "1.0.1"
+bytes = "1.4"
+log = "0.4.17"
+#comfy-table = {version = "6.1.4", default-features = false}
+#object_store =  {version = "0.5.6", default-features = false}
+#crossterm = { version = "0.24.0", default-features = false}
+#tokio = { version = "1.27.0", default-features = false}
+#parquet2 = { version = "0.17.2", default-features = false, features=[ "snappy", "gzip", "brotli", "bloom_filter"]}
+
+[dev-dependencies]
+simplelog = "0.10.2"
+ctor = "0.1.21"

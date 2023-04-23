@@ -56,7 +56,7 @@ pub struct Mesh {
     pub material: usize,
 }
 
-pub struct Model {
+pub struct MeshModel {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
 }
@@ -78,10 +78,11 @@ pub trait DrawModel<'a> {
         light_bind_group: &'a wgpu::BindGroup,
     );
 
-    fn draw_model(&mut self, model: &'a Model, camera_bind_group: &'a wgpu::BindGroup, light_bind_group: &'a wgpu::BindGroup);
+    fn draw_model(&mut self, model: &'a MeshModel, camera_bind_group: &'a wgpu::BindGroup, light_bind_group: &'a wgpu::BindGroup);
+
     fn draw_model_instanced(
         &mut self,
-        model: &'a Model,
+        model: &'a MeshModel,
         instances: Range<u32>,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
@@ -118,19 +119,19 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 
-    fn draw_model(&mut self, model: &'b Model, camera_bind_group: &'b wgpu::BindGroup, light_bind_group: &'a wgpu::BindGroup) {
+    fn draw_model(&mut self, model: &'b MeshModel, camera_bind_group: &'b wgpu::BindGroup, light_bind_group: &'a wgpu::BindGroup) {
         self.draw_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
     }
 
     fn draw_model_instanced(
         &mut self,
-        model: &'b Model,
+        model: &'b MeshModel,
         instances: Range<u32>,
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup
     ) {
         for mesh in &model.meshes {
-            log::warn!("materials: {}", model.materials.len());
+            // log::warn!("materials: {}", model.materials.len());
             let material = &model.materials[mesh.material];
             self.draw_mesh_instanced(mesh, material, instances.clone(), camera_bind_group, light_bind_group);
         }

@@ -1,11 +1,12 @@
 mod state;
 mod resources;
-mod model;
+mod mesh_model;
 mod texture;
 mod camera;
 mod light;
 
 
+use std::sync::Arc;
 use log::{debug, trace};
 use winit::{
     event::*,
@@ -18,15 +19,22 @@ use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
-
+use wapuku_model::parquet_scan::*;
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
+
+    
+
+    // let runtime = RuntimeEnv::default();
+    // let config  = SessionConfig::default();
     
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
     debug!("run");
+
+    parquet_scan();
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();

@@ -1,6 +1,7 @@
 use anyhow::*;
 use image::GenericImageView;
 use std::num::NonZeroU32;
+use crate::state::SAMPLE_COUNT;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -25,7 +26,7 @@ impl Texture {
             label: Some(label),
             size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: SAMPLE_COUNT,
             dimension: wgpu::TextureDimension::D2,
             format: Self::DEPTH_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -87,6 +88,7 @@ impl Texture {
             dimension: wgpu::TextureDimension::D2,
             format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            // usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
 

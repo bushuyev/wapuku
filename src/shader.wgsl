@@ -50,6 +50,10 @@ fn vs_main(
     var world_position: vec4<f32> = model_matrix * vec4<f32>(model.position, 1.0);
     out.world_position = world_position.xyz;
     out.clip_position = camera.view_proj * world_position;
+    
+//    out.clip_position.x = 0.5 * out.clip_position.x;
+//    out.clip_position.y = 0.5 * out.clip_position.y;
+//    out.clip_position.z = 0.5 * out.clip_position.z;
     return out;
 }
 

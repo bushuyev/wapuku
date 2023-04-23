@@ -12,7 +12,6 @@ getrandom = { version = "0.2.9", features = ["js"] }
 winit = "0.28.3"
 env_logger = "0.10.0"
 log = "0.4.17"
-wgpu = "0.15.1"
 
 cfg-if = "1"
 anyhow = "1.0"
@@ -39,6 +38,9 @@ web-sys = { version = "0.3", features = [
     "Element",
     "Location",
 ]}
+
+
+wapuku-model = {path = "wapuku-model"}
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
