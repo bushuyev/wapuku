@@ -2,8 +2,8 @@
 /.idea/
 /pkg/
 /tests/target/
-/www/node_modules/
-/www/dist/
+/wapuku-ui/www/node_modules/
+/wapuku-ui/www/dist/
 /polars_test/target/
 /wapuku-model/target/
 /wapuku-ui/target/

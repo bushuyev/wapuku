@@ -15,6 +15,7 @@ use polars::lazy::*;
 use bytes::Bytes;
 
 use log::{debug, trace};
+use polars::datatypes::DataType::Duration;
 // use parquet::arrow::parquet_to_arrow_schema;
 // use parquet::file::footer::{decode_footer, parse_metadata};
 // use parquet::schema::types::SchemaDescriptor;
@@ -44,7 +45,10 @@ pub fn parquet_scan() {
 
 
 pub fn group_by() {
-    let df = df!("field_1" => &[10, 20, 30, 40], "field_2" => &[1, 2, 3, 4]).unwrap();
+    let df = df!(
+        "field_1" => &[10,  20, 30, 40], 
+        "field_2" => &[1,   2,  3,  4]
+    ).unwrap();
 
     let min_max = df.clone().lazy().select([
         col("field_1").min().alias("field_1_min"),
