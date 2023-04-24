@@ -6,3 +6,5 @@
 /www/dist/
 /polars_test/target/
 /wapuku-model/target/
+/wapuku-ui/target/
+/target/
