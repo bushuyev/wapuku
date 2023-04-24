@@ -7,15 +7,17 @@ use std::sync::Arc;
 
 use polars::prelude::*;
 use polars::time::*;
+use polars::time::{Duration};
 // use polars::time::windows::*;
 // use polars::prelude::windows::group_by::*;
 use polars::io::parquet::*;
+
 use polars::lazy::*;
 // use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef, TimeUnit};
 use bytes::Bytes;
 
 use log::{debug, trace};
-use polars::datatypes::DataType::Duration;
+use polars::prelude::Expr::Columns;
 // use parquet::arrow::parquet_to_arrow_schema;
 // use parquet::file::footer::{decode_footer, parse_metadata};
 // use parquet::schema::types::SchemaDescriptor;
@@ -46,14 +48,15 @@ pub fn parquet_scan() {
 
 pub fn group_by() {
     let df = df!(
-        "field_1" => &[10,  20, 30, 40], 
-        "field_2" => &[1,   2,  3,  4]
+        "field_1" => &[10,      20,     30,     40,     50,     60,     70,     80,     90], 
+        "field_2" => &[1,       1,      1,      1,      2,      2,      2,      2,      2],
+        "field_3" => &["a",     "b",    "c",    "d",    "e",    "f",    "g",    "h",    "i"]
     ).unwrap();
 
-    let min_max = df.clone().lazy().select([
-        col("field_1").min().alias("field_1_min"),
-        col("field_1").max().alias("field_1_max")
-    ]).collect();
+    // let min_max = df.clone().lazy().select([
+    //     col("field_1").min().alias("field_1_min"),
+    //     col("field_1").max().alias("field_1_max")
+    // ]).collect();
     
     // let df = df.clone()
     //     .lazy()
@@ -62,11 +65,14 @@ pub fn group_by() {
         // .agg([sum("field_2")])
         // .collect();
     // debug!("parquet_scan: df={:?} min_max={:?}", df, min_max);
+    
 
     let df = df.clone()
         .lazy()
         .groupby_dynamic(
-            [], 
+            // [Expr::Columns(vec![ String::from("field_2")])], 
+            [col("field_2")], 
+            // [], 
             DynamicGroupOptions {
                 index_column: "field_1".into(),
                 every: Duration::new(20),
@@ -79,7 +85,7 @@ pub fn group_by() {
          }
         )
         // .agg([sum("field_2")])
-        .agg([count()])
+        .agg([col("field_3")])
         .collect();
     
     debug!("parquet_scan: df={:?}", df);
