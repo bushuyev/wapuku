@@ -74,7 +74,8 @@ pub fn group_by() {
                 start_by: Default::default(),
          }
         )
-        .agg([sum("field_2")])
+        // .agg([sum("field_2")])
+        .agg([count()])
         .collect();
     
     debug!("parquet_scan: df={:?}", df);

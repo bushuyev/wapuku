@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 polars = {path = "../../polars/polars", default-features = false, features=["parquet"]}
+
+[workspace]

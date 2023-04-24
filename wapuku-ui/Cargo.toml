@@ -1,0 +1,52 @@
+[package]
+name = "wapuku"
+version = "0.1.0"
+edition = "2021"
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+getrandom = { version = "0.2.9", features = ["js"] }
+winit = "0.28.3"
+env_logger = "0.10.0"
+log = "0.4.17"
+
+cfg-if = "1"
+anyhow = "1.0"
+bytemuck = { version = "1.13", features = [ "derive" ] }
+cgmath = "0.18"
+# the other regular dependencies...
+reqwest = { version = "0.11" }
+tobj = { version = "3.2", features = ["async"]}
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png", "jpeg"]
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "0.2.0"
+wgpu = { version = "0.15", features = ["webgl"]}
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Window",
+    "Element",
+    "Location",
+]}
+
+
+wapuku-model = {path = "../wapuku-model" }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"
+
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[workspace]
