@@ -33,7 +33,8 @@ impl From<PolarsError> for WapukuError {
 
 
 pub fn parquet_scan() {
-    let parquet_bytes = include_bytes!("../../wapuku-model/data/s1_transactions_pi_message.par");
+    // let parquet_bytes = include_bytes!("../../wapuku-model/data/s1_transactions_pi_message.par");
+    let parquet_bytes = include_bytes!("../../wapuku-model/data/d2_transactions_pi_message.par");
     
     let mut buff = Cursor::new(parquet_bytes);
     
@@ -54,16 +55,6 @@ pub fn parquet_scan() {
 
 }
 
-pub fn simp_1() {
-    let df = df!(
-        "field_1" => &[1,       1,      2,      2,    2],
-        "field_2" => &["a",     "b",    "c",    "d",  "e"]
-    ).unwrap();
-    
-    let df = df.groupby(["field_1"]).unwrap().select(["field_2"]).groups().unwrap();
-
-    debug!("parquet_scan: df={:?}", df);
-}
 
 
 pub(crate) fn group_by(df:&DataFrame, main_group_by_field: &str, second_group_by_field: &str) -> WapukuResult<DataFrame> {
@@ -105,7 +96,7 @@ pub(crate) fn group_by(df:&DataFrame, main_group_by_field: &str, second_group_by
                 period: Duration::new(20),
                 offset: Duration::new(0),
                 truncate: true,
-                include_boundaries: true,
+                include_boundaries: false,
                 closed_window: ClosedWindow::Left,
                 start_by: Default::default(),
          }
@@ -119,6 +110,8 @@ pub(crate) fn group_by(df:&DataFrame, main_group_by_field: &str, second_group_by
 }
 
 mod tests {
+    use log::debug;
+    use polars::datatypes::AnyValue::List;
     use polars::prelude::*;
     use polars::df;
     use crate::polars_df::group_by;
@@ -152,7 +145,36 @@ mod tests {
         
          */
         let df = group_by(&df, "field_1", "field_2").expect("df");
-        // df.
+        
+        debug!("df={:?}", df);
+       
+        assert_eq!(*df.column("field_3_value").expect("field_3_value"),
+        Series::new("field_3_value", [
+            List(Series::new("", ["a"])),
+            List(Series::new("", ["b", "c"])),
+            List(Series::new("", ["d"])),
+            List(Series::new("", ["dd", "e"])),
+            List(Series::new("", ["f", "g"])),
+            List(Series::new("", ["h", "ii"])),
+        ]));
+     
+        
+    }
+    
+    #[test]
+    fn test_simp(){
+        let df = df!(
+        "field_1" => &[1,       1,      2,      2,    2],
+        "field_2" => &["a",     "b",    "c",    "d",  "e"]
+    ).unwrap();
+
+        let group_by = df.groupby(["field_1"]).unwrap();
+        let by = group_by.select(["field_2"]);
+        let df = by.groups().unwrap();
+
+        debug!("parquet_scan: df={:?}", df);
+        
+
     }
 
 }
