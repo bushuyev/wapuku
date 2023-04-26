@@ -3079,7 +3079,6 @@ dependencies = [
  "getrandom",
  "image",
  "log",
- "polars",
  "reqwest",
  "tobj",
  "wapuku-model",
