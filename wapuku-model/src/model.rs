@@ -1,5 +1,25 @@
 use std::collections::HashMap;
+use std::error;
+use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
+use polars::error::PolarsError;
+
+#[derive(Debug)]
+pub(crate) enum WapukuError {
+    DataFrame{msg:String}
+}
+
+impl Display for WapukuError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({:?})", self)
+    }
+}
+
+impl error::Error for WapukuError {
+    
+}
+
+pub(crate) type WapukuResult<T> = Result<T, WapukuError>;
 
 trait PieceOfData {
     

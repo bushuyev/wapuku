@@ -40,40 +40,5 @@ fn main() {
 
 
 
-#[cfg(test)]
-mod tests {
-    use log::LevelFilter;
-    use wapuku_model::parquet_scan::{group_by, parquet_scan};
-    use simplelog::{ColorChoice, CombinedLogger, Config, TerminalMode, TermLogger};
-
-    pub fn init_log() {
-        CombinedLogger::init(
-            vec![
-                TermLogger::new(LevelFilter::Trace, Config::default(), TerminalMode::Mixed, ColorChoice::Auto),
-            ]                                                                                                                                   
-        ).unwrap_or_else(|_|{});
-    }
-
-    #[ctor::ctor]
-    fn init() {
-        init_log();
-    }
-    
-    #[test]
-    fn test_1() {
-        std::env::set_var("POLARS_FMT_MAX_ROWS", "20");
-        
-        parquet_scan();
-        
-    }
-
-
-    #[test]
-    fn test_group_by() {
-        std::env::set_var("POLARS_FMT_MAX_ROWS", "20");
-
-        group_by();
-    }
-}
 
 
