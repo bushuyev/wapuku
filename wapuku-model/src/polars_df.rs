@@ -5,19 +5,16 @@ use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::sync::Arc;
 
-use polars::prelude::*;
-use polars::time::*;
-use polars::time::{Duration};
+use bytes::Bytes;
+use log::{debug, trace};
 // use polars::time::windows::*;
 // use polars::prelude::windows::group_by::*;
 use polars::io::parquet::*;
-
 use polars::lazy::*;
-// use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef, TimeUnit};
-use bytes::Bytes;
-
-use log::{debug, trace};
+use polars::prelude::*;
 use polars::prelude::Expr::Columns;
+use polars::time::*;
+use polars::time::Duration;
 // use parquet::arrow::parquet_to_arrow_schema;
 // use parquet::file::footer::{decode_footer, parse_metadata};
 // use parquet::schema::types::SchemaDescriptor;
@@ -112,8 +109,9 @@ pub(crate) fn group_by(df:&DataFrame, main_group_by_field: &str, second_group_by
 mod tests {
     use log::debug;
     use polars::datatypes::AnyValue::List;
-    use polars::prelude::*;
     use polars::df;
+    use polars::prelude::*;
+
     use crate::polars_df::group_by;
     use crate::tests::init_log;
 
