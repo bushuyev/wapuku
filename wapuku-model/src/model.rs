@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::error;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use polars::error::PolarsError;
 
+use crate::data_type::*;
+
 #[derive(Debug)]
 pub(crate) enum WapukuError {
-    DataFrame{msg:String}
+    DataFrame { msg: String }
 }
 
 impl Display for WapukuError {
@@ -15,98 +17,210 @@ impl Display for WapukuError {
     }
 }
 
-impl error::Error for WapukuError {
-    
-}
+impl error::Error for WapukuError {}
 
 pub(crate) type WapukuResult<T> = Result<T, WapukuError>;
 
-trait PieceOfData {
-    
+pub trait Named {
+    fn get_name(&self) -> &String;
 }
 
-pub struct UncountableProperty {
-    
+trait PropertiesSet: Named + Debug {
+    fn properties(&self) -> Vec<&dyn Property>;
 }
 
-pub trait PropertyValue {
-
+pub trait Property: Named + Debug {
+    fn get_type(&self) -> &DataType;
+    fn clone_to_box(&self) -> Box<dyn Property>;
 }
 
-pub struct Range<'a, T:PartialOrd> {
-    min:&'a T,
-    next:Option<Box<Range<'a, T>>>
+struct PropertyRange<'a> {
+    property: &'a dyn Property,
+    min: Option<f64>,
+    max: Option<f64>,
+    groups: i8,
 }
 
-impl <'a, T:PartialOrd> Range<'a, T> {
+struct PropertyInGroup {
+    property_name: String,
+    size: u8,
+}
 
-    pub fn new(min: &'a T) -> Self {
-        Self { min, next:None }
+trait DataGroup {
+    fn size(&self) -> u8;
+    fn property_groups(&self) -> Vec<&PropertyInGroup>;
+}
+
+struct SimpleDataGroup {
+    size: u8,
+    property_sizes: Vec<PropertyInGroup>,
+}
+
+impl SimpleDataGroup  {
+    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>) -> Self {
+        Self { size, property_sizes }
     }
 }
 
-pub struct Grid<'a, T:PartialOrd> {
-    min:Range<'a, T>
+impl DataGroup for SimpleDataGroup {
+    fn size(&self) -> u8 {
+        self.size
+    }
+
+    fn property_groups(&self) -> Vec<&PropertyInGroup> {
+        self.property_sizes.iter().collect()
+    }
 }
 
-impl <'a, T:PartialOrd> Grid<'a, T> {
+struct DataVec {
+    property:Box<dyn Property>,
+    data: Vec<Box<dyn DataGroup>>,//column, row
+}
 
-    pub fn new(data:&'a T) -> Self {
+impl DataVec {
 
+    pub fn new(property:Box<dyn Property>, columns:usize) -> Self {
         Self {
-            min: Range::new(data),
+            property,
+            data: Vec::with_capacity(columns)
         }
     }
 
-    pub fn add(&mut self, data:&T) 
-    where
-        T:PartialOrd
-    {
-        
-    }
+}
 
+trait Data {
+    fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
+    fn group_by_1(&self, property: PropertyRange) -> DataVec;
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{Grid, PieceOfData, PropertyValue};
-    
-    struct TestItem {
-        property_1:u32,
-        property_2:u32,
-        property_3:f32,
-        property_4:f32
+    use std::fmt::{Debug, Display, Formatter};
+    use crate::data_type::DataType;
+    use crate::model::{Data, DataVec, DataGroup, Named, PropertiesSet, Property, PropertyRange, PropertyInGroup, SimpleDataGroup};
+
+
+    #[derive(Debug)]
+    struct TestProperty {
+        property_type: DataType,
+        name: String,
     }
 
-
-    impl TestItem {
-        pub fn new(property_1: u32, property_2: u32, property_3: f32, property_4: f32) -> Self {
-            Self { property_1, property_2, property_3, property_4 }
+    impl Display for TestProperty {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.name)
         }
     }
-    
-    #[test]
-    fn test_1(){
-    
-        let d1 = TestItem::new(1, 1, 1., 1.);
-        let d2 = TestItem::new(2, 2, 2., 2.);
-        let d3 = TestItem::new(3, 3, 3., 3.);
-        let d4 = TestItem::new(4, 4, 4., 4.);
-        
-        
-        let mut grid_property_1 = Grid::new(&d1.property_1);
 
-        grid_property_1.add(&d2.property_1);
-        grid_property_1.add(&d3.property_1);
-        grid_property_1.add(&d4.property_1);
-        
-        
-        
-        let mut property_1_vec:Vec<(&u32, &TestItem)> = Vec::with_capacity(4);
-        
-        let items = vec![d1, d2, d3, d4];
-
-        // items.iter().map(|d|(d, d.property_1))
+    impl Named for TestProperty {
+        fn get_name(&self) -> &String {
+            &self.name
+        }
     }
 
+    impl Property for TestProperty {
+        fn get_type(&self) -> &DataType {
+            &self.property_type
+        }
+
+        fn clone_to_box(&self) -> Box<dyn Property> {
+            Box::new(TestProperty {
+                property_type: self.property_type.clone(),
+                name: self.name.clone(),
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct TestPropertiesSet {
+        properties: Vec<TestProperty>,
+        name: String,
+    }
+
+    impl Named for TestPropertiesSet {
+        fn get_name(&self) -> &String {
+            &self.name
+        }
+    }
+
+    impl PropertiesSet for TestPropertiesSet {
+        fn properties(&self) -> Vec<&dyn Property> {
+            self.properties.iter().fold(vec![], |mut props, p| {
+                props.push(p);
+
+                props
+            })
+        }
+    }
+
+
+    struct TestData {
+        property_sets: Vec<TestPropertiesSet>,
+    }
+
+    impl Data for TestData {
+        fn all_sets(&self) -> Vec<&dyn PropertiesSet> {
+            self.property_sets.iter().fold(vec![], |mut props, p| {
+                props.push(p);
+
+                props
+            })
+        }
+
+        fn group_by_1(&self, property_range: PropertyRange) -> DataVec {
+            // DataVec {
+            //     data: vec![
+            //         vec![
+            //             Box::new(SimpleDataGroup::new(
+            //                 8,
+            //                 vec![
+            //                     // PropertyInGroup {
+            //                     //     property: TestProperty {
+            //                     //         name: "property_1".to_string(),
+            //                     //         property_type: DataType::Numeric,
+            //                     //     },,
+            //                     //     size: 0,
+            //                     // }
+            //                 ],
+            //             ))
+            //         ]
+            //     ],
+            // }
+            DataVec::new(property_range.property.clone_to_box(), 10)
+        }
+    }
+
+    #[test]
+    fn test_data_init() {
+        let wapuku_data = TestData {
+            property_sets: vec![TestPropertiesSet {
+                name: "item_1".to_string(),
+                properties: vec![
+                    TestProperty {
+                        name: "property_1".to_string(),
+                        property_type: DataType::Numeric,
+                    },
+                    TestProperty {
+                        name: "property_2".to_string(),
+                        property_type: DataType::Numeric,
+                    },
+                    TestProperty {
+                        name: "property_3".to_string(),
+                        property_type: DataType::Numeric,
+                    },
+                ],
+
+            }],
+        };
+
+        let all_sets = wapuku_data.all_sets();
+        let property_set_1 = all_sets.first().expect("no first property set");
+
+        let mut set_1_properties = property_set_1.properties().into_iter();
+
+
+        let (property_1, property_2, property_3) = (set_1_properties.next().expect("property_1"), set_1_properties.next().expect("property_2"), set_1_properties.next().expect("property_2"));
+
+        let data_grid = wapuku_data.group_by_1(PropertyRange { property: property_1, min: None, max: None, groups: 10 });
+    }
 }

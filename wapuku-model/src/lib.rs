@@ -1,5 +1,7 @@
 pub(crate) mod polars_df;
 pub(crate) mod model;
+mod data_type;
+
 
 #[cfg(test)]
 pub(crate) mod tests {
