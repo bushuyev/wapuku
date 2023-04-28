@@ -1,8 +1,10 @@
+cargo-features = ["per-package-target"]
 [package]
-name = "wapuku"
+name = "wapuku-ui"
 version = "0.1.0"
 edition = "2021"
-
+forced-target = "wasm32-unknown-unknown"
+forced-runner = 'wasm-bindgen-test-runner'
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -49,4 +51,4 @@ wasm-bindgen-test = "0.3.34"
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
 
-[workspace]
+#[workspace]

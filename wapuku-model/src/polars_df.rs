@@ -106,6 +106,7 @@ pub(crate) fn group_by(df:&DataFrame, main_group_by_field: &str, second_group_by
     Ok(df)
 }
 
+#[cfg(test)]
 mod tests {
     use log::debug;
     use polars::datatypes::AnyValue::List;
@@ -146,7 +147,7 @@ mod tests {
         
         debug!("df={:?}", df);
        
-        assert_eq!(*df.column("field_3_value").expect("field_3_value"),
+        assert_eq!(*df.column("field_3_value").expect("field_3_valuee"),
         Series::new("field_3_value", [
             List(Series::new("", ["a"])),
             List(Series::new("", ["b", "c"])),

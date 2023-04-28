@@ -1,5 +1,5 @@
-pub(crate) mod polars_df;
-pub(crate) mod model;
+pub mod polars_df;
+pub mod model;
 mod data_type;
 
 

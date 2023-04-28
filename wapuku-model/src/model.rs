@@ -79,7 +79,7 @@ struct DataVec {
 
 impl DataVec {
 
-    pub fn new(property:Box<dyn Property>, columns:usize) -> Self {
+    pub fn new(property:Box<dyn Property>, columns:entries) -> Self {
         Self {
             property,
             data: Vec::with_capacity(columns)
@@ -168,24 +168,6 @@ mod tests {
         }
 
         fn group_by_1(&self, property_range: PropertyRange) -> DataVec {
-            // DataVec {
-            //     data: vec![
-            //         vec![
-            //             Box::new(SimpleDataGroup::new(
-            //                 8,
-            //                 vec![
-            //                     // PropertyInGroup {
-            //                     //     property: TestProperty {
-            //                     //         name: "property_1".to_string(),
-            //                     //         property_type: DataType::Numeric,
-            //                     //     },,
-            //                     //     size: 0,
-            //                     // }
-            //                 ],
-            //             ))
-            //         ]
-            //     ],
-            // }
             DataVec::new(property_range.property.clone_to_box(), 10)
         }
     }
@@ -214,7 +196,7 @@ mod tests {
         };
 
         let all_sets = wapuku_data.all_sets();
-        let property_set_1 = all_sets.first().expect("no first property set");
+        let property_set_1 = all_sets.first().expect("no first property se");
 
         let mut set_1_properties = property_set_1.properties().into_iter();
 
