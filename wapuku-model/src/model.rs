@@ -43,28 +43,29 @@ struct PropertyRange<'a> {
 
 struct PropertyInGroup {
     property_name: String,
-    size: u8,
+    volume: u8,
 }
 
 trait DataGroup {
-    fn size(&self) -> u8;
+    fn volume(&self) -> u8;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
 }
 
 struct SimpleDataGroup {
-    size: u8,
+    volume: u8,
     property_sizes: Vec<PropertyInGroup>,
 }
 
 impl SimpleDataGroup  {
+
     pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>) -> Self {
-        Self { size, property_sizes }
+        Self { volume: size, property_sizes }
     }
 }
 
 impl DataGroup for SimpleDataGroup {
-    fn size(&self) -> u8 {
-        self.size
+    fn volume(&self) -> u8 {
+        self.volume
     }
 
     fn property_groups(&self) -> Vec<&PropertyInGroup> {
@@ -72,32 +73,47 @@ impl DataGroup for SimpleDataGroup {
     }
 }
 
-struct DataVec {
+struct GroupsVec {
     property:Box<dyn Property>,
     data: Vec<Box<dyn DataGroup>>,//column, row
 }
 
-impl DataVec {
+impl GroupsVec {
 
-    pub fn new(property:Box<dyn Property>, columns:entries) -> Self {
+    pub fn new(property:Box<dyn Property>, data: Vec<Box<dyn DataGroup>>) -> Self {
+        
         Self {
             property,
-            data: Vec::with_capacity(columns)
+            data,
         }
     }
 
 }
 
+struct GroupsGrid {
+    property_x:Box<dyn Property>,
+    property_y:Box<dyn Property>,
+    data: Vec<Vec<Box<dyn DataGroup>>>
+}
+
+impl GroupsGrid {
+    pub fn new(property_x: Box<dyn Property>, property_y: Box<dyn Property>, data: Vec<Vec<Box<dyn DataGroup>>>) -> Self {
+        Self { property_x, property_y, data }
+    }
+}
+
+
 trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
-    fn group_by_1(&self, property: PropertyRange) -> DataVec;
+    fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid;
 }
 
 #[cfg(test)]
 mod tests {
     use std::fmt::{Debug, Display, Formatter};
     use crate::data_type::DataType;
-    use crate::model::{Data, DataVec, DataGroup, Named, PropertiesSet, Property, PropertyRange, PropertyInGroup, SimpleDataGroup};
+    use crate::model::{Data, GroupsVec, DataGroup, Named, PropertiesSet, Property, PropertyRange, PropertyInGroup, SimpleDataGroup, GroupsGrid};
 
 
     #[derive(Debug)]
@@ -167,9 +183,24 @@ mod tests {
             })
         }
 
-        fn group_by_1(&self, property_range: PropertyRange) -> DataVec {
-            DataVec::new(property_range.property.clone_to_box(), 10)
+        fn group_by_1(&self, property_range: PropertyRange) -> GroupsVec {
+
+            GroupsVec::new(property_range.property.clone_to_box(), vec![
+                Box::new(SimpleDataGroup::new(10, vec![]))
+            ])
         }
+
+        fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid {
+
+            GroupsGrid::new(
+                property_x.property.clone_to_box(),
+                property_y.property.clone_to_box(),
+                vec![vec![
+                        Box::new(SimpleDataGroup::new(10, vec![]))
+                ]]
+            )
+        }
+
     }
 
     #[test]
