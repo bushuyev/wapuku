@@ -36,13 +36,9 @@ impl InstanceRaw {
             attributes: &[
                 wgpu::VertexAttribute {
                     offset: 0,
-                    // While our vertex shader only uses locations 0, and 1 now, in later tutorials we'll
-                    // be using 2, 3, and 4, for Vertex. We'll start at slot 5 not conflict with them later
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },
-                // A mat4 takes up 4 vertex slots as it is technically 4 vec4s. We need to define a slot
-                // for each vec4. We don't have to do this in code though.
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 6,
@@ -195,6 +191,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup
     ) {
+        
         for mesh in &model.meshes {
             // log::warn!("materials: {}", model.materials.len());
             let material = &model.materials[mesh.material];

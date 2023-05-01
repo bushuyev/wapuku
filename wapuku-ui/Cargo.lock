@@ -2973,6 +2973,15 @@ dependencies = [
  "log",
  "polars",
  "smartstring",
+]
+
+[[package]]
+name = "wapuku-resources"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "env_logger",
+ "log",
  "tobj",
 ]
 
@@ -2993,6 +3002,7 @@ dependencies = [
  "reqwest",
  "tobj",
  "wapuku-model",
+ "wapuku-resources",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

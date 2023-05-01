@@ -5,6 +5,7 @@ use wgpu::util::DeviceExt;
 use crate::mesh_model;
 use crate::mesh_model::{Instance, MeshModel};
 use crate::texture::Texture;
+use wapuku_resources::resources::*;
 
 fn format_url(file_name: &str) -> reqwest::Url {
     let window = web_sys::window().unwrap();
@@ -78,7 +79,12 @@ pub async fn load_model(
     let mut materials = Vec::new();
     for m in obj_materials? {
         // let diffuse_texture = load_texture(&m.diffuse_texture, device, queue).await?;
-        let diffuse_texture = load_texture(&String::from("data/wapuku_purple_1024.jpg"), device, queue).await?;
+        
+        let file_name = &format!("data/{}", resource_filename(m.diffuse_texture.as_str()));
+
+        debug!("load_model: file_name={}", file_name);
+        
+        let diffuse_texture = load_texture(file_name, device, queue).await?;
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
             entries: &[

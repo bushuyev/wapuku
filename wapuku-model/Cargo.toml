@@ -9,7 +9,7 @@ name = "wapuku_model"
 path = "src/lib.rs"
 
 [dependencies]
-tobj = { version = "3.2"}
+
 
 #arrow = { version = "37.0.0", features = ["prettyprint"] }
 #arrow-schema = { version = "37.0.0", default-features = false }
