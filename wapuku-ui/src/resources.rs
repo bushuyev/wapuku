@@ -1,8 +1,9 @@
 use std::io::{BufReader, Cursor};
 use log::debug;
+
 use wgpu::util::DeviceExt;
 use crate::mesh_model;
-use crate::mesh_model::MeshModel;
+use crate::mesh_model::{Instance, MeshModel};
 use crate::texture::Texture;
 
 fn format_url(file_name: &str) -> reqwest::Url {
@@ -145,7 +146,29 @@ pub async fn load_model(
     
     debug!("load_model: meshes={:?}", meshes);
 
-    Ok(mesh_model::MeshModel { meshes, materials })
+    let instances = vec![
+        Instance {
+            position: cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            rotation: cgmath::Quaternion::new(1., 0., 0., 0.),
+        }
+    ];
+
+
+    let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+
+    let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Instance Buffer"),
+        contents: bytemuck::cast_slice(&instance_data),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+
+    Ok(mesh_model::MeshModel {
+        meshes,
+        materials,
+        instances,
+        instance_buffer
+    })
 }
 
 #[cfg(test)]
