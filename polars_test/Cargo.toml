@@ -6,4 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-polars = {path = "../../polars/polars", default-features = false, features=["parquet"]}
+#polars = {path = "../../polars/polars", default-features = false, features=["parquet"]}
+polars = {version = "0.28.0", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "temporal", "rolling_window", "fmt"]}
+
+[workspace]

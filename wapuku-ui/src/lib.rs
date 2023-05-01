@@ -19,7 +19,7 @@ use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
-use wapuku_model::parquet_scan::*;
+use wapuku_model::polars_df::parquet_scan;
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
