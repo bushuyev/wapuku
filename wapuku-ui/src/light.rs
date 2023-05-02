@@ -85,7 +85,7 @@ impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'b wgpu::BindGroup,
     ) {
-        for mesh in &model.meshes {
+        for mesh in model.meshes() {
             self.draw_light_mesh_instanced(mesh, instances.clone(), camera_bind_group, light_bind_group);
         }
     }

@@ -7,4 +7,6 @@ import init from '../pkg/wapuku_ui';
     
     console.log('init done');
 
+    await initThreadPool(navigator.hardwareConcurrency);
+
 })();

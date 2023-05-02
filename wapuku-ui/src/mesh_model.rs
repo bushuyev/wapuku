@@ -100,6 +100,7 @@ impl Vertex for ModelVertex {
     }
 }
 
+#[derive(Debug)]
 pub struct Material {
     pub name: String,
     pub diffuse_texture: texture::Texture,
@@ -112,14 +113,34 @@ pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub num_elements: u32,
-    pub material: usize,
+    pub material: Material,
 }
 
 pub struct MeshModel {
-    pub meshes: Vec<Mesh>,
-    pub materials: Vec<Material>,
-    pub instance_buffer: wgpu::Buffer,
-    pub instances: Vec<Instance>,
+    meshes: Vec<Mesh>,
+    materials: Vec<Material>,
+    instance_buffer: wgpu::Buffer,
+    instances: Vec<Instance>,
+}
+
+impl MeshModel {
+    
+    pub fn new(meshes: Vec<Mesh>, materials: Vec<Material>, instance_buffer: wgpu::Buffer, instances: Vec<Instance>) -> Self {
+        Self { meshes, materials, instance_buffer, instances }
+    }
+
+    pub fn meshes(&self) -> &Vec<Mesh> {
+        &self.meshes
+    }
+    pub fn materials(&self) -> &Vec<Material> {
+        &self.materials
+    }
+    pub fn instance_buffer(&self) -> &wgpu::Buffer {
+        &self.instance_buffer
+    }
+    pub fn instances(&self) -> &Vec<Instance> {
+        &self.instances
+    }
 }
 
 pub trait DrawModel<'a> {
@@ -194,8 +215,8 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         
         for mesh in &model.meshes {
             // log::warn!("materials: {}", model.materials.len());
-            let material = &model.materials[mesh.material];
-            self.draw_mesh_instanced(mesh, material, instances.clone(), camera_bind_group, light_bind_group);
+            // let material = &model.materials[mesh.material];
+            self.draw_mesh_instanced(mesh, &mesh.material, instances.clone(), camera_bind_group, light_bind_group);
         }
     }
 }

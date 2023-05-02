@@ -437,7 +437,7 @@ impl State {
                 }),
             });
 
-            render_pass.set_vertex_buffer(1, self.obj_model.instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.obj_model.instance_buffer().slice(..));
 
             render_pass.set_pipeline(&self.light_render_pipeline);
             render_pass.draw_light_model(
@@ -450,7 +450,7 @@ impl State {
 
             render_pass.draw_model_instanced(
                 &self.obj_model,
-                0..self.obj_model.instances.len() as u32,
+                0..self.obj_model.instances().len() as u32,
                 &self.camera_bind_group,
                 &self.light_bind_group
             );

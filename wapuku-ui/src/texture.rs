@@ -3,6 +3,7 @@ use image::GenericImageView;
 use std::num::NonZeroU32;
 use crate::state::SAMPLE_COUNT;
 
+#[derive(Debug)]
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
