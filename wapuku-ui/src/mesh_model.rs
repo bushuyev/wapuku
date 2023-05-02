@@ -1,17 +1,14 @@
 use std::ops::Range;
 use log::debug;
 use wgpu::util::DeviceExt;
+use wapuku_model::visualization::*;
 
 
-pub struct Instance {
-    pub(crate) position: cgmath::Vector3<f32>,
-    pub(crate) rotation: cgmath::Quaternion<f32>,
-}
+impl From<&Instance> for InstanceRaw {
+    fn from(value: &Instance) -> Self {
 
-impl Instance {
-    pub fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation)).into(),
+            model: (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into(),
         }
     }
 }
@@ -132,30 +129,29 @@ impl MeshModel {
     
     pub fn new(meshes: Vec<Mesh>, device: &wgpu::Device) -> Self {
         let instances = vec![
-            Instance {
-                position: cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-                rotation: cgmath::Quaternion::new(1., 0., 0., 0.),
-            },
+            Instance::new(
+                cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.)
+            ),
 
-            Instance {
-                position: cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
-                rotation: cgmath::Quaternion::new(1., 0., 0., 0.),
-            },
-                
-            Instance {
-                position: cgmath::Vector3 { x: 4.0, y: 0.0, z: 0.0 },
-                rotation: cgmath::Quaternion::new(1., 0., 0., 0.),
-            },
+            Instance::new(
+                cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.)
+            ),
 
-            Instance {
-                position: cgmath::Vector3 { x: 6.0, y: 0.0, z: 0.0 },
-                rotation: cgmath::Quaternion::new(1., 0., 0., 0.),
-            }
+            Instance::new(
+                cgmath::Vector3 { x: 3.0, y: 0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.)
+            ),
 
+            Instance::new(
+                cgmath::Vector3 { x: 4.0, y: 0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.)
+            )
         ];
 
 
-        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_data:Vec<InstanceRaw> = instances.iter().map(|i|i.into()).collect::<Vec<_>>();
 
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
@@ -175,6 +171,10 @@ impl MeshModel {
     pub fn instances(&self) -> &Vec<Instance> {
         &self.instances
     }
+    
+    pub fn build_instances(&mut self){
+        
+    }
 }
 
 pub trait DrawModel<'a> {
@@ -191,7 +191,6 @@ pub trait DrawModel<'a> {
     fn draw_model_instanced(
         &mut self,
         model: &'a MeshModel,
-        instances: Range<u32>,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
@@ -223,9 +222,8 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
 
     fn draw_model_instanced(
         &mut self,
-        model: &'b MeshModel,
-        instances: Range<u32>,
-        camera_bind_group: &'b wgpu::BindGroup,
+        model: &'a MeshModel,
+        camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup
     ) {
         

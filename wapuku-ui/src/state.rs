@@ -450,7 +450,6 @@ impl State {
 
             render_pass.draw_model_instanced(
                 &self.obj_model,
-                0..self.obj_model.instances().len() as u32,
                 &self.camera_bind_group,
                 &self.light_bind_group
             );

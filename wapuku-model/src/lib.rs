@@ -1,5 +1,6 @@
 pub mod polars_df;
 pub mod model;
+pub mod visualization;
 mod data_type;
 
 

@@ -4,7 +4,7 @@ use wgpu::{BindGroupLayout, Device, Queue};
 
 use wgpu::util::DeviceExt;
 use crate::mesh_model;
-use crate::mesh_model::{Instance, Material, MeshModel};
+use crate::mesh_model::{Material, MeshModel};
 use crate::texture::Texture;
 use wapuku_resources::resources::*;
 use futures::future::join_all;

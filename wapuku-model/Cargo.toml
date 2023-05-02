@@ -25,6 +25,7 @@ log = "0.4.17"
 #crossterm = { version = "0.24.0", default-features = false}
 #tokio = { version = "1.27.0", default-features = false}
 #parquet2 = { version = "0.17.2", default-features = false, features=[ "snappy", "gzip", "brotli", "bloom_filter"]}
+cgmath = "0.18"
 
 [dev-dependencies]
 simplelog = "0.10.2"
