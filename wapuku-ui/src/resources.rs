@@ -129,31 +129,9 @@ pub async fn load_model(
             }
         })
         .collect::<Vec<_>>()).await;
-    
-
-    let instances = vec![
-        Instance {
-            position: cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            rotation: cgmath::Quaternion::new(1., 0., 0., 0.),
-        }
-    ];
 
 
-    let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-
-    let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Instance Buffer"),
-        contents: bytemuck::cast_slice(&instance_data),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-
-
-    Ok(MeshModel::new (
-        meshes,
-        vec![],
-        instance_buffer, 
-        instances,
-    ))
+    Ok(MeshModel::new (meshes, device))
 }
 
 async fn make_material(device: &Device, queue: &Queue, layout: &BindGroupLayout, file_name: &String) -> Material {
