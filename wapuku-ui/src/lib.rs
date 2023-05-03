@@ -21,8 +21,14 @@ use winit::window::Fullscreen;
 use crate::state::State;
 use wapuku_model::polars_df::*;
 
-pub use wasm_bindgen_rayon::init_thread_pool;
 
+
+
+#[wasm_bindgen]
+pub async fn init_thread_pool(threads:usize){
+    debug!("init_thread_pool threads={}", threads);
+    wasm_bindgen_rayon::init_thread_pool(threads);
+}
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 

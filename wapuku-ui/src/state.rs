@@ -21,8 +21,8 @@ pub struct State {
     pub(crate)  size: winit::dpi::PhysicalSize<u32>,
     pub(crate)  window: Window,
 
-    model:Box<dyn VisualData>,
-    obj_model: MeshModel,
+    vis_model:Box<dyn VisualData>,
+    mesh_model: MeshModel,
     instance_buffer: wgpu::Buffer,
     color:Color,
     light_render_pipeline: wgpu::RenderPipeline,
@@ -241,8 +241,8 @@ impl State {
             camera_controller: CameraController::new(0.2),
             camera,
 
-            model,
-            obj_model: resources::load_model(
+            vis_model: model,
+            mesh_model: resources::load_model(
                 "data/wapuku.obj",
                 &device,
                 &queue,
@@ -414,7 +414,7 @@ impl State {
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
-        let instance_data:Vec<InstanceRaw> = self.model.visuals().iter().map(|i|i.into()).collect::<Vec<_>>();
+        let instance_data:Vec<InstanceRaw> = self.vis_model.visuals().iter().map(|i|i.into()).collect::<Vec<_>>();
 
         self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
     }
@@ -456,7 +456,7 @@ impl State {
 
             render_pass.set_pipeline(&self.light_render_pipeline);
             render_pass.draw_light_model(
-                &self.obj_model,
+                &self.mesh_model,
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
@@ -464,7 +464,8 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline);
 
             render_pass.draw_model_instanced(
-                &self.obj_model,
+                &self.mesh_model,
+                &self.vis_model,
                 &self.camera_bind_group,
                 &self.light_bind_group
             );

@@ -1,4 +1,4 @@
-use crate::model::Data;
+use crate::model::{Data, Named};
 
 pub struct VisualInstance {
     position: cgmath::Vector3<f32>,
@@ -29,13 +29,21 @@ impl VisualInstance {
    
 }
 
+impl Named for VisualInstance {
+    fn get_name(&self) -> &String {
+        &self.name
+    }
+}
+
 pub trait VisualData {
     fn visuals(&self)->Vec<VisualInstance>;
 }
 //TODO https://github.com/rust-lang/rust/issues/70263
 // impl <D: for<'a> Data<'a>> VisualData for D {
 impl <'a, D:Data<'a>> VisualData for D {
+
     fn visuals(&self) -> Vec<VisualInstance> {
+
         vec![
             VisualInstance::new(
                 cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },

@@ -117,53 +117,17 @@ pub struct Mesh {
 
 pub struct MeshModel {
     meshes: Vec<Mesh>,
-    instances: Vec<VisualInstance>,
 }
 
 impl MeshModel {
     
     pub fn new(meshes: Vec<Mesh>, device: &wgpu::Device) -> Self {
-
-        let instances = vec![
-            VisualInstance::new(
-                cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_1"
-            ),
-
-            VisualInstance::new(
-                cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_1"
-            ),
-
-            VisualInstance::new(
-                cgmath::Vector3 { x: 3.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_2"
-            ),
-
-            VisualInstance::new(
-                cgmath::Vector3 { x: 4.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_3"
-            )
-        ];
-
-
-        // let instance_data:Vec<InstanceRaw> = instances.iter().map(|i|i.into()).collect::<Vec<_>>();
-        // 
-        // let instance_buffer = ;
-        
-        Self { meshes, instances }
+        Self { meshes }
     }
     
 
     pub fn meshes(&self) -> &Vec<Mesh> {
         &self.meshes
-    }
-    pub fn instances(&self) -> &Vec<VisualInstance> {
-        &self.instances
     }
     
 }
@@ -182,6 +146,7 @@ pub trait DrawModel<'a> {
     fn draw_model_instanced(
         &mut self,
         model: &'a MeshModel,
+        instances: Range<u32>,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
@@ -214,14 +179,17 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
     fn draw_model_instanced(
         &mut self,
         model: &'a MeshModel,
+        instances: Range<u32>,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup
     ) {
         
         model.meshes.iter().enumerate().for_each(|(i, mesh)| {
+            
             // log::warn!("materials: {}", model.materials.len());
             // let material = &model.materials[mesh.material];
-            self.draw_mesh_instanced(mesh, &mesh.material, i as u32 * 2..i as u32 * 2 + 2, camera_bind_group, light_bind_group);
+            // self.draw_mesh_instanced(mesh, &mesh.material, i as u32 * 2..i as u32 * 2 + 2, camera_bind_group, light_bind_group);
+            self.draw_mesh_instanced(mesh, &mesh.material, instances, camera_bind_group, light_bind_group);
             // self.draw_mesh_instanced(mesh, &mesh.material, 0..4, camera_bind_group, light_bind_group);
         });
     }
