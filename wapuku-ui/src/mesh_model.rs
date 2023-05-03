@@ -4,8 +4,8 @@ use wgpu::util::DeviceExt;
 use wapuku_model::visualization::*;
 
 
-impl From<&Instance> for InstanceRaw {
-    fn from(value: &Instance) -> Self {
+impl From<&VisualInstance> for InstanceRaw {
+    fn from(value: &VisualInstance) -> Self {
 
         InstanceRaw {
             model: (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into(),
@@ -117,64 +117,55 @@ pub struct Mesh {
 
 pub struct MeshModel {
     meshes: Vec<Mesh>,
-    instance_buffer: wgpu::Buffer,
-    instances: Vec<Instance>,
+    instances: Vec<VisualInstance>,
 }
 
 impl MeshModel {
     
-    pub fn tick(&mut self){
-        // self.instance_buffer.
-    }
-    
     pub fn new(meshes: Vec<Mesh>, device: &wgpu::Device) -> Self {
+
         let instances = vec![
-            Instance::new(
+            VisualInstance::new(
                 cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.)
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "property_1"
             ),
 
-            Instance::new(
+            VisualInstance::new(
                 cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.)
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "property_1"
             ),
 
-            Instance::new(
+            VisualInstance::new(
                 cgmath::Vector3 { x: 3.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.)
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "property_2"
             ),
 
-            Instance::new(
+            VisualInstance::new(
                 cgmath::Vector3 { x: 4.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.)
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "property_3"
             )
         ];
 
 
-        let instance_data:Vec<InstanceRaw> = instances.iter().map(|i|i.into()).collect::<Vec<_>>();
-
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        // let instance_data:Vec<InstanceRaw> = instances.iter().map(|i|i.into()).collect::<Vec<_>>();
+        // 
+        // let instance_buffer = ;
         
-        Self { meshes, instance_buffer, instances }
+        Self { meshes, instances }
     }
+    
 
     pub fn meshes(&self) -> &Vec<Mesh> {
         &self.meshes
     }
-    pub fn instance_buffer(&self) -> &wgpu::Buffer {
-        &self.instance_buffer
-    }
-    pub fn instances(&self) -> &Vec<Instance> {
+    pub fn instances(&self) -> &Vec<VisualInstance> {
         &self.instances
     }
     
-    pub fn build_instances(&mut self){
-        
-    }
 }
 
 pub trait DrawModel<'a> {

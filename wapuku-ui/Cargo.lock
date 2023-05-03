@@ -2976,6 +2976,7 @@ name = "wapuku-model"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "cgmath",
  "log",
  "polars",
  "smartstring",

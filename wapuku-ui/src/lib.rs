@@ -19,7 +19,7 @@ use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
-use wapuku_model::polars_df::parquet_scan;
+use wapuku_model::polars_df::*;
 
 pub use wasm_bindgen_rayon::init_thread_pool;
 
@@ -37,7 +37,9 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     debug!("run");
 
-    parquet_scan();
+    
+    
+    
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
@@ -56,7 +58,9 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     debug!("running");
     
-    let mut state = State::new(window).await;
+    
+    
+    let mut state = State::new(window, Box::new(PolarsData::new())).await;
 
     event_loop.run(move |event, _, control_flow| {
         debug!("event_loop.run={:?}", event);
@@ -83,10 +87,9 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 event: ref window_event,
                 window_id,
             } if window_id == state.window().id() => {
-                debug!("event_loop window_id={:?} state.window().id()={:?} state.input(event)={}", window_id, state.window().id(), state.input(window_event));
+                debug!("event_loop window_id={:?} state.window().id()={:?}", window_id, state.window().id());
                 
-                // if state.input(window_event) { // UPDATED!
-                
+                if state.input(window_event) {
                 
                     match window_event {
                         WindowEvent::CursorMoved {..} => {
@@ -109,7 +112,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                         }
                         _ => {}
                     }
-                // }
+                }
             }
             _ => {}
         }

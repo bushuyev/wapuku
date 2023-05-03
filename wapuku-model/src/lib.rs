@@ -1,7 +1,7 @@
 pub mod polars_df;
 pub mod model;
 pub mod visualization;
-mod data_type;
+pub mod data_type;
 
 
 #[cfg(test)]

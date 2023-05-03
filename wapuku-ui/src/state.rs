@@ -1,4 +1,4 @@
-use std::iter;
+use std::{f32, iter};
 use log::debug;
 use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, ShaderModule, SurfaceConfiguration, Texture, TextureFormat, VertexBufferLayout};
 use wgpu::util::DeviceExt;
@@ -9,7 +9,8 @@ use crate::{mesh_model, resources, texture};
 use cgmath::prelude::*;
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
-
+use wapuku_model::model::*;
+use wapuku_model::visualization::*;
 
 
 pub struct State {
@@ -19,9 +20,10 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     pub(crate)  size: winit::dpi::PhysicalSize<u32>,
     pub(crate)  window: Window,
-    
+
+    model:Box<dyn VisualData>,
     obj_model: MeshModel,
-    
+    instance_buffer: wgpu::Buffer,
     color:Color,
     light_render_pipeline: wgpu::RenderPipeline,
     render_pipeline: wgpu::RenderPipeline,
@@ -45,7 +47,8 @@ pub struct State {
 pub const SAMPLE_COUNT: u32 = 1; //4;
 
 impl State {
-    pub async fn new(window: Window) -> Self {
+
+    pub async fn new(window: Window, model:Box<dyn VisualData>) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -197,8 +200,10 @@ impl State {
                 }],
                 label: None,
             });
+
+
         
-        
+
 
         Self {
             surface,
@@ -236,12 +241,19 @@ impl State {
             camera_controller: CameraController::new(0.2),
             camera,
 
+            model,
             obj_model: resources::load_model(
                 "data/wapuku.obj",
                 &device,
                 &queue,
                 &texture_bind_group_layout,
             ).await.unwrap(),
+
+            instance_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Instance Buffer"),
+                contents: &[0; 1000], //TODO resize?
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            }),
 
             light_uniform,
             light_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -402,6 +414,9 @@ impl State {
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
+        let instance_data:Vec<InstanceRaw> = self.model.visuals().iter().map(|i|i.into()).collect::<Vec<_>>();
+
+        self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -437,7 +452,7 @@ impl State {
                 }),
             });
 
-            render_pass.set_vertex_buffer(1, self.obj_model.instance_buffer().slice(..));
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
             render_pass.set_pipeline(&self.light_render_pipeline);
             render_pass.draw_light_model(
