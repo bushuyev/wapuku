@@ -38,7 +38,23 @@ struct PropertyRange<'a> {
     property: &'a dyn Property,
     min: Option<f64>,
     max: Option<f64>,
-    groups: i8,
+}
+
+impl <'a> PropertyRange <'a> {
+
+    pub fn new(property: &'a dyn Property, min: Option<f64>, max: Option<f64>) -> Self {
+        Self {
+            property,
+            min, max 
+        }
+    }
+    
+    pub fn to_range(&self, min: Option<f64>, max: Option<f64>)->Self {
+        Self {
+            property: self.property, 
+            min, max 
+        }
+    }
 }
 
 struct PropertyInGroup {
@@ -46,30 +62,51 @@ struct PropertyInGroup {
     volume: u8,
 }
 
+enum DataBounds<'a> {
+    X(PropertyRange<'a>),
+    XY(PropertyRange<'a>, PropertyRange<'a>),
+    XYZ(PropertyRange<'a>, PropertyRange<'a>, PropertyRange<'a>),
+}
+
 trait DataGroup {
     fn volume(&self) -> u8;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
+    fn min_value(&self) -> f64;
+    fn max_value(&self) -> f64;
 }
 
-struct SimpleDataGroup {
+struct SimpleDataGroup<'a> {
     volume: u8,
     property_sizes: Vec<PropertyInGroup>,
+    bounds: DataBounds<'a>
 }
 
-impl SimpleDataGroup  {
+impl <'a> SimpleDataGroup<'a>  {
 
-    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>) -> Self {
-        Self { volume: size, property_sizes }
+    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds<'a>) -> Self {
+        Self { 
+            volume: size, 
+            property_sizes,
+            bounds
+        }
     }
 }
 
-impl DataGroup for SimpleDataGroup {
+impl <'a> DataGroup for SimpleDataGroup<'a> {
     fn volume(&self) -> u8 {
         self.volume
     }
 
     fn property_groups(&self) -> Vec<&PropertyInGroup> {
         self.property_sizes.iter().collect()
+    }
+
+    fn min_value(&self) -> f64 {
+        todo!()
+    }
+
+    fn max_value(&self) -> f64 {
+        todo!()
     }
 }
 
@@ -90,10 +127,13 @@ impl GroupsVec {
 
 }
 
+type VecX = Vec<Box<dyn DataGroup>>;
+type VecY = Vec<VecX>;
+
 struct GroupsGrid {
     property_x:Box<dyn Property>,
     property_y:Box<dyn Property>,
-    data: Vec<Vec<Box<dyn DataGroup>>>
+    data: VecY
 }
 
 impl GroupsGrid {
@@ -105,15 +145,16 @@ impl GroupsGrid {
 
 trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
-    fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid;
+    fn group_by_1(&self, property_x: PropertyRange<'static>) -> GroupsVec;
+    fn group_by_2(&self, property_x: PropertyRange<'static>, property_y: PropertyRange<'static>) -> GroupsGrid;
 }
 
 #[cfg(test)]
 mod tests {
     use std::fmt::{Debug, Display, Formatter};
+    use std::mem;
     use crate::data_type::DataType;
-    use crate::model::{Data, GroupsVec, DataGroup, Named, PropertiesSet, Property, PropertyRange, PropertyInGroup, SimpleDataGroup, GroupsGrid};
+    use crate::model::{Data, GroupsVec, DataGroup, Named, PropertiesSet, Property, PropertyRange, PropertyInGroup, SimpleDataGroup, GroupsGrid, DataBounds};
 
 
     #[derive(Debug)]
@@ -175,6 +216,7 @@ mod tests {
     }
 
     impl Data for TestData {
+        
         fn all_sets(&self) -> Vec<&dyn PropertiesSet> {
             self.property_sets.iter().fold(vec![], |mut props, p| {
                 props.push(p);
@@ -183,21 +225,23 @@ mod tests {
             })
         }
 
-        fn group_by_1(&self, property_range: PropertyRange) -> GroupsVec {
+        fn group_by_1(&self, property_range: PropertyRange<'static>) -> GroupsVec {
 
             GroupsVec::new(property_range.property.clone_to_box(), vec![
-                Box::new(SimpleDataGroup::new(10, vec![]))
+                Box::new(SimpleDataGroup::new(10, vec![], DataBounds::X(property_range.to_range(Some(0.0),Some(10.0)))))
             ])
         }
 
-        fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid {
+        fn group_by_2(&self, property_x: PropertyRange<'static>, property_y: PropertyRange<'static>) -> GroupsGrid {
 
             GroupsGrid::new(
                 property_x.property.clone_to_box(),
                 property_y.property.clone_to_box(),
-                vec![vec![
-                        Box::new(SimpleDataGroup::new(10, vec![]))
-                ]]
+                vec![
+                    (0..10).map(|i|Box::<dyn DataGroup>::from(Box::new(
+                        SimpleDataGroup::new(10, vec![], DataBounds::X(property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))))
+                    ))).collect()
+                ]
             )
         }
 
@@ -234,6 +278,20 @@ mod tests {
 
         let (property_1, property_2, property_3) = (set_1_properties.next().expect("property_1"), set_1_properties.next().expect("property_2"), set_1_properties.next().expect("property_2"));
 
-        let data_grid = wapuku_data.group_by_1(PropertyRange { property: property_1, min: None, max: None, groups: 10 });
+        let data_vec = wapuku_data.group_by_1(PropertyRange::new (property_1,  None, None ));
+
+        let data_grid = wapuku_data.group_by_2(
+            PropertyRange::new (property_1,  None, None ),
+            PropertyRange::new (property_2,  None, None )
+        );
+
+        if let Some(group) = data_grid.data.first().and_then(|first_row|first_row.first()) {
+
+            let data_grid_0_0 = wapuku_data.group_by_2(
+                PropertyRange::new (property_1,  None, None ),
+                PropertyRange::new (property_2,  None, None )
+            );
+        }
+        
     }
 }
