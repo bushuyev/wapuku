@@ -1,10 +1,12 @@
 use std::{f32, iter};
+use std::collections::HashMap;
+use std::ops::Range;
 use log::debug;
 use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, ShaderModule, SurfaceConfiguration, Texture, TextureFormat, VertexBufferLayout};
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
 use winit::window::Window;
-use crate::mesh_model::{DrawModel, InstanceRaw, MeshModel, Vertex};
+use crate::mesh_model::{DrawModel, InstanceRaw, Mesh, MeshInstances, MeshModel, Vertex};
 use crate::{mesh_model, resources, texture};
 use cgmath::prelude::*;
 use crate::camera::{Camera, CameraController, CameraUniform};
@@ -91,7 +93,7 @@ impl State {
         // Srgb surfaces, you'll need to account for that when drawing to the frame.
         let surface_format = surface_caps.formats.iter()
             .copied()
-            .filter(|f| f.describe().srgb)
+            .filter(|f| f.is_srgb())
             .next()
             .unwrap_or(surface_caps.formats[0]);
 
@@ -414,7 +416,32 @@ impl State {
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
-        let instance_data:Vec<InstanceRaw> = self.vis_model.visuals().iter().map(|i|i.into()).collect::<Vec<_>>();
+        let visuals:HashMap<String, Vec<VisualInstance>> = self.vis_model.visuals();
+
+        let mut prev_mesh_range = 0u32;
+
+        let instance_data:Vec<InstanceRaw> = visuals.iter().flat_map(|(name, m)|{
+            
+            let mesh_name = match name.as_str() {
+                "property_1" => "Sphere",
+                &_ => "Cone"
+            };
+            
+            debug!("State::update: mesh_name={:?} name={:?}", mesh_name, name);
+            
+            
+            let mesh_op = self.mesh_model.mesh_by_name(mesh_name);
+            
+            if let Some(mesh) = mesh_op {
+                let mesh_range = prev_mesh_range + m.len() as u32;
+
+                mesh.set_instances_range((prev_mesh_range..mesh_range));
+
+                prev_mesh_range = mesh_range;
+            }
+                
+            m.iter()
+        }).map(|i|i.into()).collect::<Vec<InstanceRaw>>();
 
         self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
     }
@@ -462,10 +489,10 @@ impl State {
             );
             
             render_pass.set_pipeline(&self.render_pipeline);
+            
 
             render_pass.draw_model_instanced(
                 &self.mesh_model,
-                &self.vis_model,
                 &self.camera_bind_group,
                 &self.light_bind_group
             );

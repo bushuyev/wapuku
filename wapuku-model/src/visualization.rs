@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::model::{Data, Named};
 
 pub struct VisualInstance {
@@ -36,39 +37,61 @@ impl Named for VisualInstance {
 }
 
 pub trait VisualData {
-    fn visuals(&self)->Vec<VisualInstance>;
+    fn visuals(&self)->HashMap<String, Vec<VisualInstance>>;
 }
 //TODO https://github.com/rust-lang/rust/issues/70263
 // impl <D: for<'a> Data<'a>> VisualData for D {
 impl <'a, D:Data<'a>> VisualData for D {
 
-    fn visuals(&self) -> Vec<VisualInstance> {
+    fn visuals(&self) -> HashMap<String, Vec<VisualInstance>> {
 
-        vec![
-            VisualInstance::new(
+        // vec![
+        //     VisualInstance::new(
+        //         cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+        //         cgmath::Quaternion::new(1., 0., 0., 0.),
+        //         "property_1"
+        //     ),
+        // 
+        //     VisualInstance::new(
+        //         cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
+        //         cgmath::Quaternion::new(1., 0., 0., 0.),
+        //         "property_1"
+        //     ),
+        // 
+        //     VisualInstance::new(
+        //         cgmath::Vector3 { x: 3.0, y: 0.0, z: 0.0 },
+        //         cgmath::Quaternion::new(1., 0., 0., 0.),
+        //         "property_2"
+        //     ),
+        // 
+        //     VisualInstance::new(
+        //         cgmath::Vector3 { x: 4.0, y: 0.0, z: 0.0 },
+        //         cgmath::Quaternion::new(1., 0., 0., 0.),
+        //         "property_3"
+        //     )
+        // ]
+        let mut h = HashMap::new();
+        h.insert(String::from("property_1"), 
+            vec![
+                 VisualInstance::new(
                 cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 },
                 cgmath::Quaternion::new(1., 0., 0., 0.),
                 "property_1"
-            ),
+                ),
+            ]
+        );
 
-            VisualInstance::new(
-                cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_1"
-            ),
-
-            VisualInstance::new(
-                cgmath::Vector3 { x: 3.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_2"
-            ),
-
-            VisualInstance::new(
-                cgmath::Vector3 { x: 4.0, y: 0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "property_3"
-            )
-        ]
+        h.insert(String::from("property_2"),
+                 vec![
+                     VisualInstance::new(
+                         cgmath::Vector3 { x: 2.0, y: 0.0, z: 0.0 },
+                         cgmath::Quaternion::new(1., 0., 0., 0.),
+                         "property_2"
+                     ),
+                 ]
+        );
+        
+        h
     }
 }
 
@@ -80,6 +103,6 @@ mod tests {
     #[test]
     pub fn test_build_instances(){
         // let model = MeshModel::new(); 
-        println!("Ok")
+        println!("Okk")
     }
 }

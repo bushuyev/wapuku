@@ -120,13 +120,13 @@ pub async fn load_model(
                 usage: wgpu::BufferUsages::INDEX,
             });
     
-            mesh_model::Mesh {
-                name: m.name,
+            mesh_model::Mesh::new(
+                m.name,
                 vertex_buffer,
                 index_buffer,
-                num_elements: m.mesh.indices.len() as u32,
-                material: make_material(device, queue, layout, texture).await,
-            }
+                m.mesh.indices.len() as u32,
+                make_material(device, queue, layout, texture).await,
+            )
         })
         .collect::<Vec<_>>()).await;
 
