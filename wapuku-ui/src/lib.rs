@@ -13,7 +13,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use winit::dpi::PhysicalSize;
+use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::event_loop::EventLoopBuilder;
 use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
@@ -48,16 +48,25 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
-    let window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
+    let winit_window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
 
-    // window.set_inner_size(PhysicalSize::new(450, 400));
+    // window.set_max_inner_size(Some(LogicalSize::new(200.0, 200.0)));
+    
 
     web_sys::window()
         .and_then(|win| win.document())
         .and_then(|doc| {
-            let dst = doc.get_element_by_id("wapuku_canvas")?;
-            let canvas = web_sys::Element::from(window.canvas());
-            dst.append_child(&canvas).ok()?;
+            let div = doc.get_element_by_id("wapuku_canvas_div")?;
+            let width = div.client_width() as f32;
+            let height = div.client_height() as f32;
+            
+            let canvas = web_sys::Element::from(winit_window.canvas());
+            div.append_child(&canvas).ok()?;
+            
+            debug!("web_sys::window: width={}, height={}", width, height);
+
+            winit_window.set_inner_size(PhysicalSize::new(width, height));
+            
             Some(())
         })
         .expect("Couldn't append canvas to document body.");
@@ -66,10 +75,10 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
     
     
-    let mut state = State::new(window, Box::new(PolarsData::new())).await;
+    let mut state = State::new(winit_window, Box::new(PolarsData::new())).await;
 
     event_loop.run(move |event, _, control_flow| {
-        debug!("event_loop.run={:?}", event);
+        // debug!("event_loop.run={:?}", event);
         
         match event {
             Event::RedrawRequested(window_id) if window_id == state.window().id() => {
@@ -93,7 +102,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 event: ref window_event,
                 window_id,
             } if window_id == state.window().id() => {
-                debug!("event_loop window_id={:?} state.window().id()={:?}", window_id, state.window().id());
+                // debug!("event_loop window_id={:?} state.window().id()={:?}", window_id, state.window().id());
                 
                 if state.input(window_event) {
                 

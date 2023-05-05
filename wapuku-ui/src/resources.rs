@@ -87,6 +87,7 @@ pub async fn load_model(
         .map(|m| format!("data/{}", resource_filename(m.diffuse_texture.as_str())) )
         .collect::<Vec<String>>();
     
+    //Blender -> Wavefront: Forward Axis -Z, Up axis Y (default)
     let meshes = join_all(models
         .into_iter()
         .zip(models_textures.iter())
@@ -94,15 +95,15 @@ pub async fn load_model(
             let vertices = (0..m.mesh.positions.len() / 3)
                 .map(|i| mesh_model::ModelVertex {
                     position: [
-                        m.mesh.positions[i * 3],
-                        m.mesh.positions[i * 3 + 1],
                         m.mesh.positions[i * 3 + 2],
+                        m.mesh.positions[i * 3 + 1],
+                        -m.mesh.positions[i * 3],
                     ],
-                    tex_coords: [m.mesh.texcoords[i * 2], m.mesh.texcoords[i * 2 + 1]],
+                    tex_coords: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
                     normal: [
-                        m.mesh.normals[i * 3],
-                        m.mesh.normals[i * 3 + 1],
                         m.mesh.normals[i * 3 + 2],
+                        m.mesh.normals[i * 3 + 1],
+                        -m.mesh.normals[i * 3],
                     ],
                 })
                 .collect::<Vec<_>>();

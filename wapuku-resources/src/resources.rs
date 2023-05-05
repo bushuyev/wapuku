@@ -59,7 +59,7 @@ mod tests {
                 
                 tobj::load_mtl_buf(&mut mtl_reader)
             }
-        ).unwrap();
+        ).expect("model");
 
         println!("model={:?}", model.iter().map(|m|m.name.to_owned()).collect::<Vec<String>>());
         println!("mat={:?}", mat_r.unwrap());

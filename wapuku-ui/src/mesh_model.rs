@@ -6,9 +6,12 @@ use wapuku_model::visualization::*;
 
 impl From<&VisualInstance> for InstanceRaw {
     fn from(value: &VisualInstance) -> Self {
+        //
+        let mut model:[[f32; 4]; 4] = (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into();
+        model[3][0] = - model[3][0];
 
         InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into(),
+            model,
         }
     }
 }
@@ -130,6 +133,11 @@ impl Mesh {
     
     pub fn set_instances_range(&mut self, instances:Range<u32>) {
         self.instances = instances;
+    }
+
+
+    pub fn instances(&self) -> &Range<u32> {
+        &self.instances
     }
 }
 

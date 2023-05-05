@@ -52,6 +52,8 @@ impl State {
 
     pub async fn new(window: Window, model:Box<dyn VisualData>) -> Self {
         let size = window.inner_size();
+        
+        debug!("State::new: size={:?}", size);
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -135,7 +137,7 @@ impl State {
 
 
         let camera = Camera {
-            eye: (0.0, 5.0, -10.0).into(),
+            eye: (0.0, 0.0, -10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
@@ -395,6 +397,7 @@ impl State {
         &self.window
     }
 
+    //https://github.com/rust-windowing/winit/issues/1661
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         debug!("State::resize: new_size={:?}", new_size);
 
@@ -418,20 +421,37 @@ impl State {
 
         let visuals:HashMap<String, Vec<VisualInstance>> = self.vis_model.visuals();
 
+        let instance_data = self.visualis_to_raw(visuals);
+
+        self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+
+        let old_position: cgmath::Vector3<_> = self.light_uniform.position.into();
+        // self.light_uniform.position = 
+        //     (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(1.0))
+        //         * old_position)
+        //         .into();
+        
+        self.light_uniform.position = [self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
+        self.queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
+
+    }
+
+    fn visualis_to_raw(&mut self, visuals: HashMap<String, Vec<VisualInstance>>) -> Vec<InstanceRaw> {
         let mut prev_mesh_range = 0u32;
 
-        let instance_data:Vec<InstanceRaw> = visuals.iter().flat_map(|(name, m)|{
-            
+        let instance_data: Vec<InstanceRaw> = visuals.iter().flat_map(|(name, m)| {
+
             let mesh_name = match name.as_str() {
                 "property_1" => "Sphere",
-                &_ => "Cone"
+                "property_2" => "Cone",
+                "property_3" => "Cube",
+                &_ => "Cube"
             };
-            
+
             debug!("State::update: mesh_name={:?} name={:?}", mesh_name, name);
-            
-            
+
             let mesh_op = self.mesh_model.mesh_by_name(mesh_name);
-            
+
             if let Some(mesh) = mesh_op {
                 let mesh_range = prev_mesh_range + m.len() as u32;
 
@@ -439,11 +459,10 @@ impl State {
 
                 prev_mesh_range = mesh_range;
             }
-                
-            m.iter()
-        }).map(|i|i.into()).collect::<Vec<InstanceRaw>>();
 
-        self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+            m.iter()
+        }).map(|i| i.into()).collect::<Vec<InstanceRaw>>();
+        instance_data
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
