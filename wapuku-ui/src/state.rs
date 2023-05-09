@@ -1,7 +1,7 @@
 use std::{f32, iter};
 use std::collections::HashMap;
-use std::ops::Range;
-use log::debug;
+use std::ops::{Mul, Range};
+use log::{debug, trace};
 use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, ShaderModule, SurfaceConfiguration, Texture, TextureFormat, VertexBufferLayout};
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
@@ -9,6 +9,7 @@ use winit::window::Window;
 use crate::mesh_model::{DrawModel, InstanceRaw, Mesh, MeshInstances, MeshModel, Vertex};
 use crate::{mesh_model, resources, texture};
 use cgmath::prelude::*;
+use cgmath::{Matrix4, Point3, Vector2, Vector4};
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
 use wapuku_model::model::*;
@@ -23,7 +24,7 @@ pub struct State {
     pub(crate)  size: winit::dpi::PhysicalSize<u32>,
     pub(crate)  window: Window,
 
-    vis_model:Box<dyn VisualData>,
+    vis_ctrl:VisualDataController,//TODO rename
     mesh_model: MeshModel,
     instance_buffer: wgpu::Buffer,
     color:Color,
@@ -42,7 +43,9 @@ pub struct State {
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
 
-    multisampled_framebuffer: wgpu::TextureView
+    multisampled_framebuffer: wgpu::TextureView,
+
+    inverse_proj: Matrix4<f32>
 
 }
 
@@ -50,7 +53,7 @@ pub const SAMPLE_COUNT: u32 = 1; //4;
 
 impl State {
 
-    pub async fn new(window: Window, model:Box<dyn VisualData>) -> Self {
+    pub async fn new(window: Window, model:VisualDataController) -> Self {
         let size = window.inner_size();
         
         debug!("State::new: size={:?}", size);
@@ -148,7 +151,7 @@ impl State {
         
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        let inverse_proj = camera_uniform.update_view_proj(&camera);
 
 
 
@@ -245,7 +248,7 @@ impl State {
             camera_controller: CameraController::new(0.2),
             camera,
 
-            vis_model: model,
+            vis_ctrl: model,
             mesh_model: resources::load_model(
                 "data/wapuku.obj",
                 &device,
@@ -255,7 +258,7 @@ impl State {
 
             instance_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
-                contents: &[0; 1000], //TODO resize?
+                contents: &[0; 10000], //TODO resize?
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             }),
 
@@ -282,7 +285,7 @@ impl State {
             config,
             device,
             queue,
-            
+            inverse_proj
             
         }
         
@@ -411,19 +414,39 @@ impl State {
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
         self.camera_controller.process_events(event)
-
     }
 
-    pub fn update(&mut self) {
+    pub fn pointer_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
+        debug!("pointer_moved: location={:?} self.size={:?} self.camera_uniform.view_proj()={:?} self.inverse_proj={:?}", position, self.size, self.camera_uniform.view_proj(), self.inverse_proj);
+
+
+        let clip_x = position.x as f32 / self.size.width as f32 *  2. - 1.;
+        let clip_y = position.y as f32 / self.size.height as f32 * -2. + 1.;
+
+
+        let clip_pos = Vector4::<f32>::new(clip_x, clip_y  as f32, -10., 1.,);
+
+        let p = Point3::new(0., 0., 0.);
+        clip_pos.
+        // p.mul(self.inverse_proj);
+        
+        let pos_in_world = self.inverse_proj.mul(clip_pos);
+
+        debug!("pointer_moved: clip_pos={:?} pos_in_world={:?}", clip_pos, pos_in_world);
+    }
+
+    pub fn update(&mut self/*, visuals:HashMap<String, Vec<VisualInstance>>*/) {
         self.camera_controller.update_camera(&mut self.camera);
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.inverse_proj = self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
-        let visuals:HashMap<String, Vec<VisualInstance>> = self.vis_model.visuals();
+        if let Some(visuals) = self.vis_ctrl.visuals() {
+            // debug!("State::update: self.config.width={:?}, self.config.height={:?}, self.camera.build_view_projection_matrix()={:?}", self.config.width, self.config.height, self.camera.build_view_projection_matrix());
+            
+            let instance_data = self.visuals_to_raw(visuals);
 
-        let instance_data = self.visualis_to_raw(visuals);
-
-        self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+            self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+        }
 
       
         self.light_uniform.position = self.camera.eye.into(); //[self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
@@ -431,8 +454,10 @@ impl State {
 
     }
 
-    fn visualis_to_raw(&mut self, visuals: HashMap<String, Vec<VisualInstance>>) -> Vec<InstanceRaw> {
+    //TODO move out
+    fn visuals_to_raw(&mut self, visuals: HashMap<String, Vec<VisualInstance>>) -> Vec<InstanceRaw> {
         let mut prev_mesh_range = 0u32;
+        
 
         let instance_data: Vec<InstanceRaw> = visuals.iter().flat_map(|(name, m)| {
 
@@ -443,7 +468,7 @@ impl State {
                 &_ => "Cube"
             };
 
-            debug!("State::update: mesh_name={:?} name={:?}", mesh_name, name);
+            debug!("State::visualis_to_raw: mesh_name={:?} name={:?}", mesh_name, name);
 
             let mesh_op = self.mesh_model.mesh_by_name(mesh_name);
 
@@ -457,6 +482,9 @@ impl State {
 
             m.iter()
         }).map(|i| i.into()).collect::<Vec<InstanceRaw>>();
+
+        debug!("State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
+        
         instance_data
     }
 

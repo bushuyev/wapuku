@@ -1,3 +1,4 @@
+use cgmath::Matrix4;
 use winit::event::{ElementState, KeyboardInput, VirtualKeyCode, WindowEvent};
 use cgmath::prelude::*;
 
@@ -31,17 +32,25 @@ impl Camera {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct CameraUniform {
     view_proj: [[f32; 4]; 4],
+   
 }
 
 impl CameraUniform {
     pub(crate)  fn new() -> Self {
         Self {
-            view_proj: cgmath::Matrix4::identity().into(),
+            view_proj: cgmath::Matrix4::identity().into()
         }
     }
 
-    pub(crate)  fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix()).into();
+    pub(crate) fn update_view_proj(&mut self, camera: &Camera) -> Matrix4<f32> {
+        let proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix());
+        self.view_proj = proj.into();
+        proj.invert().unwrap_or(cgmath::Matrix4::identity())
+    }
+
+
+    pub fn view_proj(&self) -> &[[f32; 4]; 4] {
+        &self.view_proj
     }
 }
 

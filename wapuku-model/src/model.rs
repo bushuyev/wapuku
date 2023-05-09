@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use polars::error::PolarsError;
 
 use crate::data_type::*;
 
 #[derive(Debug)]
-pub(crate) enum WapukuError {
+pub enum WapukuError {
     DataFrame { msg: String }
 }
 
@@ -19,7 +20,7 @@ impl Display for WapukuError {
 
 impl error::Error for WapukuError {}
 
-pub(crate) type WapukuResult<T> = Result<T, WapukuError>;
+pub type WapukuResult<T> = Result<T, WapukuError>;
 
 pub trait Named {
     fn get_name(&self) -> &String;
@@ -29,37 +30,55 @@ pub trait PropertiesSet: Named + Debug {
     fn properties(&self) -> Vec<&dyn Property>;
 }
 
-pub trait Property: Named + Debug {
+pub trait Property: Named + Debug  {
     fn get_type(&self) -> &WapukuDataType;
     fn clone_to_box(&self) -> Box<dyn Property>;
     fn name(&self)->&String;
 }
 
-pub struct PropertyRange<'a> {
-    property: &'a dyn Property,
+
+impl Hash for &dyn Property {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.name().hash(state)
+    }
+}
+
+impl PartialEq for &dyn Property {
+    fn eq(&self, other: &&dyn Property) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl Eq for &dyn Property {}
+
+
+
+#[derive(Debug)]
+pub struct PropertyRange {
+    property: Box<dyn Property>,
     min: Option<f64>,
     max: Option<f64>,
 }
 
-impl <'a> PropertyRange <'a> {
+impl PropertyRange {
 
-    pub fn new(property: &'a dyn Property, min: Option<f64>, max: Option<f64>) -> Self {
+    pub fn new(property: &dyn Property, min: Option<f64>, max: Option<f64>) -> Self {
         Self {
-            property,
+            property: property.clone_to_box(),
             min, max 
         }
     }
     
     pub fn to_range(&self, min: Option<f64>, max: Option<f64>)->Self {
         Self {
-            property: self.property, 
+            property: self.property.clone_to_box(), 
             min, max 
         }
     }
 
     #[inline]
-    pub fn property(&self) -> &'a dyn Property {
-        self.property
+    pub fn property(&self) -> &Box<dyn Property> {
+        &self.property
     }
 
     #[inline]
@@ -73,33 +92,35 @@ impl <'a> PropertyRange <'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct PropertyInGroup {
     property_name: String,
     volume: u8,
 }
 
-pub(crate) enum DataBounds<'a> {
-    X(PropertyRange<'a>),
-    XY(PropertyRange<'a>, PropertyRange<'a>),
-    XYZ(PropertyRange<'a>, PropertyRange<'a>, PropertyRange<'a>),
+#[derive(Debug)]
+pub enum DataBounds {
+    X(PropertyRange),
+    XY(PropertyRange, PropertyRange),
+    XYZ(PropertyRange, PropertyRange, PropertyRange),
 }
 
-pub trait DataGroup {
+pub trait DataGroup: Debug {
     fn volume(&self) -> u8;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
-    fn min_value(&self) -> f64;
-    fn max_value(&self) -> f64;
+    fn bounds(&self)->DataBounds;
 }
 
-pub(crate) struct SimpleDataGroup<'a> {
+#[derive(Debug)]
+pub struct SimpleDataGroup {
     volume: u8,
     property_sizes: Vec<PropertyInGroup>,
-    bounds: DataBounds<'a>
+    bounds: DataBounds
 }
 
-impl <'a> SimpleDataGroup<'a>  {
+impl SimpleDataGroup {
 
-    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds<'a>) -> Self {
+    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
         Self { 
             volume: size, 
             property_sizes,
@@ -108,7 +129,7 @@ impl <'a> SimpleDataGroup<'a>  {
     }
 }
 
-impl <'a> DataGroup for SimpleDataGroup<'a> {
+impl DataGroup for SimpleDataGroup {
     fn volume(&self) -> u8 {
         self.volume
     }
@@ -117,23 +138,19 @@ impl <'a> DataGroup for SimpleDataGroup<'a> {
         self.property_sizes.iter().collect()
     }
 
-    fn min_value(&self) -> f64 {
-        todo!()
-    }
-
-    fn max_value(&self) -> f64 {
+    fn bounds(&self) -> DataBounds {
         todo!()
     }
 }
 
-pub struct GroupsVec<'a, T:DataGroup> {
-    property:&'a dyn Property,
-    data: Vec<T>,//column, row
+pub struct GroupsVec {
+    property:Box<dyn Property>,
+    data: Vec<Box<dyn DataGroup>>,
 }
 
-impl <'a, T:DataGroup> GroupsVec<'a, T> {
+impl GroupsVec {
 
-    pub fn new(property:&'a dyn Property, data: Vec<T>) -> Self {
+    pub fn new(property:Box<dyn Property>, data: Vec<Box<dyn DataGroup>>) -> Self {
         
         Self {
             property,
@@ -143,27 +160,39 @@ impl <'a, T:DataGroup> GroupsVec<'a, T> {
 
 }
 
-type VecX<T> = Vec<T>;
+type VecX<T> = Vec<Box<T>>;
 type VecY<T> = Vec<VecX<T>>;
 
-pub struct GroupsGrid<'a, T:DataGroup> {
-    property_x:&'a dyn Property,
-    property_y:&'a dyn Property,
-    data: VecY<T>
+#[derive(Debug)]
+pub struct GroupsGrid {
+    property_x:Box<dyn Property>,
+    property_y:Box<dyn Property>,
+    data: VecY<dyn DataGroup>
 }
 
-impl <'a, T:DataGroup> GroupsGrid <'a, T> {
-    pub fn new(property_x: &'a dyn Property, property_y: &'a dyn Property, data: Vec<Vec<T>>) -> Self {
+impl  GroupsGrid {
+    pub fn new(property_x: Box<dyn Property>, property_y: Box<dyn Property>, data: VecY<dyn DataGroup>) -> Self {
         Self { property_x, property_y, data }
+    }
+
+
+    pub fn property_x(&self) -> &Box<dyn Property> {
+        &self.property_x
+    }
+    pub fn property_y(&self) -> &Box<dyn Property> {
+        &self.property_y
+    }
+    pub fn data(&self) -> &VecY<dyn DataGroup> {
+        &self.data
     }
 }
 
 
-pub(crate) trait Data<'a> {
-    type DataGroupType:DataGroup;
+pub trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
-    fn group_by_1(&self, property_x: PropertyRange<'a>) -> GroupsVec<Self::DataGroupType>;
-    fn group_by_2(&self, property_x: PropertyRange<'a>, property_y: PropertyRange<'a>) -> GroupsGrid<Self::DataGroupType>;
+    fn all_properties(&self) -> HashSet<&dyn Property>;
+    fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid;
 }
 
 
@@ -242,104 +271,3 @@ impl PropertiesSet for SimplePropertiesSet {
     }
 }
 
-
-#[cfg(test)]
-mod tests {
-    use std::fmt::{Debug, Display, Formatter};
-    use std::marker::PhantomData;
-    use std::mem;
-    use crate::data_type::WapukuDataType;
-    use crate::model::{Data, GroupsVec, DataGroup, Named, PropertiesSet, Property, PropertyRange, PropertyInGroup, SimpleDataGroup, GroupsGrid, DataBounds, DataProperty, SimplePropertiesSet};
-
-    struct TestData<'a> {
-        property_sets: Vec<SimplePropertiesSet>,
-        pd: PhantomData<&'a SimplePropertiesSet>,
-    }
-
-    impl <'a> Data<'a> for TestData<'a> {
-        type DataGroupType = SimpleDataGroup<'a>;
-        
-        fn all_sets(&self) -> Vec<&dyn PropertiesSet> {
-            self.property_sets.iter().fold(vec![], |mut props, p| {
-                props.push(p);
-
-                props
-            })
-        }
-
-        fn group_by_1(&self, property_range: PropertyRange<'a>) -> GroupsVec<SimpleDataGroup<'a>> {
-
-            GroupsVec::new(property_range.property, vec![
-                SimpleDataGroup::new(10, vec![], DataBounds::X(property_range.to_range(Some(0.0),Some(10.0))))
-            ])
-        }
-
-        fn group_by_2(&self, property_x: PropertyRange<'a>, property_y: PropertyRange<'a>) -> GroupsGrid<Self::DataGroupType> {
-
-            GroupsGrid::new(
-                property_x.property,
-                property_y.property,
-                vec![
-                    (0..10).map(|i|/*Box::<dyn DataGroup>::from(Box::new(*/
-                        SimpleDataGroup::new(10, vec![],
-                     DataBounds::XY(
-                                property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
-                                property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
-                             )
-                        )
-                    ).collect()
-                ]
-            )
-        }
-
-    }
-
-    #[test]
-    fn test_data_init() {
-        let wapuku_data = TestData {
-            property_sets: vec![SimplePropertiesSet {
-                name: "item_1".to_string(),
-                properties: vec![
-                    DataProperty {
-                        name: "property_1".to_string(),
-                        property_type: WapukuDataType::Numeric,
-                    },
-                    DataProperty {
-                        name: "property_2".to_string(),
-                        property_type: WapukuDataType::Numeric,
-                    },
-                    DataProperty {
-                        name: "property_3".to_string(),
-                        property_type: WapukuDataType::Numeric,
-                    },
-                ],
-
-            }],
-            pd: PhantomData
-        };
-
-        let all_sets = wapuku_data.all_sets();
-        let property_set_1 = all_sets.first().expect("no first property se");
-
-        let mut set_1_properties = property_set_1.properties().into_iter();
-
-
-        let (property_1, property_2, property_3) = (set_1_properties.next().expect("property_1"), set_1_properties.next().expect("property_2"), set_1_properties.next().expect("property_2"));
-
-        let data_vec = wapuku_data.group_by_1(PropertyRange::new (property_1,  None, None ));
-
-        let data_grid = wapuku_data.group_by_2(
-            PropertyRange::new (property_1,  None, None ),
-            PropertyRange::new (property_2,  None, None )
-        );
-
-        if let Some(group) = data_grid.data.first().and_then(|first_row|first_row.first()) {
-
-            let data_grid_0_0 = wapuku_data.group_by_2(
-                PropertyRange::new (property_1,  None, None ),
-                PropertyRange::new (property_2,  None, None )
-            );
-        }
-        
-    }
-}

@@ -4,7 +4,7 @@
 /tests/target/
 /wapuku-ui/www/node_modules/
 /wapuku-ui/www/dist/
-/polars_test/target/
+/test_test/target/
 /wapuku-model/target/
 /wapuku-ui/target/
 /wapuku-resources/target/

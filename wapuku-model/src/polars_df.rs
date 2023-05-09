@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::marker::PhantomData;
@@ -32,12 +32,11 @@ impl From<PolarsError> for WapukuError {
 
 
 
-pub struct PolarsData<'a> {
+pub struct PolarsData {
     property_sets: Vec<SimplePropertiesSet>,
-    pd: PhantomData<&'a SimplePropertiesSet>,
 }
 
-impl <'a> PolarsData<'a> {
+impl PolarsData {
 
     pub fn new() -> Self {
         parquet_scan();
@@ -52,13 +51,11 @@ impl <'a> PolarsData<'a> {
                 ],
                 "item_1",
             )], 
-            pd: PhantomData
         }
     }
 }
 
-impl <'a> Data<'a> for PolarsData<'a> {
-    type DataGroupType = SimpleDataGroup<'a>;
+impl Data for PolarsData {
 
     fn all_sets(&self) -> Vec<&dyn PropertiesSet> {
         self.property_sets.iter().fold(vec![], |mut props, p| {
@@ -68,26 +65,30 @@ impl <'a> Data<'a> for PolarsData<'a> {
         })
     }
 
-    fn group_by_1(&self, property_range: PropertyRange<'a>) -> GroupsVec<SimpleDataGroup<'a>> {
+    fn all_properties(&self) -> HashSet<&dyn Property> {
+        todo!()
+    }
 
-        GroupsVec::new(property_range.property(), vec![
-            SimpleDataGroup::new(10, vec![], DataBounds::X(property_range.to_range(Some(0.0),Some(10.0))))
+    fn group_by_1(&self, property_range: PropertyRange) -> GroupsVec {
+
+        GroupsVec::new(property_range.property().clone_to_box(), vec![
+            // Box::new(SimpleDataGroup::new(10, vec![], DataBounds::X(property_range.to_range(Some(0.0),Some(10.0)))))
         ])
     }
 
-    fn group_by_2(&self, property_x: PropertyRange<'a>, property_y: PropertyRange<'a>) -> GroupsGrid<Self::DataGroupType> {
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid {
 
         GroupsGrid::new(
-            property_x.property(),
-            property_y.property(),
+            property_x.property().clone_to_box(),
+            property_y.property().clone_to_box(),
             vec![
                 (0..10).map(|i|/*Box::<dyn DataGroup>::from(Box::new(*/
-                    SimpleDataGroup::new(10, vec![],
-                                         DataBounds::XY(
-                                             property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
-                                             property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
-                                         )
-                    )
+                    Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(10, vec![],
+                         DataBounds::XY(
+                             property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
+                             property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
+                         )
+                    )))
                 ).collect()
             ]
         )

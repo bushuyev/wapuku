@@ -23,6 +23,13 @@
         
         canvas {
             border: 1px solid red;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        button {
+            margin: 0;
+            padding: 0;
         }
 
     </style>
@@ -32,7 +39,50 @@
         <div style="flex: 25;">header</div>
         <div style="flex: 50; display: flex; flex-direction: row;">
             <div style="flex: 25;"></div>
-            <div style="flex: 50;" id="wapuku_canvas_div"></div>
+            <div style="flex: 50;" >
+                
+                <div style="display: table; width: 100%;height: 100%;table-layout: fixed;">
+                    <div style="display: table-row; height: 2em;">
+                        <div id="property_xy_header" style="display: table-cell; height: 2em; width: 4em;"></div>
+                        <div id="property_x" style="display: table-cell; height: 2em;">
+                            <div style="display: flex; flex-direction: row; flex-basis: auto">
+                                <button id="x_0" style="flex: auto">x_0</button>
+                                <button id="x_1" style="flex: auto">x_1</button>
+                                <button id="x_2" style="flex: auto">x_2</button>
+                                <button id="x_3" style="flex: auto">x_3</button>
+<!--                                <button id="x_4" style="flex: auto">x_4</button>-->
+<!--                                <button id="x_5" style="flex: auto">x_5</button>-->
+<!--                                <button id="x_6" style="flex: auto">x_6</button>-->
+<!--                                <button id="x_7" style="flex: auto">x_7</button>-->
+<!--                                <button id="x_8" style="flex: auto">x_8</button>-->
+<!--                                <button id="x_9" style="flex: auto">x_9</button>-->
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div id="property_y" style="display: table-cell; width: 4em; vertical-align: top">
+                            <div style="display: flex; flex-direction: column; flex-basis: auto">
+                                <button id="y_0" style="flex: auto">y_0</button>
+                                <button id="y_1" style="flex: auto">y_1</button>
+                                <button id="y_2" style="flex: auto">y_2</button>
+                                <button id="y_3" style="flex: auto">y_3</button>
+<!--                                <button id="y_4" style="flex: auto">y_4</button>-->
+<!--                                <button id="y_5" style="flex: auto">y_5</button>-->
+<!--                                <button id="y_6" style="flex: auto">y_6</button>-->
+<!--                                <button id="y_7" style="flex: auto">y_7</button>-->
+<!--                                <button id="y_8" style="flex: auto">y_8</button>-->
+<!--                                <button id="y_9" style="flex: auto">y_9</button>-->
+                            </div>
+                        </div>
+                        <div style="display: table-cell;">
+                            <div id="wapuku_canvas_div"></div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                
+            </div>
             <div style="flex: 25;"></div>
         </div>
         <div style="flex: 25;">footer</div>
