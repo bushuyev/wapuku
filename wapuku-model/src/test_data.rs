@@ -59,43 +59,29 @@ impl  Data for TestData {
         ])
     }
 
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8) -> GroupsGrid {
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8) -> GroupsGrid {
         
 
         GroupsGrid::new(
             property_x.property().clone_to_box(),
             property_y.property().clone_to_box(),
-            vec![
-                (0..3).map(|i|
-                    Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(i, vec![],
-                         DataBounds::XY(
-                             property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
-                             property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
-                         )
-                    )))
-                ).collect(),
+            
+                (0..groups_nr_y).map(|y|
+                    (0..groups_nr_x).map(|x|
+                        Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(x, vec![],
+                             DataBounds::XY(
+                                 property_x.to_range(Some(x as f64 * 10.0), Some(x as f64 * 10.0 + 10.0)),
+                                 property_y.to_range(Some(x as f64 * 10.0), Some(x as f64 * 10.0 + 10.0)),
+                             ),
+                        )))
+                    ).collect::<Vec<Box<dyn DataGroup>>>()
 
-                (0..3).map(|i|
-                    Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(i, vec![],
-                         DataBounds::XY(
-                             property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
-                             property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
-                         )
-                    )))
-                ).collect(),
-
-                (0..3).map(|i|
-                Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(i, vec![],
-                     DataBounds::XY(
-                         property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
-                         property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
-                     )
-                )))
-            ).collect()
-            ]
+            ).collect::<Vec<Vec<Box<dyn DataGroup>>>>()
+            
         )
     }
 
+   
 }
 
 

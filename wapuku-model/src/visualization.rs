@@ -111,12 +111,23 @@ impl VisualDataController {
         let property_x = data.all_properties().into_iter().find(|p| p.name() == &property_x_name).expect(format!("property_x {} not found", property_x_name).as_str());
         let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_x {} not found", property_y_name).as_str());
 
+        let groups_nr_x = 3;
+        let groups_nr_y = 2;
         let mut data_grid = data.group_by_2(
-            PropertyRange::new (property_x,  None, None ), 
+            PropertyRange::new (property_x,  None, None ),
             PropertyRange::new (property_y,  None, None ),
-            3, 3
+            groups_nr_x, groups_nr_y
         );
 
+        let step = 9.;
+        let d_property = step/5.;
+        let min_x = ((groups_nr_x as f32 - 1.0) / -2.) * step;
+        let min_y = ((groups_nr_y as f32 - 1.0) / -2.) * step;
+        let plate_z = 1.0;
+        let properties_z = 0.0;
+        
+
+        //TODO layout
         let visuals:HashMap<String, Vec<VisualInstance>> = data_grid.data()
             .drain(..).enumerate()
             .flat_map(
@@ -124,20 +135,68 @@ impl VisualDataController {
             )
             .fold(HashMap::new(), move |mut h:HashMap<String, Vec<VisualInstance>>, (x, y, group)|{
 
-                let mut property_groups = h.entry(String::from("property_1")).or_insert(vec![]);
-
-                debug!("VisualDataController::new x={}, y={}", x, y);
                 
+                
+                let mut plates = h.entry(String::from("plate")).or_insert(vec![]);
 
-                property_groups.push(
+                let plate_x = (min_x + x as f32 * step) as f32;
+                let plate_y = (min_y + y as f32 * step) as f32;
+
+                debug!("VisualDataController::new x={}, y={}  plate_x={}, plate_y={}", x, y, plate_x, plate_y);
+                
+                plates.push(
                   VisualInstance::new(
-                      cgmath::Vector3 { x: -5.0 + x as f32, y:  y as f32, z: 0.0 },
+                      cgmath::Vector3 { x: plate_x, y: plate_y, z: plate_z },
                       cgmath::Quaternion::new(1., 0., 0., 0.),
-                      "property_1",
+                      "plate",
                       VisualInstanceData::DataGroup(group)
                   )
                 );
-                         
+
+                let mut plates = h.entry(String::from("property_1")).or_insert(vec![]);
+
+                plates.push(
+                    VisualInstance::new(
+                        cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
+                        cgmath::Quaternion::new(1., 0., 0., 0.),
+                        "property_1",
+                        VisualInstanceData::Empty
+                    )
+                );
+
+                let mut plates = h.entry(String::from("property_2")).or_insert(vec![]);
+
+                plates.push(
+                    VisualInstance::new(
+                        cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
+                        cgmath::Quaternion::new(1., 0., 0., 0.),
+                        "property_2",
+                        VisualInstanceData::Empty
+                    )
+                );
+
+                let mut plates = h.entry(String::from("property_3")).or_insert(vec![]);
+
+                plates.push(
+                    VisualInstance::new(
+                        cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
+                        cgmath::Quaternion::new(1., 0., 0., 0.),
+                        "property_2",
+                        VisualInstanceData::Empty
+                    )
+                );
+
+                let mut plates = h.entry(String::from("property_4")).or_insert(vec![]);
+
+                plates.push(
+                    VisualInstance::new(
+                        cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
+                        cgmath::Quaternion::new(1., 0., 0., 0.),
+                        "property_2",
+                        VisualInstanceData::Empty
+                    )
+                );
+                
                 h
         });
 
@@ -152,14 +211,38 @@ impl VisualDataController {
         //     )
         // ]);
         // 
-        // visuals.insert(String::from("property_1"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: -1.0, y:  1.0, z: 0.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "property_1",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
+       /* visuals.insert(String::from("plate"), vec![
+            VisualInstance::new(
+                cgmath::Vector3 { x: -5.0, y:  0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "plate",
+                VisualInstanceData::Empty
+            ),
+            VisualInstance::new(
+                cgmath::Vector3 { x: -0.0, y:  -5.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "plate",
+                VisualInstanceData::Empty
+            ),
+            VisualInstance::new(
+                cgmath::Vector3 { x: 0.0, y:  0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "plate",
+                VisualInstanceData::Empty
+            ),
+            VisualInstance::new(
+                cgmath::Vector3 { x: 5.0, y:  0.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "plate",
+                VisualInstanceData::Empty
+            ),
+           VisualInstance::new(
+                cgmath::Vector3 { x: 0.0, y:  5.0, z: 0.0 },
+                cgmath::Quaternion::new(1., 0., 0., 0.),
+                "plate",
+                VisualInstanceData::Empty
+            ),
+        ]);*/
         // 
         // visuals.insert(String::from("property_2"), vec![
         //     VisualInstance::new(
