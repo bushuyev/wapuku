@@ -182,8 +182,8 @@ impl  GroupsGrid {
     pub fn property_y(&self) -> &Box<dyn Property> {
         &self.property_y
     }
-    pub fn data(&self) -> &VecY<dyn DataGroup> {
-        &self.data
+    pub fn data(&mut self) -> &mut VecY<dyn DataGroup> {
+        &mut self.data
     }
 }
 
@@ -192,7 +192,7 @@ pub trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid;
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8) -> GroupsGrid;
 }
 
 

@@ -59,14 +59,14 @@ impl  Data for TestData {
         ])
     }
 
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid {
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8) -> GroupsGrid {
         
 
         GroupsGrid::new(
             property_x.property().clone_to_box(),
             property_y.property().clone_to_box(),
             vec![
-                (0..10).map(|i|
+                (0..3).map(|i|
                     Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(i, vec![],
                          DataBounds::XY(
                              property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
@@ -75,14 +75,23 @@ impl  Data for TestData {
                     )))
                 ).collect(),
 
-                (0..10).map(|i|
+                (0..3).map(|i|
                     Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(i, vec![],
                          DataBounds::XY(
                              property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
                              property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
                          )
                     )))
-                ).collect()
+                ).collect(),
+
+                (0..3).map(|i|
+                Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(i, vec![],
+                     DataBounds::XY(
+                         property_x.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0)),
+                         property_y.to_range(Some(i as f64 * 10.0), Some(i as f64 * 10.0 + 10.0))
+                     )
+                )))
+            ).collect()
             ]
         )
     }
@@ -119,16 +128,18 @@ mod tests {
 
         let data_vec = wapuku_data.group_by_1(PropertyRange::new (property_1,  None, None ));
 
-        let data_grid = wapuku_data.group_by_2(
+        let mut data_grid = wapuku_data.group_by_2(
             PropertyRange::new (property_1,  None, None ),
-            PropertyRange::new (property_2,  None, None )
+            PropertyRange::new (property_2,  None, None ),
+            3, 3
         );
 
         if let Some(group) = data_grid.data().first().and_then(|first_row|first_row.first()) {
 
             let data_grid_0_0 = wapuku_data.group_by_2(
                 PropertyRange::new (property_1,  None, None ),
-                PropertyRange::new (property_2,  None, None )
+                PropertyRange::new (property_2,  None, None ),
+                3, 3
             );
         }
 

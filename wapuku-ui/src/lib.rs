@@ -84,7 +84,8 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     let data_grid = data.group_by_2(
         PropertyRange::new (property_1,  None, None ),
-        PropertyRange::new (property_2,  None, None )
+        PropertyRange::new (property_2,  None, None ),
+        3, 3
     );
 
     let property_x: String = property_1.name().clone();

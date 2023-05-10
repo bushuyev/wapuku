@@ -76,7 +76,7 @@ impl Data for PolarsData {
         ])
     }
 
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange) -> GroupsGrid {
+    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8) -> GroupsGrid {
 
         GroupsGrid::new(
             property_x.property().clone_to_box(),

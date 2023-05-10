@@ -9,7 +9,8 @@ use winit::window::Window;
 use crate::mesh_model::{DrawModel, InstanceRaw, Mesh, MeshInstances, MeshModel, Vertex};
 use crate::{mesh_model, resources, texture};
 use cgmath::prelude::*;
-use cgmath::{Matrix4, Point3, Vector2, Vector4};
+use cgmath::{Matrix4, Point3, Vector2, Vector3, Vector4};
+use winit::dpi::PhysicalSize;
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
 use wapuku_model::model::*;
@@ -45,7 +46,7 @@ pub struct State {
 
     multisampled_framebuffer: wgpu::TextureView,
 
-    inverse_proj: Matrix4<f32>
+    projection: Matrix4<f32>
 
 }
 
@@ -142,7 +143,7 @@ impl State {
         let camera = Camera {
             eye: (0.0, 0.0, -10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
+            up: cgmath::Vector3::new(0., 1., 0.),
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             znear: 0.1,
@@ -285,8 +286,7 @@ impl State {
             config,
             device,
             queue,
-            inverse_proj
-            
+            projection: inverse_proj
         }
         
     }
@@ -417,60 +417,96 @@ impl State {
     }
 
     pub fn pointer_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
-        debug!("pointer_moved: location={:?} self.size={:?} self.camera_uniform.view_proj()={:?} self.inverse_proj={:?}", position, self.size, self.camera_uniform.view_proj(), self.inverse_proj);
+        debug!("pointer_moved: location={:?} self.size={:?} self.camera_uniform.view_proj()={:?} self.inverse_proj={:?}", position, self.size, self.camera_uniform.view_proj(), self.projection);
 
+        if let Some(visuals) = self.vis_ctrl.visuals() {
+            let visuals:&HashMap<String, Vec<VisualInstance>> = visuals;
 
-        let clip_x = position.x as f32 / self.size.width as f32 *  2. - 1.;
-        let clip_y = position.y as f32 / self.size.height as f32 * -2. + 1.;
+            let found = visuals.values().flat_map(|vv| vv.iter()).find(|v: &&VisualInstance| {
+                v.bounds().contain(position.x as f32, position.y as f32)
+            });
+            
+            debug!("pointer_moved, found={:?}", found)
+        }
 
-
-        let clip_pos = Vector4::<f32>::new(clip_x, clip_y  as f32, -10., 1.,);
-
-        let p = Point3::new(0., 0., 0.);
-        clip_pos.
-        // p.mul(self.inverse_proj);
-        
-        let pos_in_world = self.inverse_proj.mul(clip_pos);
-
-        debug!("pointer_moved: clip_pos={:?} pos_in_world={:?}", clip_pos, pos_in_world);
+        // let clip_x = position.x as f32 / self.size.width as f32 *  2. - 1.;
+        // let clip_y = position.y as f32 / self.size.height as f32 * -2. + 1.;
+        // 
+        // 
+        // let clip_pos = Vector4::<f32>::new(clip_x, clip_y  as f32, -10., 1.,);
+        // 
+        // let p = Point3::new(0., 0., 0.);
+        // // clip_pos.
+        // // p.mul(self.inverse_proj);
+        // 
+        // let pos_in_world = self.projection.mul(clip_pos);
+        // 
+        // debug!("pointer_moved: clip_pos={:?} pos_in_world={:?}", clip_pos, pos_in_world);
     }
 
     pub fn update(&mut self/*, visuals:HashMap<String, Vec<VisualInstance>>*/) {
         self.camera_controller.update_camera(&mut self.camera);
-        self.inverse_proj = self.camera_uniform.update_view_proj(&self.camera);
+        self.projection = self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
-        if let Some(visuals) = self.vis_ctrl.visuals() {
+        if let Some(visuals) = self.vis_ctrl.visuals_updates() {
             // debug!("State::update: self.config.width={:?}, self.config.height={:?}, self.camera.build_view_projection_matrix()={:?}", self.config.width, self.config.height, self.camera.build_view_projection_matrix());
-            
-            let instance_data = self.visuals_to_raw(visuals);
+
+            for visual_instance in visuals.values_mut().flat_map(|vv| vv.iter_mut()) {
+                let v_left_top = Vector4::new(-1., 1., 0., 1.);
+                let v_right_bottom = Vector4::new(1., -1., 0., 1.);
+
+                let instance = visual_instance.position();
+                let model_matrix = Matrix4::from_translation(instance);
+
+                let (x_left_top, y_left_top) = Self::to_screen_xy(v_left_top, model_matrix, &self.projection, &self.size);
+                let (x_right_bottom, y_right_bottom) = Self::to_screen_xy(v_right_bottom, model_matrix, &self.projection, &self.size);
+
+                visual_instance.bounds_mut().update(x_left_top, y_left_top, x_right_bottom, y_right_bottom);
+
+                debug!("State::update: v={:?}  x_left_top={}, y_left_top={}, x_right_bottom={}, y_right_bottom={}", visual_instance, x_left_top, y_left_top, x_right_bottom, y_right_bottom);
+            }
+
+            let instance_data = Self::visuals_to_raw(visuals, &mut self.mesh_model);
 
             self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
         }
-
       
         self.light_uniform.position = self.camera.eye.into(); //[self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
         self.queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
 
     }
 
+    fn to_screen_xy(v_left_top: Vector4<f32>, model_matrix: Matrix4<f32>, projection: &Matrix4<f32>, size: &PhysicalSize<u32>) -> (f32, f32) {
+        let world_position = model_matrix.mul(v_left_top);
+
+        let v_clip = projection.mul(world_position);
+        let v_ndc = Vector3::new(v_clip.x / v_clip.w, v_clip.y / v_clip.w, v_clip.z / v_clip.w);
+
+        let x_left_top = (v_ndc.x + 1.) * (size.width as f32 / 2.);
+        let y_left_top = (v_ndc.y + 1.) * (size.height as f32 / 2.);
+        (x_left_top, y_left_top)
+    }
+
     //TODO move out
-    fn visuals_to_raw(&mut self, visuals: HashMap<String, Vec<VisualInstance>>) -> Vec<InstanceRaw> {
+    fn visuals_to_raw(visuals:&HashMap<String, Vec<VisualInstance>>, mesh_model: &mut MeshModel) -> Vec<InstanceRaw> {
+    
         let mut prev_mesh_range = 0u32;
-        
+
 
         let instance_data: Vec<InstanceRaw> = visuals.iter().flat_map(|(name, m)| {
-
             let mesh_name = match name.as_str() {
                 "property_1" => "Sphere",
                 "property_2" => "Cone",
                 "property_3" => "Cube",
-                &_ => "Cube"
+                "property_4" => "Cylinder",
+                "plate" => "Torus",
+                &_ => "Torus"
             };
 
             debug!("State::visualis_to_raw: mesh_name={:?} name={:?}", mesh_name, name);
 
-            let mesh_op = self.mesh_model.mesh_by_name(mesh_name);
+            let mesh_op = mesh_model.mesh_by_name(mesh_name);
 
             if let Some(mesh) = mesh_op {
                 let mesh_range = prev_mesh_range + m.len() as u32;
@@ -484,8 +520,9 @@ impl State {
         }).map(|i| i.into()).collect::<Vec<InstanceRaw>>();
 
         debug!("State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
-        
+
         instance_data
+        
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {

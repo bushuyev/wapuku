@@ -4,7 +4,7 @@ use cgmath::prelude::*;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
-    1.0, 0.0, 0.0, 0.0,
+    -1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
     0.0, 0.0, 0.5, 0.0,
     0.0, 0.0, 0.5, 1.0,
@@ -45,7 +45,8 @@ impl CameraUniform {
     pub(crate) fn update_view_proj(&mut self, camera: &Camera) -> Matrix4<f32> {
         let proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix());
         self.view_proj = proj.into();
-        proj.invert().unwrap_or(cgmath::Matrix4::identity())
+        
+        proj
     }
 
 
