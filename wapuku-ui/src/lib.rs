@@ -6,7 +6,9 @@ mod camera;
 mod light;
 
 
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::Arc;
 use log::{debug, trace};
 use winit::{
@@ -14,7 +16,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use winit::dpi::{LogicalSize, PhysicalSize};
+use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event_loop::EventLoopBuilder;
 use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
@@ -42,13 +44,16 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
-    debug!("run");
+    debug!("running");
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let winit_window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
 
-    // window.set_max_inner_size(Some(LogicalSize::new(200.0, 200.0)));
-    
+    //winit sends client xy  in WindowEvent::CursorMoved, we need offset
+    let mut mouse_xy:Rc<RefCell<Option<(f32, f32)>>> = Rc::new(RefCell::new(None));
+
+    let mut mouse_xy_for_on_mousemove = Rc::clone(&mouse_xy);
+    let mut mouse_xy_for_state_update = Rc::clone(&mouse_xy);
 
     let (width, height) = web_sys::window()
         .and_then(|win| win.document())
@@ -58,19 +63,32 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
             let height = div.client_height();
             
             let canvas = web_sys::Element::from(winit_window.canvas());
+            // let canvas = doc.get_element_by_id("wapuku_canvas")?; // winit fails with Canvas is not found
             div.append_child(&canvas).ok()?;
             
-            debug!("web_sys::window: width={}, height={}", width, height);
 
             winit_window.set_inner_size(PhysicalSize::new(width, height));
+
+            debug!("web_sys::window: size: width={}, height={}", width, height);
+
+            let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
+                debug!("canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
+                debug!("canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
+
+                if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = mouse_xy_for_on_mousemove.try_borrow_mut() {
+                    mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
+                }
+
+            }) as Box<dyn FnMut(web_sys::MouseEvent)>);
+
+            div.add_event_listener_with_callback("mousemove", &closure_on_mousemove.as_ref().unchecked_ref());
+
+            closure_on_mousemove.forget();
             
             Some((width, height))
         })
         .expect("Couldn't append canvas to document body.");
 
-    debug!("running");
-    
-    
     // let mut state = State::new(winit_window, Box::new(PolarsData::new())).await;
     let data:Box<dyn Data> = Box::new(TestData::new());
     let all_properties:HashSet<&dyn Property> = data.all_properties();
@@ -94,7 +112,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     debug!("data_grid: {:?} property_x={} property_y={}", data_grid, property_x, property_y);
     
     // data
-    let mut state = State::new(winit_window, VisualDataController::new(data, width as u32, height as u32, property_x, property_y)).await;
+    let mut state = State::new(winit_window, VisualDataController::new(data, property_x, property_y)).await;
 
     event_loop.run(move |event, _, control_flow| {
         // debug!("event_loop.run={:?}", event);
@@ -137,7 +155,6 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 event: ref window_event,
                 window_id,
             } if window_id == state.window().id() => {
-                // debug!("event_loop window_id={:?} state.window().id()={:?}", window_id, state.window().id());
                 
                 if !state.input(window_event) {
                 
@@ -145,9 +162,13 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                         WindowEvent::MouseInput { device_id, state, button, ..} => {
                             debug!("event_loop::WindowEvent::MouseInput device_id={:?}, state={:?}, button={:?}", device_id, state, button);
                         }
-                        WindowEvent::CursorMoved {position, ..} => {
-                            debug!("event_loop::WindowEvent::CursorMoved: position={:?}", position);
-                            state.pointer_moved(*position);
+                        WindowEvent::CursorMoved {..} => {
+                           
+                            if let Ok(mut xy_ref) = mouse_xy_for_state_update.try_borrow_mut() {
+                                if let Some(xy) = xy_ref.take() {
+                                    state.pointer_moved(xy.0, xy.1);
+                                }
+                            }
                         }
                         WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
                             input:

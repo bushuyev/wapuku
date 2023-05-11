@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
+use cgmath::{Quaternion, Vector3, Vector4};
 use log::debug;
 use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
@@ -10,6 +11,9 @@ pub struct VisualBounds {
     x_right_bottom: f32,
     y_right_bottom: f32
 }
+
+pub const V_LEFT_TOP:Vector4<f32> = Vector4::new(-3., 3., 0., 1.);
+pub const V_RIGHT_BOTTOM:Vector4<f32> = Vector4::new(3., -3., 0., 1.);
 
 impl VisualBounds {
     
@@ -47,8 +51,9 @@ pub enum VisualInstanceData {
 
 #[derive(Debug)]
 pub struct VisualInstance {
-    position: cgmath::Vector3<f32>,
-    rotation: cgmath::Quaternion<f32>,
+    position: Vector3<f32>,
+    rotation: Quaternion<f32>,
+    scale: Vector3<f32>,
     name: String,
     visual_bounds: VisualBounds,
     data:VisualInstanceData
@@ -57,10 +62,11 @@ pub struct VisualInstance {
 
 impl VisualInstance {
 
-    pub fn new<S: Into<String>>(position: cgmath::Vector3<f32>, rotation: cgmath::Quaternion<f32>, name: S, data:VisualInstanceData) -> Self {
+    pub fn new<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data:VisualInstanceData) -> Self {
         Self {
             position, 
             rotation,
+            scale: Vector3::new(1., 1., 1.),
             name: name.into(),
             visual_bounds: VisualBounds::default(),
             data
@@ -68,12 +74,12 @@ impl VisualInstance {
     }
 
     #[inline]
-    pub fn position(&self) -> cgmath::Vector3<f32> {
+    pub fn position(&self) -> Vector3<f32> {
         self.position
     }
 
     #[inline]
-    pub fn rotation(&self) -> cgmath::Quaternion<f32> {
+    pub fn rotation(&self) -> Quaternion<f32> {
         self.rotation
     }
     
@@ -81,8 +87,20 @@ impl VisualInstance {
         &mut self.visual_bounds
     }
 
+    #[inline]
     pub fn bounds(&self) -> &VisualBounds {
         &self.visual_bounds
+    }
+
+    #[inline]
+    pub fn scale(&self) -> &Vector3<f32> {
+        &self.scale
+    }
+
+    pub fn set_scale(&mut self, x:Option<f32>, y:Option<f32>, z:Option<f32>) {
+        self.scale.x = x.unwrap_or(self.scale.x);
+        self.scale.y = y.unwrap_or(self.scale.y);
+        self.scale.z = z.unwrap_or(self.scale.z);
     }
 }
 
@@ -93,19 +111,17 @@ impl Named for VisualInstance {
 }
 
 pub struct VisualDataController {
-    width: u32,
-    height: u32,
     property_x:Box<dyn Property>,
     property_y:Box<dyn Property>,
     data:Box<dyn Data>,
     current_grid:GroupsGrid,
     visuals:Option<HashMap<String, Vec<VisualInstance>>>,
-    has_updates:bool
+    has_updates:bool,
 }
 
 impl VisualDataController {
     
-    pub fn new(data: Box<dyn Data>, width: u32, height: u32, property_x_name: String, property_y_name: String) -> Self {
+    pub fn new(data: Box<dyn Data>, property_x_name: String, property_y_name: String) -> Self {
         
 
         let property_x = data.all_properties().into_iter().find(|p| p.name() == &property_x_name).expect(format!("property_x {} not found", property_x_name).as_str());
@@ -122,7 +138,7 @@ impl VisualDataController {
         let step = 9.;
         let d_property = step/5.;
         let min_x = ((groups_nr_x as f32 - 1.0) / -2.) * step;
-        let min_y = ((groups_nr_y as f32 - 1.0) / -2.) * step;
+        let min_y = ((groups_nr_y as f32 - 1.0) /  2.) * step;
         let plate_z = 1.0;
         let properties_z = 0.0;
         
@@ -134,21 +150,19 @@ impl VisualDataController {
                 move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Box<dyn DataGroup>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
             )
             .fold(HashMap::new(), move |mut h:HashMap<String, Vec<VisualInstance>>, (x, y, group)|{
-
-                
                 
                 let mut plates = h.entry(String::from("plate")).or_insert(vec![]);
 
                 let plate_x = (min_x + x as f32 * step) as f32;
-                let plate_y = (min_y + y as f32 * step) as f32;
+                let plate_y = (min_y - y as f32 * step) as f32;
 
                 debug!("VisualDataController::new x={}, y={}  plate_x={}, plate_y={}", x, y, plate_x, plate_y);
-                
+
                 plates.push(
                   VisualInstance::new(
                       cgmath::Vector3 { x: plate_x, y: plate_y, z: plate_z },
                       cgmath::Quaternion::new(1., 0., 0., 0.),
-                      "plate",
+                      format!("plate: x={} y={}", x, y),
                       VisualInstanceData::DataGroup(group)
                   )
                 );
@@ -244,9 +258,22 @@ impl VisualDataController {
             ),
         ]);*/
         // 
+        // "property_1" => "Sphere",
+        // "property_2" => "Cone",
+        // "property_3" => "Cube",
+        // "property_4" => "Cylinder",
+        // visuals.insert(String::from("property_1"), vec![
+        //     VisualInstance::new(
+        //         cgmath::Vector3 { x: -5.0, y:  5.0, z: 0.0 },
+        //         cgmath::Quaternion::new(1., 0., 0., 0.),
+        //         "property_1",
+        //         VisualInstanceData::Empty
+        //     )
+        // ]);
+        // 
         // visuals.insert(String::from("property_2"), vec![
         //     VisualInstance::new(
-        //         cgmath::Vector3 { x: 1.0, y:  1.0, z: 0.0 },
+        //         cgmath::Vector3 { x: -5.0, y:  -5.0, z: 0.0 },
         //         cgmath::Quaternion::new(1., 0., 0., 0.),
         //         "property_2",
         //         VisualInstanceData::Empty
@@ -255,7 +282,7 @@ impl VisualDataController {
         // 
         // visuals.insert(String::from("property_3"), vec![
         //     VisualInstance::new(
-        //         cgmath::Vector3 { x: -1.0, y:  -1.0, z: 0.0 },
+        //         cgmath::Vector3 { x: 5.0, y:  5.0, z: 0.0 },
         //         cgmath::Quaternion::new(1., 0., 0., 0.),
         //         "property_3",
         //         VisualInstanceData::Empty
@@ -264,7 +291,7 @@ impl VisualDataController {
         // 
         // visuals.insert(String::from("property_4"), vec![
         //     VisualInstance::new(
-        //         cgmath::Vector3 { x: 1.0, y:  -1.0, z: 0.0 },
+        //         cgmath::Vector3 { x: 5.0, y:  -5.0, z: 0.0 },
         //         cgmath::Quaternion::new(1., 0., 0., 0.),
         //         "property_4",
         //         VisualInstanceData::Empty
@@ -272,7 +299,6 @@ impl VisualDataController {
         // ]);
 
         Self { 
-            width, height,
             property_x: property_x.clone_to_box(),
             property_y: property_y.clone_to_box(),
             data,
@@ -345,6 +371,31 @@ impl VisualDataController {
         // h
     }
 
+    pub fn on_pointer_moved(&mut self, x:f32, y:f32){
+        if let Some(visuals) = self.visuals.as_mut() {
+            
+
+            if let Some(mut found) = visuals
+                .values_mut()
+                .flat_map(|vv| vv.iter_mut())
+                .map(|v|{
+                    v.set_scale(Some(1.0), Some(1.0), None);//TODO const
+                    v
+                    
+                })
+                .enumerate()
+                .find(|(i, v)| {
+                v.bounds().contain(x , y)
+            }) {
+
+                self.has_updates = true;
+
+                found.1.set_scale(Some(1.1), Some(1.1), None);
+                
+                debug!("pointer_moved: found={:?} x={}, y={}", found, x, y)
+            }
+        }
+    }
 }
 
 

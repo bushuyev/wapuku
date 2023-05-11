@@ -405,7 +405,7 @@ impl State {
         debug!("State::resize: new_size={:?}", new_size);
 
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
+            self.size = new_size; //PhysicalSize::new(1476,  493);
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
@@ -416,32 +416,8 @@ impl State {
         self.camera_controller.process_events(event)
     }
 
-    pub fn pointer_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
-        debug!("pointer_moved: location={:?} self.size={:?} self.camera_uniform.view_proj()={:?} self.inverse_proj={:?}", position, self.size, self.camera_uniform.view_proj(), self.projection);
-
-        if let Some(visuals) = self.vis_ctrl.visuals() {
-            let visuals:&HashMap<String, Vec<VisualInstance>> = visuals;
-
-            let found = visuals.values().flat_map(|vv| vv.iter()).find(|v: &&VisualInstance| {
-                v.bounds().contain(position.x as f32, position.y as f32)
-            });
-            
-            debug!("pointer_moved, found={:?}", found)
-        }
-
-        // let clip_x = position.x as f32 / self.size.width as f32 *  2. - 1.;
-        // let clip_y = position.y as f32 / self.size.height as f32 * -2. + 1.;
-        // 
-        // 
-        // let clip_pos = Vector4::<f32>::new(clip_x, clip_y  as f32, -10., 1.,);
-        // 
-        // let p = Point3::new(0., 0., 0.);
-        // // clip_pos.
-        // // p.mul(self.inverse_proj);
-        // 
-        // let pos_in_world = self.projection.mul(clip_pos);
-        // 
-        // debug!("pointer_moved: clip_pos={:?} pos_in_world={:?}", clip_pos, pos_in_world);
+    pub fn pointer_moved(&mut self, x:f32, y:f32) {
+        self.vis_ctrl.on_pointer_moved(x, y);
     }
 
     pub fn update(&mut self/*, visuals:HashMap<String, Vec<VisualInstance>>*/) {
@@ -453,16 +429,14 @@ impl State {
             // debug!("State::update: self.config.width={:?}, self.config.height={:?}, self.camera.build_view_projection_matrix()={:?}", self.config.width, self.config.height, self.camera.build_view_projection_matrix());
 
             for visual_instance in visuals.values_mut().flat_map(|vv| vv.iter_mut()) {
-                let v_left_top = Vector4::new(-1., 1., 0., 1.);
-                let v_right_bottom = Vector4::new(1., -1., 0., 1.);
 
                 let instance = visual_instance.position();
                 let model_matrix = Matrix4::from_translation(instance);
 
-                let (x_left_top, y_left_top) = Self::to_screen_xy(v_left_top, model_matrix, &self.projection, &self.size);
-                let (x_right_bottom, y_right_bottom) = Self::to_screen_xy(v_right_bottom, model_matrix, &self.projection, &self.size);
+                let (x_left_top, y_left_top) = Self::to_screen_xy(V_LEFT_TOP, model_matrix, &self.projection, &self.size);
+                let (x_right_bottom, y_right_bottom) = Self::to_screen_xy(V_RIGHT_BOTTOM, model_matrix, &self.projection, &self.size);
 
-                visual_instance.bounds_mut().update(x_left_top, y_left_top, x_right_bottom, y_right_bottom);
+                visual_instance.bounds_mut().update(x_left_top, self.size.height as f32 - y_right_bottom, x_right_bottom, self.size.height as f32 - y_left_top);//TODO y
 
                 debug!("State::update: v={:?}  x_left_top={}, y_left_top={}, x_right_bottom={}, y_right_bottom={}", visual_instance, x_left_top, y_left_top, x_right_bottom, y_right_bottom);
             }

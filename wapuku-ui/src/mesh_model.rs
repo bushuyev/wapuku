@@ -8,7 +8,11 @@ impl From<&VisualInstance> for InstanceRaw {
     fn from(value: &VisualInstance) -> Self {
         //TODO
         let mut model:[[f32; 4]; 4] = (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into();
-        // model[3][0] = - model[3][0];
+
+
+        model[0][0] = value.scale().x;
+        model[1][1] = value.scale().y;
+        model[2][2] = value.scale().z;
         
         debug!("From<&VisualInstance> for InstanceRaw: model={:?}", model);
 
@@ -17,8 +21,6 @@ impl From<&VisualInstance> for InstanceRaw {
         }
     }
 }
-
-
 
 
 #[repr(C)]
@@ -132,11 +134,10 @@ impl Mesh {
             instances: (0..0) 
         }
     }
-    
+
     pub fn set_instances_range(&mut self, instances:Range<u32>) {
         self.instances = instances;
     }
-
 
     pub fn instances(&self) -> &Range<u32> {
         &self.instances
@@ -152,16 +153,14 @@ impl MeshModel {
     pub fn new(meshes: Vec<Mesh>, device: &wgpu::Device) -> Self {
         Self { meshes }
     }
-    
 
     pub fn meshes(&self) -> &Vec<Mesh> {
         &self.meshes
     }
-    
+
     pub fn mesh_by_name(&mut self, name:&str) -> Option<&mut Mesh> {
         self.meshes.iter_mut().find(|m|m.name == name)
     }
-    
 }
 
 pub trait MeshInstances {
@@ -194,7 +193,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a> where 'b: 'a {
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup
     ) {
-        debug!("RenderPass::draw_mesh_instanced: instances={:?}", mesh.instances);
+        // debug!("RenderPass::draw_mesh_instanced: instances={:?}", mesh.instances);
         
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
