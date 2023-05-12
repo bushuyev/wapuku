@@ -164,7 +164,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                             if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
                                 debug!("event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
                                 
-                                if let Some(xy) = xy_ref.take() {
+                                if let Some(xy) = xy_ref.as_ref() {
                                     gpu_state.pointer_input(xy.0, xy.1);
                                 }
                             } else {
@@ -174,7 +174,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                         WindowEvent::CursorMoved {..} => {
                             
                             if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
-                                if let Some(xy) = xy_ref.take() {
+                                if let Some(xy) = xy_ref.as_ref() {
                                     gpu_state.pointer_moved(xy.0, xy.1);
                                 }
                             }
