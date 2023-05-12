@@ -1,4 +1,5 @@
-import init from '../pkg/wapuku';
+import init from '../pkg/wapuku_ui';
+import {initThreadPool} from "../pkg";
 
 (async function run() {
     console.log('init');
@@ -6,5 +7,7 @@ import init from '../pkg/wapuku';
     await init();
     
     console.log('init done');
+
+    await initThreadPool(navigator.hardwareConcurrency);
 
 })();

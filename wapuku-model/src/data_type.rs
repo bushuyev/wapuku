@@ -1,6 +1,6 @@
 
 #[derive(Clone, Debug)]
-pub enum DataType {
+pub enum WapukuDataType {
     Numeric,
     String,
     Boolean

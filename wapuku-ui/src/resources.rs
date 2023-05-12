@@ -1,9 +1,13 @@
 use std::io::{BufReader, Cursor};
 use log::debug;
+use wgpu::{BindGroupLayout, Device, Queue};
+
 use wgpu::util::DeviceExt;
 use crate::mesh_model;
-use crate::mesh_model::MeshModel;
+use crate::mesh_model::{Material, MeshModel};
 use crate::texture::Texture;
+use wapuku_resources::resources::*;
+use futures::future::join_all;
 
 fn format_url(file_name: &str) -> reqwest::Url {
     let window = web_sys::window().unwrap();
@@ -58,7 +62,7 @@ pub async fn load_model(
     let obj_cursor = Cursor::new(obj_text);
     let mut obj_reader = BufReader::new(obj_cursor);
 
-    let (models, obj_materials) = tobj::load_obj_buf_async(
+    let (models, obj_materials_r) = tobj::load_obj_buf_async(
         &mut obj_reader,
         &tobj::LoadOptions {
             triangulate: true,
@@ -74,54 +78,38 @@ pub async fn load_model(
         },
     ).await?;
 
-    let mut materials = Vec::new();
-    for m in obj_materials? {
-        // let diffuse_texture = load_texture(&m.diffuse_texture, device, queue).await?;
-        let diffuse_texture = load_texture(&String::from("data/wapuku_purple_1024.jpg"), device, queue).await?;
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-            label: None,
-        });
-
-        materials.push(mesh_model::Material {
-            name: m.name,
-            diffuse_texture,
-            bind_group,
-        })
-    }
-    debug!("load_model: models.len()={:?}", models.len());
+   
+    let obj_materials = obj_materials_r?;
+    let models_textures = models.iter()
+        .map(
+            |m| m.mesh.material_id.and_then(|material_id| obj_materials.get(material_id)).expect(format!("no material for {:?}", m.mesh.material_id).as_str())
+        )
+        .map(|m| format!("data/{}", resource_filename(m.diffuse_texture.as_str())) )
+        .collect::<Vec<String>>();
     
-    let meshes = models
+    //Blender -> Wavefront: Forward Axis -Z, Up axis Y (default)
+    let meshes = join_all(models
         .into_iter()
-        .map(|m| {
+        .zip(models_textures.iter())
+        .map(|(m, texture)| async move {
             let vertices = (0..m.mesh.positions.len() / 3)
                 .map(|i| mesh_model::ModelVertex {
                     position: [
-                        m.mesh.positions[i * 3],
-                        m.mesh.positions[i * 3 + 1],
                         m.mesh.positions[i * 3 + 2],
+                        m.mesh.positions[i * 3 + 1],
+                        m.mesh.positions[i * 3],
                     ],
-                    tex_coords: [m.mesh.texcoords[i * 2], m.mesh.texcoords[i * 2 + 1]],
+                    tex_coords: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
                     normal: [
-                        m.mesh.normals[i * 3],
-                        m.mesh.normals[i * 3 + 1],
                         m.mesh.normals[i * 3 + 2],
+                        m.mesh.normals[i * 3 + 1],
+                        m.mesh.normals[i * 3],
                     ],
                 })
                 .collect::<Vec<_>>();
-
+    
             debug!("load_model: name={:?} vertices={:?}", m.name, vertices);
-
+    
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("{:?} Vertex Buffer", file_name)),
                 contents: bytemuck::cast_slice(&vertices),
@@ -132,20 +120,43 @@ pub async fn load_model(
                 contents: bytemuck::cast_slice(&m.mesh.indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
-
-            mesh_model::Mesh {
-                name: file_name.to_string(),
+    
+            mesh_model::Mesh::new(
+                m.name,
                 vertex_buffer,
                 index_buffer,
-                num_elements: m.mesh.indices.len() as u32,
-                material: m.mesh.material_id.unwrap_or(0),
-            }
+                m.mesh.indices.len() as u32,
+                make_material(device, queue, layout, texture).await,
+            )
         })
-        .collect::<Vec<_>>();
-    
-    debug!("load_model: meshes={:?}", meshes);
+        .collect::<Vec<_>>()).await;
 
-    Ok(mesh_model::MeshModel { meshes, materials })
+
+    Ok(MeshModel::new (meshes, device))
+}
+
+async fn make_material(device: &Device, queue: &Queue, layout: &BindGroupLayout, file_name: &String) -> Material {
+    let diffuse_texture = load_texture(file_name.as_str(), device, queue).await.unwrap();
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+            },
+        ],
+        label: None,
+    });
+
+    Material {
+        name: file_name.clone(),
+        diffuse_texture,
+        bind_group,
+    }
 }
 
 #[cfg(test)]

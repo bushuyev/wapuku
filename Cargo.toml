@@ -2,5 +2,6 @@
 
 members = [
     "wapuku-model",
+    "wapuku-resources",
     "wapuku-ui",
 ]

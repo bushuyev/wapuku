@@ -1,0 +1,21 @@
+[package]
+name = "wapuku-resources"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+tobj = { version = "3.2"}
+
+env_logger = "0.10.0"
+log = "0.4.17"
+
+cfg-if = "1"
+
+[dev-dependencies]
+simplelog = "0.10.2"
+ctor = "0.1.21"
+
+#[workspace]

@@ -1,5 +1,5 @@
 [package]
-name = "polars_test"
+name = "test_test"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 #polars = {path = "../../polars/polars", default-features = false, features=["parquet"]}
-polars = {version = "0.28.0", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "temporal", "rolling_window", "fmt"]}
-
+#polars = {version = "0.28.0", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "temporal", "rolling_window", "fmt"]}
+cgmath = "0.18.0"
 [workspace]

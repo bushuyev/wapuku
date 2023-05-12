@@ -1,5 +1,35 @@
-# Blender 3.5.0 MTL File: 'wapuku.blend'
+# Blender 3.5.1 MTL File: 'wapuku.blend'
 # www.blender.org
+
+newmtl cone_material
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd cone_1024.jpg
+
+newmtl cube_material
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd cube_1024.jpg
+
+newmtl cylinder_material
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd cylinder_1024.jpg
 
 newmtl sphere_material
 Ns 250.000000
@@ -9,4 +39,14 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
-map_Kd ../../blender/wapuku_purple_1024.jpg
+map_Kd sphere_1024.jpg
+
+newmtl torus_material
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd torus_1024.jpg
