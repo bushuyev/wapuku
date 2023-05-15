@@ -112,7 +112,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     debug!("data_grid: {:?} property_x={} property_y={}", data_grid, property_x, property_y);
     
     // data
-    let mut gpu_state = State::new(winit_window, VisualDataController::new(data, property_x, property_y)).await;
+    let mut gpu_state = State::new(winit_window, VisualDataController::new(data, property_x, property_y, width, height)).await;
 
     event_loop.run(move |event, _, control_flow| {
         // debug!("event_loop.run={:?}", event);
