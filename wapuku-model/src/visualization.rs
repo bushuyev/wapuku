@@ -295,10 +295,11 @@ impl VisualInstance {
     #[inline]
     pub fn set_position(&mut self, position:Vector3<f32>) {
         let d_position = position - self.position;
+        
         self.children.as_mut().map(|children|children.iter_mut().for_each(|child|{
             child.set_position(child.position() + d_position);
-
         }));
+        
         self.position = position
         
     }
@@ -331,10 +332,12 @@ impl VisualInstance {
         &self.name
     }
 
-    pub fn set_scale(&mut self, x: Option<f32>, y: Option<f32>, z: Option<f32>) {
-        self.scale.x = x.unwrap_or(self.scale.x);
-        self.scale.y = y.unwrap_or(self.scale.y);
-        self.scale.z = z.unwrap_or(self.scale.z);
+    pub fn set_scale(&mut self, scale:Vector3<f32>) {
+        self.scale = scale;
+
+        self.children.as_mut().map(|children|children.iter_mut().for_each(|child|{
+            child.scale = self.scale
+        }));
     }
  
     pub fn with_children(&self)->Vec<&VisualInstance> {
@@ -444,7 +447,6 @@ impl VisualDataController {
                 h
         });
 
-        // let mut visuals:HashMap<String, Vec<VisualInstance>> = HashMap::new();
         
         // visuals.insert(String::from("plate"), vec![
         //     VisualInstance::new(
@@ -454,79 +456,7 @@ impl VisualDataController {
         //         VisualInstanceData::Empty
         //     )
         // ]);
-        // 
-       /* visuals.insert(String::from("plate"), vec![
-            VisualInstance::new(
-                cgmath::Vector3 { x: -5.0, y:  0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "plate",
-                VisualInstanceData::Empty
-            ),
-            VisualInstance::new(
-                cgmath::Vector3 { x: -0.0, y:  -5.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "plate",
-                VisualInstanceData::Empty
-            ),
-            VisualInstance::new(
-                cgmath::Vector3 { x: 0.0, y:  0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "plate",
-                VisualInstanceData::Empty
-            ),
-            VisualInstance::new(
-                cgmath::Vector3 { x: 5.0, y:  0.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "plate",
-                VisualInstanceData::Empty
-            ),
-           VisualInstance::new(
-                cgmath::Vector3 { x: 0.0, y:  5.0, z: 0.0 },
-                cgmath::Quaternion::new(1., 0., 0., 0.),
-                "plate",
-                VisualInstanceData::Empty
-            ),
-        ]);*/
-        // 
-        // "property_1" => "Sphere",
-        // "property_2" => "Cone",
-        // "property_3" => "Cube",
-        // "property_4" => "Cylinder",
-        // visuals.insert(String::from("property_1"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: -5.0, y:  5.0, z: 0.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "property_1",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
-        // 
-        // visuals.insert(String::from("property_2"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: -5.0, y:  -5.0, z: 0.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "property_2",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
-        // 
-        // visuals.insert(String::from("property_3"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: 5.0, y:  5.0, z: 0.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "property_3",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
-        // 
-        // visuals.insert(String::from("property_4"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: 5.0, y:  -5.0, z: 0.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "property_4",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
+      
 
         Self { 
             property_x: property_x.clone_to_box(),
@@ -543,12 +473,6 @@ impl VisualDataController {
     
 
     pub fn visuals_updates(&mut self) -> Option<&mut Vec<VisualInstance>> {
-        // for visual_instance in visuals.and_then(|visuals| visuals.values_mut().flat_map(|visuals_vec|visuals_vec.iter_mut())) {
-        //     if let Some(animation) = self.animations.get(visual_instance.id) {
-        // 
-        //     }
-        // }
-
         
         for visual_instance in self.visuals.iter_mut() {
             debug!("visuals_updates: visual_instance={:?}", visual_instance);
@@ -657,11 +581,13 @@ impl VisualDataController {
 
                     self.animations.insert(
                         visual.id,
-                        Box::new(SimultaneousAnimations::new(vec![
-                            Box::new(Lerp::from_to_in_steps(visual.scale.y, 0.0, |v:&VisualInstance| &v.scale.y, |v:&mut VisualInstance, y| v.scale.y = y, 100, 0.01)),
-                            Box::new(Lerp::from_to_in_steps(visual.scale.x, 0.0, |v:&VisualInstance| &v.scale.x, |v:&mut VisualInstance, x| v.scale.x = x, 100, 0.01)),
-                            Box::new(Lerp::from_to_in_steps(visual.scale.z, 0.0, |v:&VisualInstance| &v.scale.z, |v:&mut VisualInstance, z| v.scale.z = z, 100, 0.01))
-                        ]))
+                        Box::new(Lerp::from_to_in_steps(
+                            visual.scale,
+                            Vector3::new(0.0, 0.0, 0.0),
+                            VisualInstance::scale,
+                            VisualInstance::set_scale,
+                            100, 0.001
+                        ))
                     );
                 }
             }
