@@ -21,7 +21,8 @@ pub const V_LEFT_TOP: Vector4<f32> = Vector4::new(-3., 3., 0., 1.);
 pub const V_RIGHT_BOTTOM: Vector4<f32> = Vector4::new(3., -3., 0., 1.);
 
 trait Animation {
-    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState;
+    type V;
+    fn tick(&mut self, visual_instance: &mut Self::V) -> AnimationState;
 }
 
 #[derive(PartialEq, Debug)]
@@ -31,20 +32,20 @@ enum AnimationState {
 }
 
 
-
-
-struct SimultaneousAnimations {
-    animations:Vec<Box<dyn Animation>>
+struct SimultaneousAnimations<V> {
+    animations:Vec<Box<dyn Animation<V=V>>>
 }
 
-impl SimultaneousAnimations {
-    pub fn new(animations: Vec<Box<dyn Animation>>) -> Self {
+impl <V> SimultaneousAnimations<V> {
+    pub fn new(animations: Vec<Box<dyn Animation<V=V>>>) -> Self {
         Self { animations }
     }
 }
 
-impl Animation for SimultaneousAnimations {
-    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState {
+impl <V> Animation for SimultaneousAnimations<V> {
+    type V = V;
+
+    fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
        let mut state  = AnimationState::Done;
 
        for animation in self.animations.iter_mut() {
@@ -57,12 +58,12 @@ impl Animation for SimultaneousAnimations {
     }
 }
 
-struct ConsecutiveAnimations {
-    animations:Vec<Box<dyn Animation>>
+struct ConsecutiveAnimations<V> {
+    animations:Vec<Box<dyn Animation<V=V>>>
 }
 
-impl ConsecutiveAnimations {
-    pub fn new(animations: Vec<Box<dyn Animation>>) -> Self {
+impl <V> ConsecutiveAnimations<V> {
+    pub fn new(animations: Vec<Box<dyn Animation<V=V>>>) -> Self {
         let mut animations = animations;
         animations.reverse();
 
@@ -73,8 +74,10 @@ impl ConsecutiveAnimations {
 }
 
 
-impl Animation for ConsecutiveAnimations {
-    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState {
+impl <V> Animation for ConsecutiveAnimations<V> {
+    type V = V;
+
+    fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
         if let Some(mut animation) = self.animations.pop() {
             animation.tick(visual_instance)
 
@@ -89,12 +92,12 @@ impl Animation for ConsecutiveAnimations {
 #[cfg(test)]
 mod animation_tests {
     use cgmath::{Quaternion, Vector3, Zero};
-    use crate::visualization::{Animation, AnimationState, ScaleDown, VisualInstance, VisualInstanceData};
+    use crate::visualization::{Animation, AnimationState, Lerp, VisualInstance, VisualInstanceData};
 
     #[test]
     fn test_scale_xy() {
         // let scale_down = ScaleDown::new(Vector3::new())
-        let mut scale_down = ScaleDown::from_to_in_steps(1.0, 0.98, |v:&mut VisualInstance| &mut v.scale.x, 2, 0.001);
+        let mut scale_down = Lerp::from_to_in_steps(1.0, 0.98, |v:&mut VisualInstance| &mut v.scale.x, 2, 0.001);
         let mut vi = VisualInstance::new(Vector3::zero(), Quaternion::zero(), "tst", VisualInstanceData::Empty);
 
         let state = scale_down.tick(&mut vi);
@@ -111,7 +114,7 @@ mod animation_tests {
     #[test]
     fn test_move_from_to(){
         let mut vi = VisualInstance::new(Vector3::new(10., 10., 10.), Quaternion::zero(), "tst", VisualInstanceData::Empty);
-        let mut move_to = ScaleDown::from_to_in_steps(vi.position, Vector3::new(110., 110., 110.), |v:&mut VisualInstance| &mut v.position, 10, 0.1);
+        let mut move_to = Lerp::from_to_in_steps(vi.position, Vector3::new(110., 110., 110.), |v:&mut VisualInstance| &mut v.position, 10, 0.1);
 
         move_to.tick(&mut vi);
 
@@ -119,14 +122,14 @@ mod animation_tests {
     }
 }
 
-trait InSteps {
+trait Lerpable {
     type T;
     fn in_steps(&self, steps:u32) -> Self::T;
     fn is_done(&self, to:Self::T, e:f32) -> bool;
 }
 
 
-impl InSteps for f32 {
+impl Lerpable for f32 {
     type T = f32;
     
     fn in_steps(&self, steps:u32) -> f32 {
@@ -138,7 +141,7 @@ impl InSteps for f32 {
     }
 }
 
-impl InSteps for Vector3<f32> {
+impl Lerpable for Vector3<f32> {
     type T = Vector3<f32>;
 
     fn in_steps(&self, steps:u32) -> Vector3<f32> {
@@ -150,21 +153,21 @@ impl InSteps for Vector3<f32> {
     }
 }
 
-struct ScaleDown<T: Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + InSteps<T=T>> {
+struct Lerp<T: Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + Lerpable<T=T>, V> {
     to: T,
     d: T,
-    getter: Box<dyn Fn(&VisualInstance)->&T>,
-    setter: Box<dyn Fn(&mut VisualInstance, T)>,
+    getter: Box<dyn Fn(&V)->&T>,
+    setter: Box<dyn Fn(&mut V, T)>,
     e: f32
 }
 
-impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + InSteps<T=T>> ScaleDown<T> {
+impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T>, V> Lerp<T, V> {
 
     pub fn from_to_in_steps(
         from: T, 
         to: T,
-        getter:impl Fn(&VisualInstance)->&T + 'static,
-        setter:impl Fn(&mut VisualInstance, T) + 'static, 
+        getter:impl Fn(&V)->&T + 'static,
+        setter:impl Fn(&mut V, T) + 'static, 
         steps: u32, 
         e:f32
     ) -> Self {
@@ -180,11 +183,11 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + InSteps<T=T>
     }
 }
 
-impl <T:Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + InSteps<T=T>> Animation for ScaleDown<T> {
+impl <T:Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + Lerpable<T=T>, V> Animation for Lerp<T, V> {
+    type V = V;
 
-    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState {
+    fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
 
-        debug!("ScaleDown::from_to_in_steps: visual_instance={:?}", visual_instance);
 
         if (self.getter)(visual_instance).is_done(self.to, self.e) {
             AnimationState::Done
@@ -362,7 +365,7 @@ pub struct VisualDataController {
     visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
     has_updates: bool,
-    animations: HashMap<u32, Box<dyn Animation>>,
+    animations: HashMap<u32, Box<dyn Animation<V=VisualInstance>>>,
     width:i32, height:i32
 }
 
@@ -590,8 +593,8 @@ impl VisualDataController {
                     self.animations.insert(
                         visual_under_pointer.id,
                         Box::new(SimultaneousAnimations::new(vec![
-                            Box::new(ScaleDown::from_to_in_steps(visual_under_pointer.scale.y, 1.1, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
-                            Box::new(ScaleDown::from_to_in_steps(visual_under_pointer.scale.x, 1.1, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
+                            Box::new(Lerp::from_to_in_steps(visual_under_pointer.scale.y, 1.1, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
+                            Box::new(Lerp::from_to_in_steps(visual_under_pointer.scale.x, 1.1, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
                         ]))
                     );
 
@@ -611,8 +614,8 @@ impl VisualDataController {
             self.animations.insert(
                 prev_visual_under_pointer.id,
                 Box::new(SimultaneousAnimations::new(vec![
-                    Box::new(ScaleDown::from_to_in_steps(prev_visual_under_pointer.scale.y, 1.0, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
-                    Box::new(ScaleDown::from_to_in_steps(prev_visual_under_pointer.scale.x, 1.0, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
+                    Box::new(Lerp::from_to_in_steps(prev_visual_under_pointer.scale.y, 1.0, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
+                    Box::new(Lerp::from_to_in_steps(prev_visual_under_pointer.scale.x, 1.0, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
                 ]))
             );
         }
@@ -641,7 +644,7 @@ impl VisualDataController {
                 if visual.bounds().contain(x, y) {
                     self.animations.insert(
                         visual.id, 
-                        Box::new(ScaleDown::from_to_in_steps(
+                        Box::new(Lerp::from_to_in_steps(
                             visual.position, 
                             Vector3::new(0.0, 0.0, visual.position.z), 
                             VisualInstance::position, 
@@ -655,9 +658,9 @@ impl VisualDataController {
                     self.animations.insert(
                         visual.id,
                         Box::new(SimultaneousAnimations::new(vec![
-                            Box::new(ScaleDown::from_to_in_steps(visual.scale.y, 0.0, |v:&VisualInstance| &v.scale.y, |v:&mut VisualInstance, y| v.scale.y = y, 100, 0.01)),
-                            Box::new(ScaleDown::from_to_in_steps(visual.scale.x, 0.0, |v:&VisualInstance| &v.scale.x, |v:&mut VisualInstance, x| v.scale.x = x, 100, 0.01)),
-                            Box::new(ScaleDown::from_to_in_steps(visual.scale.z, 0.0, |v:&VisualInstance| &v.scale.z, |v:&mut VisualInstance, z| v.scale.z = z, 100, 0.01))
+                            Box::new(Lerp::from_to_in_steps(visual.scale.y, 0.0, |v:&VisualInstance| &v.scale.y, |v:&mut VisualInstance, y| v.scale.y = y, 100, 0.01)),
+                            Box::new(Lerp::from_to_in_steps(visual.scale.x, 0.0, |v:&VisualInstance| &v.scale.x, |v:&mut VisualInstance, x| v.scale.x = x, 100, 0.01)),
+                            Box::new(Lerp::from_to_in_steps(visual.scale.z, 0.0, |v:&VisualInstance| &v.scale.z, |v:&mut VisualInstance, z| v.scale.z = z, 100, 0.01))
                         ]))
                     );
                 }
