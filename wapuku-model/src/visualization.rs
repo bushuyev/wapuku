@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Div, Mul};
+use std::ops::{Add, AddAssign, Div, Mul, Sub};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use cgmath::{ElementWise, MetricSpace, Quaternion, Vector3, Vector4, Zero};
 use log::debug;
+use polars::prelude::LhsNumOps;
 use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
@@ -22,45 +24,13 @@ trait Animation {
     fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState;
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum AnimationState {
     Running,
     Done,
 }
 
 
-
-struct ScaleDown {
-    target: f32,
-    d: f32,
-    what_to_scale: Box<dyn Fn(&mut VisualInstance)->&mut f32>
-}
-
-impl ScaleDown {
-
-    pub fn new(target: f32, d:f32, what_to_scale:impl Fn(&mut VisualInstance)->&mut f32 + 'static) -> Self {
-        Self { 
-            target, 
-            d,
-            what_to_scale: Box::new(what_to_scale)
-        }
-    }
-}
-
-impl Animation for ScaleDown {
-
-    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState {
-
-        *(self.what_to_scale)(visual_instance) -= self.d;
-
-        
-        if *(self.what_to_scale)(visual_instance) <= self.target {
-            AnimationState::Done
-        } else {
-            AnimationState::Running
-        }
-    }
-}
 
 
 struct SimultaneousAnimations {
@@ -119,23 +89,29 @@ impl Animation for ConsecutiveAnimations {
 #[cfg(test)]
 mod animation_tests {
     use cgmath::{Quaternion, Vector3, Zero};
-    use crate::visualization::{Animation, MoveTo, ScaleDown, VisualInstance, VisualInstanceData};
+    use crate::visualization::{Animation, AnimationState, ScaleDown, VisualInstance, VisualInstanceData};
 
     #[test]
     fn test_scale_xy() {
         // let scale_down = ScaleDown::new(Vector3::new())
-        let mut scale_down = ScaleDown::new(0.0, 0.01, |v:&mut VisualInstance| &mut v.scale.x);
+        let mut scale_down = ScaleDown::from_to_in_steps(1.0, 0.98, |v:&mut VisualInstance| &mut v.scale.x, 2, 0.001);
         let mut vi = VisualInstance::new(Vector3::zero(), Quaternion::zero(), "tst", VisualInstanceData::Empty);
 
-        scale_down.tick(&mut vi);
+        let state = scale_down.tick(&mut vi);
         
         assert_eq!(vi.scale.x, 0.99);
+        assert_eq!(AnimationState::Running, state);
+
+        let state = scale_down.tick(&mut vi);
+
+        assert_eq!(vi.scale.x, 0.98);
+        assert_eq!(AnimationState::Done, state);
     }
     
     #[test]
     fn test_move_from_to(){
         let mut vi = VisualInstance::new(Vector3::new(10., 10., 10.), Quaternion::zero(), "tst", VisualInstanceData::Empty);
-        let mut move_to = MoveTo::from_to_in_steps(vi.position, Vector3::new(110., 110., 110.), 10);
+        let mut move_to = ScaleDown::from_to_in_steps(vi.position, Vector3::new(110., 110., 110.), |v:&mut VisualInstance| &mut v.position, 10, 0.1);
 
         move_to.tick(&mut vi);
 
@@ -143,33 +119,77 @@ mod animation_tests {
     }
 }
 
-struct MoveTo {
-    target: Vector3<f32>,
-    d: Vector3<f32>,
+trait InSteps {
+    type T;
+    fn in_steps(&self, steps:u32) -> Self::T;
+    fn is_done(&self, to:Self::T, e:f32) -> bool;
 }
 
 
-impl MoveTo {
+impl InSteps for f32 {
+    type T = f32;
+    
+    fn in_steps(&self, steps:u32) -> f32 {
+        self/ (steps as f32)
+    }
+    
+    fn is_done(&self, to:f32,  e:f32) -> bool {
+        (to - self).abs() < e
+    }
+}
 
-    pub fn from_to_in_steps(from:Vector3<f32>, to:Vector3<f32>, steps:u32) -> Self {
-        debug!("MoveTo::from_to_in_steps: from={:?}, to={:?}, steps={:?}", from, to, steps);
+impl InSteps for Vector3<f32> {
+    type T = Vector3<f32>;
+
+    fn in_steps(&self, steps:u32) -> Vector3<f32> {
+        self.div(steps as f32)
+    }
+
+    fn is_done(&self, to:Vector3<f32>, e:f32) -> bool {
+        self.distance2(to) < e
+    }
+}
+
+struct ScaleDown<T: Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + InSteps<T=T>> {
+    to: T,
+    d: T,
+    what_to_scale: Box<dyn Fn(&mut VisualInstance)->&mut T>,
+    e: f32
+}
+
+impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + InSteps<T=T>> ScaleDown<T> {
+
+    pub fn from_to_in_steps(from: T, to: T, what_to_scale:impl Fn(&mut VisualInstance)->&mut T + 'static, steps: u32, e:f32) -> Self {
+        debug!("ScaleDown::from_to_in_steps: from={:?}, to={:?}, steps={:?}", from, to, steps);
 
         Self {
-            target: to,
-            d: (to - from).div(steps as f32),
+            to,
+            d: (to - from).in_steps(steps),
+            what_to_scale: Box::new(what_to_scale),
+            e
         }
     }
 }
 
-impl Animation for MoveTo {
-    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState {
-        visual_instance.position += self.d;
+impl <T:Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + InSteps<T=T>> Animation for ScaleDown<T> {
 
-        if visual_instance.position.distance2(self.target) < 0.1 {
+    fn tick(&mut self, visual_instance: &mut VisualInstance) -> AnimationState {
+
+        debug!("ScaleDown::from_to_in_steps: visual_instance={:?}", visual_instance);
+
+        if (self.what_to_scale)(visual_instance).is_done(self.to, self.e) {
             AnimationState::Done
+
         } else {
-            AnimationState::Running
+            *(self.what_to_scale)(visual_instance) += self.d;
+
+            if (self.what_to_scale)(visual_instance).is_done(self.to, self.e) {
+                AnimationState::Done
+            } else {
+                AnimationState::Running
+            }
         }
+
     }
 }
 
@@ -292,6 +312,7 @@ pub struct VisualDataController {
     data: Box<dyn Data>,
     current_grid: GroupsGrid,
     visuals: Option<HashMap<String, Vec<VisualInstance>>>,
+    visual_id_under_pointer_op: Option<u32>,
     has_updates: bool,
     animations: HashMap<u32, Box<dyn Animation>>,
     width:i32, height:i32
@@ -482,6 +503,7 @@ impl VisualDataController {
             visuals: Some(visuals),
             has_updates: true,
             animations: HashMap::new(),
+            visual_id_under_pointer_op: None,
             width, height
         }
     }
@@ -525,17 +547,24 @@ impl VisualDataController {
     pub fn on_pointer_moved(&mut self, x:f32, y:f32){
         debug!("on_pointer_moved: x={}, y={}", x, y);
 
-        if let Some(visuals_iter_mut) = Self::flat_visuals(self.visuals.as_mut()) {
-            for visual in visuals_iter_mut {
-                if visual.bounds().contain(x, y) {
-                    visual.set_scale(Some(1.1), Some(1.1), None);
-                } else {
-                    visual.set_scale(Some(1.0), Some(1.0), None);
+        let visual_under_pointer_op = Self::flat_visuals(self.visuals.as_mut()).and_then(|mut visuals_iter|visuals_iter.find(|v|v.bounds().contain(x, y)));
+
+        //TODO visual on_pointer_in/out?
+        if visual_under_pointer_op.map(|v|v.id) != self.visual_id_under_pointer_op {
+            if let Some(visual_id_under_pointer_id) = self.visual_id_under_pointer_op {
+                
+                if let Some(prev_visual_under_pointer) = Self::flat_visuals(self.visuals.as_mut()).and_then(|mut visuals_iter|visuals_iter.find(|v|v.id == visual_id_under_pointer_id)) {
+                    
                 }
             }
-
-            self.has_updates = true;
         }
+        
+        // if let Some(visual_iunder_pointer) = visual_under_pointer_op {
+        //     
+        // }
+        
+
+        self.has_updates = true;
     }
 
     fn flat_visuals(visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>) -> Option<impl Iterator<Item = &mut VisualInstance>> {
@@ -558,19 +587,16 @@ impl VisualDataController {
             if let Some(visuals_iter_mut) = Self::flat_visuals(self.visuals.as_mut()) {
                 for visual in visuals_iter_mut {
                     if visual.bounds().contain(x, y) {
-                        self.animations.insert(visual.id, Box::new(MoveTo::from_to_in_steps(visual.position, Vector3::new(0.0, 0.0, visual.position.z), 100)));
+                        self.animations.insert(visual.id, Box::new(ScaleDown::from_to_in_steps(visual.position, Vector3::new(0.0, 0.0, visual.position.z), |v:&mut VisualInstance| &mut v.position, 100, 0.001)));
 
                     } else {
-                        
-
                         self.animations.insert(
                             visual.id,
                             Box::new(SimultaneousAnimations::new(vec![
-                                Box::new(ScaleDown::new(0.0, 0.01, |v:&mut VisualInstance| &mut v.scale.y)),
-                                Box::new(ScaleDown::new(0.0, 0.01, |v:&mut VisualInstance| &mut v.scale.x))
+                                Box::new(ScaleDown::from_to_in_steps(0.0, 0.0, |v:&mut VisualInstance| &mut v.scale.y, 100, 0.01)),
+                                Box::new(ScaleDown::from_to_in_steps(0.0, 0.0, |v:&mut VisualInstance| &mut v.scale.x, 100, 0.01))
                             ]))
                         );
-
                     }
                 }
             }
