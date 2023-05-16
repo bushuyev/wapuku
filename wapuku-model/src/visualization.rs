@@ -153,19 +153,28 @@ impl InSteps for Vector3<f32> {
 struct ScaleDown<T: Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + InSteps<T=T>> {
     to: T,
     d: T,
-    what_to_scale: Box<dyn Fn(&mut VisualInstance)->&mut T>,
+    getter: Box<dyn Fn(&VisualInstance)->&T>,
+    setter: Box<dyn Fn(&mut VisualInstance, T)>,
     e: f32
 }
 
 impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + InSteps<T=T>> ScaleDown<T> {
 
-    pub fn from_to_in_steps(from: T, to: T, what_to_scale:impl Fn(&mut VisualInstance)->&mut T + 'static, steps: u32, e:f32) -> Self {
+    pub fn from_to_in_steps(
+        from: T, 
+        to: T,
+        getter:impl Fn(&VisualInstance)->&T + 'static,
+        setter:impl Fn(&mut VisualInstance, T) + 'static, 
+        steps: u32, 
+        e:f32
+    ) -> Self {
         debug!("ScaleDown::from_to_in_steps: from={:?}, to={:?}, steps={:?}", from, to, steps);
 
         Self {
             to,
-            d: (to - from).in_steps(steps),
-            what_to_scale: Box::new(what_to_scale),
+            d: (to - (from)).in_steps(steps),
+            getter: Box::new(getter),
+            setter: Box::new(setter),
             e
         }
     }
@@ -177,13 +186,13 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + InSteps<T=T>>
 
         debug!("ScaleDown::from_to_in_steps: visual_instance={:?}", visual_instance);
 
-        if (self.what_to_scale)(visual_instance).is_done(self.to, self.e) {
+        if (self.getter)(visual_instance).is_done(self.to, self.e) {
             AnimationState::Done
 
         } else {
-            *(self.what_to_scale)(visual_instance) += self.d;
+            (self.setter)(visual_instance, *(self.getter)(visual_instance) + self.d);
 
-            if (self.what_to_scale)(visual_instance).is_done(self.to, self.e) {
+            if (self.getter)(visual_instance).is_done(self.to, self.e) {
                 AnimationState::Done
             } else {
                 AnimationState::Running
@@ -238,6 +247,7 @@ pub struct VisualInstance {
     name: String,
     visual_bounds: VisualBounds,
     data: VisualInstanceData,
+    children: Option<Vec<Box<VisualInstance>>>
 }
 
 static VISUAL_INSTANCE_ID: AtomicU32 = AtomicU32::new(0);
@@ -252,6 +262,15 @@ fn get_next_id() -> u32 {
 impl VisualInstance {
 
     pub fn new<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData) -> Self {
+        Self::_new_with_children(position, rotation, name, data, None)
+    }
+
+
+    pub fn new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Vec<Box<VisualInstance>>) -> Self {
+        Self::_new_with_children(position, rotation, name, data, Some(children))
+    }
+    
+    fn _new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Option<Vec<Box<VisualInstance>>>) -> Self {
 
         Self {
             id: get_next_id(),
@@ -261,12 +280,29 @@ impl VisualInstance {
             name: name.into(),
             visual_bounds: VisualBounds::default(),
             data,
+            children
         }
     }
 
     #[inline]
-    pub fn position(&self) -> Vector3<f32> {
-        self.position
+    pub fn position(&self) -> &Vector3<f32> {
+        &self.position
+    }
+
+    #[inline]
+    pub fn set_position(&mut self, position:Vector3<f32>) {
+        let d_position = position - self.position;
+        self.children.as_mut().map(|children|children.iter_mut().for_each(|child|{
+            child.set_position(child.position() + d_position);
+
+        }));
+        self.position = position
+        
+    }
+
+    #[inline]
+    pub fn position_mut(&mut self) -> &mut Vector3<f32> {
+        &mut self.position
     }
 
     #[inline]
@@ -298,6 +334,18 @@ impl VisualInstance {
         self.scale.z = z.unwrap_or(self.scale.z);
     }
  
+    pub fn with_children(&self)->Vec<&VisualInstance> {
+        let mut with_children = vec![];
+        with_children.push(self);
+
+        if let Some(children) = self.children.as_ref() {
+            for child in children.iter() {
+                with_children.push(&*child);
+            }
+        }
+
+        with_children
+    }
 }
 
 impl Named for VisualInstance {
@@ -311,7 +359,7 @@ pub struct VisualDataController {
     property_y: Box<dyn Property>,
     data: Box<dyn Data>,
     current_grid: GroupsGrid,
-    visuals: Option<HashMap<String, Vec<VisualInstance>>>,
+    visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
     has_updates: bool,
     animations: HashMap<u32, Box<dyn Animation>>,
@@ -341,73 +389,55 @@ impl VisualDataController {
 
 
         //TODO layout
-        let visuals:HashMap<String, Vec<VisualInstance>> = data_grid.data()
+        let visuals:Vec<VisualInstance> = data_grid.data()
             .drain(..).enumerate()
             .flat_map(
                 move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Box<dyn DataGroup>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
             )
-            .fold(HashMap::new(), move |mut h:HashMap<String, Vec<VisualInstance>>, (x, y, group)|{
+            .fold(vec![], move |mut h:Vec<VisualInstance>, (x, y, group)|{
                 
-                let mut plates = h.entry(String::from("plate")).or_insert(vec![]);
 
                 let plate_x = (min_x + x as f32 * step) as f32;
                 let plate_y = (min_y - y as f32 * step) as f32;
 
                 debug!("VisualDataController::new x={}, y={}  plate_x={}, plate_y={}", x, y, plate_x, plate_y);
 
-                plates.push(
-                  VisualInstance::new(
+                h.push(
+                  VisualInstance::new_with_children(
                       cgmath::Vector3 { x: plate_x, y: plate_y, z: plate_z },
                       cgmath::Quaternion::new(1., 0., 0., 0.),
-                      format!("plate: x={} y={}", x, y),
-                      VisualInstanceData::DataGroup(group)
+                      // format!("plate: x={} y={}", x, y),
+                      format!("plate"),
+                      VisualInstanceData::DataGroup(group),
+                      vec![
+                          Box::new(VisualInstance::new(
+                               cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
+                               cgmath::Quaternion::new(1., 0., 0., 0.),
+                               "property_1",
+                               VisualInstanceData::Empty
+                          )),
+                          Box::new(VisualInstance::new(
+                               cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
+                               cgmath::Quaternion::new(1., 0., 0., 0.),
+                               "property_2",
+                               VisualInstanceData::Empty
+                          )),
+                          Box::new(VisualInstance::new(
+                               cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
+                               cgmath::Quaternion::new(1., 0., 0., 0.),
+                               "property_3",
+                               VisualInstanceData::Empty
+                          )),
+                          Box::new(VisualInstance::new(
+                               cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
+                               cgmath::Quaternion::new(1., 0., 0., 0.),
+                               "property_4",
+                               VisualInstanceData::Empty
+                          ))
+                      ]
                   )
                 );
 
-               /* let mut plates = h.entry(String::from("property_1")).or_insert(vec![]);
-                
-                plates.push(
-                    VisualInstance::new(
-                        cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
-                        cgmath::Quaternion::new(1., 0., 0., 0.),
-                        "property_1",
-                        VisualInstanceData::Empty
-                    )
-                );
-                
-                let mut plates = h.entry(String::from("property_2")).or_insert(vec![]);
-                
-                plates.push(
-                    VisualInstance::new(
-                        cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
-                        cgmath::Quaternion::new(1., 0., 0., 0.),
-                        "property_2",
-                        VisualInstanceData::Empty
-                    )
-                );
-                
-                let mut plates = h.entry(String::from("property_3")).or_insert(vec![]);
-                
-                plates.push(
-                    VisualInstance::new(
-                        cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
-                        cgmath::Quaternion::new(1., 0., 0., 0.),
-                        "property_3",
-                        VisualInstanceData::Empty
-                    )
-                );
-                
-                let mut plates = h.entry(String::from("property_4")).or_insert(vec![]);
-                
-                plates.push(
-                    VisualInstance::new(
-                        cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
-                        cgmath::Quaternion::new(1., 0., 0., 0.),
-                        "property_4",
-                        VisualInstanceData::Empty
-                    )
-                );*/
-                
                 h
         });
 
@@ -500,45 +530,43 @@ impl VisualDataController {
             property_y: property_y.clone_to_box(),
             data,
             current_grid: data_grid,
-            visuals: Some(visuals),
+            visuals,
             has_updates: true,
             animations: HashMap::new(),
             visual_id_under_pointer_op: None,
             width, height
         }
     }
+    
 
-    pub fn visuals(&mut self) -> Option<&HashMap<String, Vec<VisualInstance>>> {
-        self.visuals.as_ref()
-    }
-
-    pub fn visuals_updates(&mut self) -> Option<&mut HashMap<String, Vec<VisualInstance>>> {
+    pub fn visuals_updates(&mut self) -> Option<&mut Vec<VisualInstance>> {
         // for visual_instance in visuals.and_then(|visuals| visuals.values_mut().flat_map(|visuals_vec|visuals_vec.iter_mut())) {
         //     if let Some(animation) = self.animations.get(visual_instance.id) {
         // 
         //     }
         // }
 
-        if let Some(visuals) = self.visuals.as_mut().map(|visuals| visuals.values_mut().flat_map(|visuals_vec|visuals_vec.iter_mut())) {
-            for visual_instance in visuals {
-                debug!("visuals_updates: visual_instance={:?}", visual_instance);
-                if let Some(animation) = self.animations.get_mut(&visual_instance.id) {
-                    self.has_updates = true;
-                    debug!("visuals_updates: animation for id={:?}", visual_instance.id);
-                    
-                    if animation.tick(visual_instance) == AnimationState::Done {
-                        self.animations.remove(&visual_instance.id);
+        
+        for visual_instance in self.visuals.iter_mut() {
+            debug!("visuals_updates: visual_instance={:?}", visual_instance);
+            if let Some(animation) = self.animations.get_mut(&visual_instance.id) {
+                self.has_updates = true;
+                debug!("visuals_updates: animation for id={:?}", visual_instance.id);
+                
+                if animation.tick(visual_instance) == AnimationState::Done {
+                    self.animations.remove(&visual_instance.id);
 
-                        debug!("visuals_updates: removed animation for id={:?}", visual_instance.id);
-                    }
+                    debug!("visuals_updates: removed animation for id={:?}", visual_instance.id);
                 }
             }
         }
         
+        
         if self.has_updates {
             self.has_updates = false;
             
-            self.visuals.as_mut()
+            // self.visuals.as_mut()
+            Some(&mut self.visuals)
         } else {
             None
         }
@@ -547,24 +575,49 @@ impl VisualDataController {
     pub fn on_pointer_moved(&mut self, x:f32, y:f32){
         debug!("on_pointer_moved: x={}, y={}", x, y);
 
-        let visual_under_pointer_op = Self::flat_visuals(self.visuals.as_mut()).and_then(|mut visuals_iter|visuals_iter.find(|v|v.bounds().contain(x, y)));
+        let visual_under_pointer_op = self.visuals.iter().find(|v|v.bounds().contain(x, y));
 
-        //TODO visual on_pointer_in/out?
-        if visual_under_pointer_op.map(|v|v.id) != self.visual_id_under_pointer_op {
-            if let Some(visual_id_under_pointer_id) = self.visual_id_under_pointer_op {
-                
-                if let Some(prev_visual_under_pointer) = Self::flat_visuals(self.visuals.as_mut()).and_then(|mut visuals_iter|visuals_iter.find(|v|v.id == visual_id_under_pointer_id)) {
+        
+        match visual_under_pointer_op {
+            None => {
+                debug!("on_pointer_moved: no visual_under_pointer_op");
+                self.clear_prev_visual_under_pointer(None);
+            }
+            Some(visual_under_pointer) => {
+                if self.visual_id_under_pointer_op.map(|visual_id_under_pointer| visual_under_pointer.id != visual_id_under_pointer).unwrap_or(true) {
+                    debug!("on_pointer_moved: visual_under_pointer_op");
+
+                    self.animations.insert(
+                        visual_under_pointer.id,
+                        Box::new(SimultaneousAnimations::new(vec![
+                            Box::new(ScaleDown::from_to_in_steps(visual_under_pointer.scale.y, 1.1, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
+                            Box::new(ScaleDown::from_to_in_steps(visual_under_pointer.scale.x, 1.1, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
+                        ]))
+                    );
+
+                    self.clear_prev_visual_under_pointer(Some(visual_under_pointer.id));
                     
                 }
             }
         }
-        
-        // if let Some(visual_iunder_pointer) = visual_under_pointer_op {
-        //     
-        // }
-        
 
         self.has_updates = true;
+    }
+
+    fn clear_prev_visual_under_pointer(&mut self, current_visual_id_under_pointer_op:Option<u32>) {
+        debug!("clear_prev_visual_under_pointer: self.visual_id_under_pointer_op={:?}", self.visual_id_under_pointer_op);
+        
+        if let Some(prev_visual_under_pointer) = self.visual_id_under_pointer_op.take().and_then(|prev_visual_id_under_pointer| self.visuals.iter().find(|v| v.id == prev_visual_id_under_pointer)) {
+            self.animations.insert(
+                prev_visual_under_pointer.id,
+                Box::new(SimultaneousAnimations::new(vec![
+                    Box::new(ScaleDown::from_to_in_steps(prev_visual_under_pointer.scale.y, 1.0, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
+                    Box::new(ScaleDown::from_to_in_steps(prev_visual_under_pointer.scale.x, 1.0, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
+                ]))
+            );
+        }
+
+        self.visual_id_under_pointer_op = current_visual_id_under_pointer_op;
     }
 
     fn flat_visuals(visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>) -> Option<impl Iterator<Item = &mut VisualInstance>> {
@@ -582,22 +635,31 @@ impl VisualDataController {
 
     pub fn on_pointer_input(&mut self, x: f32, y: f32) {
 
-        if let Some(visual_under_pointer) = Self::flat_visuals(self.visuals.as_mut()).and_then(|mut visuals_iter_mut|visuals_iter_mut.find(|v|v.bounds().contain(x, y))) {
-            
-            if let Some(visuals_iter_mut) = Self::flat_visuals(self.visuals.as_mut()) {
-                for visual in visuals_iter_mut {
-                    if visual.bounds().contain(x, y) {
-                        self.animations.insert(visual.id, Box::new(ScaleDown::from_to_in_steps(visual.position, Vector3::new(0.0, 0.0, visual.position.z), |v:&mut VisualInstance| &mut v.position, 100, 0.001)));
+        if let Some(visual_under_pointer) = self.visuals.iter().find(|v|v.bounds().contain(x, y)) {
 
-                    } else {
-                        self.animations.insert(
-                            visual.id,
-                            Box::new(SimultaneousAnimations::new(vec![
-                                Box::new(ScaleDown::from_to_in_steps(0.0, 0.0, |v:&mut VisualInstance| &mut v.scale.y, 100, 0.01)),
-                                Box::new(ScaleDown::from_to_in_steps(0.0, 0.0, |v:&mut VisualInstance| &mut v.scale.x, 100, 0.01))
-                            ]))
-                        );
-                    }
+            for visual in self.visuals.iter_mut() {
+                if visual.bounds().contain(x, y) {
+                    self.animations.insert(
+                        visual.id, 
+                        Box::new(ScaleDown::from_to_in_steps(
+                            visual.position, 
+                            Vector3::new(0.0, 0.0, visual.position.z), 
+                            VisualInstance::position, 
+                            VisualInstance::set_position, 
+                            100, 0.001
+                        ))
+                    );
+
+                } else {
+
+                    self.animations.insert(
+                        visual.id,
+                        Box::new(SimultaneousAnimations::new(vec![
+                            Box::new(ScaleDown::from_to_in_steps(visual.scale.y, 0.0, |v:&VisualInstance| &v.scale.y, |v:&mut VisualInstance, y| v.scale.y = y, 100, 0.01)),
+                            Box::new(ScaleDown::from_to_in_steps(visual.scale.x, 0.0, |v:&VisualInstance| &v.scale.x, |v:&mut VisualInstance, x| v.scale.x = x, 100, 0.01)),
+                            Box::new(ScaleDown::from_to_in_steps(visual.scale.z, 0.0, |v:&VisualInstance| &v.scale.z, |v:&mut VisualInstance, z| v.scale.z = z, 100, 0.01))
+                        ]))
+                    );
                 }
             }
         } 

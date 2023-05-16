@@ -7,7 +7,7 @@ use wapuku_model::visualization::*;
 impl From<&VisualInstance> for InstanceRaw {
     fn from(value: &VisualInstance) -> Self {
         //TODO
-        let mut model:[[f32; 4]; 4] = (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into();
+        let mut model:[[f32; 4]; 4] = (cgmath::Matrix4::from_translation(*value.position()) * cgmath::Matrix4::from(value.rotation())).into();
 
 
         model[0][0] = value.scale().x;
