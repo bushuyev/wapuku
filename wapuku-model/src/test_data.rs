@@ -68,7 +68,7 @@ impl  Data for TestData {
             
                 (0..groups_nr_y).map(|y|
                     (0..groups_nr_x).map(|x|
-                        Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(x, vec![],
+                        Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(x+y, vec![],
                              DataBounds::XY(
                                  property_x.to_range(Some(x as f64 * 10.0), Some(x as f64 * 10.0 + 10.0)),
                                  property_y.to_range(Some(x as f64 * 10.0), Some(x as f64 * 10.0 + 10.0)),

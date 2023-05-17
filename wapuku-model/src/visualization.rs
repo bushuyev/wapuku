@@ -5,8 +5,8 @@ use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Div, Mul, Sub};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use cgmath::{ElementWise, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
-use log::debug;
+use cgmath::{ElementWise, InnerSpace, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
+use log::{debug, trace};
 use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
@@ -78,10 +78,27 @@ impl <V> Animation for ConsecutiveAnimations<V> {
     type V = V;
 
     fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
-        if let Some(mut animation) = self.animations.pop() {
-            animation.tick(visual_instance)
+        debug!("Animation for ConsecutiveAnimations:tick self.animations.len()={:?}", self.animations.len());
+        
+        if let Some(mut animation) = self.animations.last_mut() {
+
+            match animation.tick(visual_instance) {
+                AnimationState::Running => {
+                    AnimationState::Running
+                }
+                AnimationState::Done => {
+                    self.animations.pop();
+
+                    if self.animations.is_empty() {
+                        AnimationState::Done
+                    } else {
+                        AnimationState::Running
+                    }
+                }
+            }
 
         } else {
+            
             AnimationState::Done
         }
     }
@@ -92,12 +109,13 @@ impl <V> Animation for ConsecutiveAnimations<V> {
 #[cfg(test)]
 mod animation_tests {
     use cgmath::{Quaternion, Vector3, Zero};
-    use crate::visualization::{Animation, AnimationState, Lerp, VisualInstance, VisualInstanceData};
+    use log::trace;
+    use crate::visualization::{Animation, AnimationState, ConsecutiveAnimations, Lerp, VisualInstance, VisualInstanceData};
 
     #[test]
     fn test_scale_xy() {
         // let scale_down = ScaleDown::new(Vector3::new())
-        let mut scale_down = Lerp::from_to_in_steps(1.0, 0.98, |v:&mut VisualInstance| &mut v.scale.x, 2, 0.001);
+        let mut scale_down = Lerp::from_to_in_steps(1.0, 0.98, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 2, 0.001);
         let mut vi = VisualInstance::new(Vector3::zero(), Quaternion::zero(), "tst", VisualInstanceData::Empty);
 
         let state = scale_down.tick(&mut vi);
@@ -110,22 +128,80 @@ mod animation_tests {
         assert_eq!(vi.scale.x, 0.98);
         assert_eq!(AnimationState::Done, state);
     }
+
+    #[test]
+    fn test_scale_v3() {
+        // let scale_down = ScaleDown::new(Vector3::new())
+        let scale_111 = Vector3::new(1., 1., 1.);
+        let mut scale_down = Lerp::from_to_in_steps(
+            scale_111,
+            Vector3::zero(),
+            VisualInstance::scale,
+            VisualInstance::set_scale,
+            100, 0.001
+        );
+        let mut vi = VisualInstance::new(Vector3::zero(), Quaternion::zero(), "tst", VisualInstanceData::Empty);
+        assert_eq!(vi.scale, scale_111);
+        
+        let mut state = None;
+        (0..100).for_each(|i|{
+            state = Some(scale_down.tick(&mut vi));
+        });
+
+        assert_eq!(vi.scale, Vector3::zero());
+        assert_eq!(state, Some(AnimationState::Done));
+    }
     
     #[test]
     fn test_move_from_to(){
-        let mut vi = VisualInstance::new(Vector3::new(10., 10., 10.), Quaternion::zero(), "tst", VisualInstanceData::Empty);
-        let mut move_to = Lerp::from_to_in_steps(vi.position, Vector3::new(110., 110., 110.), |v:&mut VisualInstance| &mut v.position, 10, 0.1);
+        let base = Vector3::new(10., 10., 10.);
+        let mut vi = VisualInstance::new(base, Quaternion::zero(), "tst", VisualInstanceData::Empty);
+        let target = Vector3::new(110., 110., 110.);
+        let mut move_to = Lerp::from_to_in_steps(vi.position, target, |v: &VisualInstance| &v.position, |v: &mut VisualInstance, p| v.position = p, 10, 0.1);
 
-        move_to.tick(&mut vi);
+        (0..10).for_each(|i|{
+            move_to.tick(&mut vi);
+        });
 
-        assert_eq!(vi.position.x, 20.0);
+        assert_eq!(vi.position, target);
+
+        let mut move_to = Lerp::from_to_in_steps(target, base, |v: &VisualInstance| &v.position, |v: &mut VisualInstance, p| v.position = p, 10, 0.1);
+
+        (0..10).for_each(|i|{
+            move_to.tick(&mut vi);
+        });
+
+        assert_eq!(vi.position, base);
     }
+
+    #[test]
+    fn test_consecutive_animations(){
+        let mut vi = VisualInstance::new(Vector3::new(10., 10., 10.), Quaternion::zero(), "tst", VisualInstanceData::Empty);
+
+        let target = Vector3::new(210., 210., 210.);
+        let mut animations = ConsecutiveAnimations::new( 
+            vec![
+                Box::new(Lerp::from_to_in_steps(vi.position,                              Vector3::new(110., 110., 110.), |v: &VisualInstance| &v.position, |v: &mut VisualInstance, p| v.position = p, 10, 0.1)),
+                Box::new(Lerp::from_to_in_steps(Vector3::new(110., 110., 110.), target, |v: &VisualInstance| &v.position, |v: &mut VisualInstance, p| v.position = p, 10, 0.1)),
+            ]
+        );
+
+        (0..19).for_each(|i|{
+            let state = animations.tick(&mut vi);
+            assert_eq!(AnimationState::Running, state);
+        });
+
+        let state = animations.tick(&mut vi);
+        assert_eq!(AnimationState::Done, state);
+        assert_eq!(vi.position, target);
+    }
+    
 }
 
 trait Lerpable {
     type T;
     fn in_steps(&self, steps:u32) -> Self::T;
-    fn is_done(&self, to:Self::T, e:f32) -> bool;
+    fn is_done(&self, to:Self::T, d:Self::T, e:f32) -> bool;
 }
 
 
@@ -136,8 +212,12 @@ impl Lerpable for f32 {
         self/ (steps as f32)
     }
     
-    fn is_done(&self, to:f32,  e:f32) -> bool {
-        (to - self).abs() < e
+    fn is_done(&self, to:f32, d:f32,  e:f32) -> bool {
+        if d > 0. {
+            self >= &to
+        } else {
+            self <= &to
+        }
     }
 }
 
@@ -148,8 +228,13 @@ impl Lerpable for Vector3<f32> {
         self.div(steps as f32)
     }
 
-    fn is_done(&self, to:Vector3<f32>, e:f32) -> bool {
-        self.distance2(to) < e
+    fn is_done(&self, to:Vector3<f32>, d:Vector3<f32>, e:f32) -> bool {
+        let dot = (to - *self).dot(d);
+        let x = dot <= 0.;
+        if !x {
+            debug!("Lerpable for Vector3: is_done, self={:?} to={:?} self.distance2(to)={:?} e={:?} dot={:?}", self, to, self.distance2(to), e, dot);
+        }
+        x
     }
 }
 
@@ -163,7 +248,7 @@ struct Lerp<T: Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + Lerpab
 
 impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T>, V> Lerp<T, V> {
 
-    pub fn from_to_in_steps(
+    pub fn from_to_in_steps(//TODO pass V and delay instantiation
         from: T, 
         to: T,
         getter:impl Fn(&V)->&T + 'static,
@@ -171,15 +256,68 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T
         steps: u32, 
         e:f32
     ) -> Self {
-        debug!("ScaleDown::from_to_in_steps: from={:?}, to={:?}, steps={:?}", from, to, steps);
+        
 
+        let d = (to - (from)).in_steps(steps);
+
+        debug!("ScaleDown::from_to_in_steps: from={:?}, to={:?}, steps={:?},  d={:?}, e={:?}", from, to, steps, d, e);
+        
         Self {
             to,
-            d: (to - (from)).in_steps(steps),
+            d,
             getter: Box::new(getter),
             setter: Box::new(setter),
             e
         }
+    }
+}
+
+#[cfg(test)]
+mod test_lerpables {
+    use cgmath::Vector3;
+    use crate::visualization::Lerpable;
+
+    #[test]
+    fn test_f32(){
+        let to:f32 = 1.0;
+        let d:f32 = 0.1;
+        
+        assert_eq!(false, (-1.5f32).is_done(to, d, 0.01));
+        assert_eq!(false, (-1.0f32).is_done(to, d, 0.01));
+        assert_eq!(false, 0.5f32.is_done(to, d, 0.01));
+        assert_eq!(true, 1.0f32.is_done(to, d, 0.01));
+        assert_eq!(true, 1.5f32.is_done(to, d, 0.01));
+
+        let to:f32 = -1.0;
+        let d:f32 = -0.1;
+
+        assert_eq!(false, 1.0f32.is_done(to, d, 0.01));
+        assert_eq!(false, 0.5f32.is_done(to, d, 0.01));
+        assert_eq!(false, (-0.5f32).is_done(to, d, 0.01));
+        assert_eq!(true, (-1.0f32).is_done(to, d, 0.01));
+        assert_eq!(true, (-1.5f32).is_done(to, d, 0.01));
+    }
+
+    #[test]
+    fn test_vectorf32(){
+        let to = Vector3::new(1., 0., 0.);
+        let d = Vector3::new(0.1, 0.1, 0.1);
+
+        assert_eq!(false, Vector3::new(-1.5f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(false, Vector3::new(-1.0f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(false, Vector3::new(0.5f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(true, Vector3::new(1.0f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(true, Vector3::new(1.5f32, 0., 0.).is_done(to, d, 0.01));
+
+
+        let to = Vector3::new(-1.0, 0., 0.);
+        let d = Vector3::new(-0.1, 0., 0.);
+
+        assert_eq!(false, Vector3::new(1.0f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(false, Vector3::new(0.5f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(false, Vector3::new(-0.5f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(true, Vector3::new(-1.0f32, 0., 0.).is_done(to, d, 0.01));
+        assert_eq!(true, Vector3::new(-1.5f32, 0., 0.).is_done(to, d, 0.01));
     }
 }
 
@@ -189,13 +327,15 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + Lerpable<T=T>
     fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
 
 
-        if (self.getter)(visual_instance).is_done(self.to, self.e) {
+        if (self.getter)(visual_instance).is_done(self.to, self.d, self.e) {
             AnimationState::Done
 
         } else {
             (self.setter)(visual_instance, *(self.getter)(visual_instance) + self.d);
 
-            if (self.getter)(visual_instance).is_done(self.to, self.e) {
+            if (self.getter)(visual_instance).is_done(self.to, self.d, self.e) {
+                (self.setter)(visual_instance, self.to);
+
                 AnimationState::Done
             } else {
                 AnimationState::Running
@@ -508,6 +648,9 @@ impl VisualDataController {
                 move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Box<dyn DataGroup>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
             )
             .fold(vec![], move |mut h:Vec<VisualInstance>, (x, y, group)|{
+                // if group.volume() > 0 {
+                //     return h;
+                // }
                 
 
                 let plate_x = (min_x + x as f32 * step) as f32;
@@ -627,16 +770,17 @@ impl VisualDataController {
                 if self.visual_id_under_pointer_op.map(|visual_id_under_pointer| visual_under_pointer.id != visual_id_under_pointer).unwrap_or(true) {
                     debug!("on_pointer_moved: visual_under_pointer_op");
 
-                    self.animations.insert(
-                        visual_under_pointer.id,
-                        Box::new(SimultaneousAnimations::new(vec![
-                            Box::new(Lerp::from_to_in_steps(visual_under_pointer.scale.y, 1.1, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
-                            Box::new(Lerp::from_to_in_steps(visual_under_pointer.scale.x, 1.1, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
-                        ]))
-                    );
+                    if !self.animations.contains_key(&visual_under_pointer.id) {
+                        self.animations.insert(
+                            visual_under_pointer.id,
+                            Box::new(SimultaneousAnimations::new(vec![
+                                Box::new(Lerp::from_to_in_steps(visual_under_pointer.scale.y, 1.1, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
+                                Box::new(Lerp::from_to_in_steps(visual_under_pointer.scale.x, 1.1, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
+                            ]))
+                        );
 
-                    self.clear_prev_visual_under_pointer(Some(visual_under_pointer.id));
-                    
+                        self.clear_prev_visual_under_pointer(Some(visual_under_pointer.id));
+                    }
                 }
             }
         }
@@ -648,13 +792,15 @@ impl VisualDataController {
         debug!("clear_prev_visual_under_pointer: self.visual_id_under_pointer_op={:?}", self.visual_id_under_pointer_op);
         
         if let Some(prev_visual_under_pointer) = self.visual_id_under_pointer_op.take().and_then(|prev_visual_id_under_pointer| self.visuals.iter().find(|v| v.id == prev_visual_id_under_pointer)) {
-            self.animations.insert(
-                prev_visual_under_pointer.id,
-                Box::new(SimultaneousAnimations::new(vec![
-                    Box::new(Lerp::from_to_in_steps(prev_visual_under_pointer.scale.y, 1.0, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
-                    Box::new(Lerp::from_to_in_steps(prev_visual_under_pointer.scale.x, 1.0, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
-                ]))
-            );
+            if !self.animations.contains_key(&prev_visual_under_pointer.id) {
+                self.animations.insert(
+                    prev_visual_under_pointer.id,
+                    Box::new(SimultaneousAnimations::new(vec![
+                        Box::new(Lerp::from_to_in_steps(prev_visual_under_pointer.scale.y, 1.0, |v: &VisualInstance| &v.scale.y, |v: &mut VisualInstance, y| v.scale.y = y, 10, 0.01)),
+                        Box::new(Lerp::from_to_in_steps(prev_visual_under_pointer.scale.x, 1.0, |v: &VisualInstance| &v.scale.x, |v: &mut VisualInstance, x| v.scale.x = x, 10, 0.01))
+                    ]))
+                );
+            }
         }
 
         self.visual_id_under_pointer_op = current_visual_id_under_pointer_op;
@@ -674,33 +820,92 @@ impl VisualDataController {
     }
 
     pub fn on_pointer_input(&mut self, x: f32, y: f32) {
-
+        debug!("on_pointer_input:  x={}, y={}", x, y);
+        
         if let Some(visual_under_pointer) = self.visuals.iter().find(|v|v.bounds().contain(x, y)) {
 
             for visual in self.visuals.iter_mut() {
+                let position = visual.position;
+                
+                debug!("on_pointer_input: visual={:?}", visual);
+                
                 if visual.bounds().contain(x, y) {
                     self.animations.insert(
-                        visual.id, 
-                        Box::new(Lerp::from_to_in_steps(
-                            visual.position, 
-                            Vector3::new(0.0, 0.0, visual.position.z), 
-                            VisualInstance::position, 
-                            VisualInstance::set_position, 
-                            100, 0.001
-                        ))
+                        visual.id,
+                        Box::new(ConsecutiveAnimations::new(vec![
+                                Box::new(SimultaneousAnimations::new(vec![
+                                    Box::new(Lerp::from_to_in_steps(
+                                        visual.position, 
+                                        Vector3::new(0.0, 0.0, visual.position.z), 
+                                        VisualInstance::position, 
+                                        VisualInstance::set_position, 
+                                        100, 0.001
+                                    )),
+                                    Box::new(Lerp::from_to_in_steps(
+                                        Vector3::new(1.0, 1.0, 1.0),
+                                        Vector3::new(0.2, 0.2, 0.2),
+                                        VisualInstance::scale,
+                                        VisualInstance::set_scale,
+                                        100, 0.003,
+                                    ))
+                                ])),
+                                Box::new(SimultaneousAnimations::new(vec![
+                                    Box::new(Lerp::from_to_in_steps(
+                                        Vector3::new(0.0, 0.0, visual.position.z),
+                                        position,
+                                        VisualInstance::position,
+                                        VisualInstance::set_position,
+                                        100, 0.001,
+                                    )),
+                                    Box::new(Lerp::from_to_in_steps(
+                                        Vector3::new(0.2, 0.2, 0.2),
+                                        Vector3::new(1.0, 1.0, 1.0),
+                                        VisualInstance::scale,
+                                        VisualInstance::set_scale,
+                                        100, 0.001,
+                                    ))
+                                ]))
+                            ]))
                     );
 
                 } else {
-
+                    
                     self.animations.insert(
                         visual.id,
-                        Box::new(Lerp::from_to_in_steps(
-                            visual.scale,
-                            Vector3::new(0.0, 0.0, 0.0),
-                            VisualInstance::scale,
-                            VisualInstance::set_scale,
-                            100, 0.001
-                        ))
+                        Box::new(ConsecutiveAnimations::new(vec![
+                            Box::new(Lerp::from_to_in_steps(
+                                visual.scale,
+                                Vector3::zero(),
+                                VisualInstance::scale,
+                                VisualInstance::set_scale,
+                                99, 0.001,
+                            )),
+                            Box::new(Lerp::from_to_in_steps(
+                                visual.position,
+                                Vector3::new(0.0, 0.0, visual.position.z),
+                                
+                                VisualInstance::position,
+                                VisualInstance::set_position,
+                                1, 0.001,
+                            )),
+                            Box::new(SimultaneousAnimations::new(vec![
+                                Box::new(Lerp::from_to_in_steps(
+                                    Vector3::new(0.0, 0.0, visual.position.z),
+                                    position,
+                                    VisualInstance::position,
+                                    VisualInstance::set_position,
+                                    100, 0.001,
+                                )),
+                                Box::new(Lerp::from_to_in_steps(
+                                    Vector3::zero(),
+                                    Vector3::new(1.0, 1.0, 1.0),
+                                    VisualInstance::scale,
+                                    VisualInstance::set_scale,
+                                    100, 0.001,
+                                )),
+                            ]))
+                            
+                        ])),
                     );
                 }
             }

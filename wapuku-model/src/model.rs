@@ -120,9 +120,9 @@ pub struct SimpleDataGroup {
 
 impl SimpleDataGroup {
 
-    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
+    pub fn new(volume: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
         Self { 
-            volume: size, 
+            volume, 
             property_sizes,
             bounds
         }
