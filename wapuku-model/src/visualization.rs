@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use cgmath::{ElementWise, MetricSpace, Quaternion, Vector3, Vector4, Zero};
 use log::debug;
-use polars::prelude::LhsNumOps;
 use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
@@ -212,6 +211,10 @@ impl VisualBounds {
         Self { x_left_top, y_left_top, x_right_bottom, y_right_bottom }
     }
 
+    fn from_width_heigh(width:f32, height:f32) -> Self {
+        VisualBounds::new(-width / 2., height / 2., width / 2., -height / 2.)
+    }
+
     pub fn update(&mut self, x_left_top: f32, y_left_top: f32, x_right_bottom: f32, y_right_bottom: f32) {
         self.x_left_top = x_left_top;
         self.y_left_top = y_left_top;
@@ -233,12 +236,46 @@ impl Default for VisualBounds {
     fn default() -> Self {
         VisualBounds::new(-1., 1., 1., -1.)
     }
+
 }
 
 #[derive(Debug)]
 pub enum VisualInstanceData {
     DataGroup(Box<dyn DataGroup>),
     Empty,
+}
+
+#[derive(Debug)]
+pub enum ChildrenLayout {
+    Circle,
+    Line
+}
+
+
+
+impl ChildrenLayout {
+
+    fn layout<'a, T>(&self, positions:T, bounds:&VisualBounds) where
+        T: IntoIterator<Item = &'a mut Vector3<f32>> {
+        
+        match self {
+            ChildrenLayout::Circle { .. } => {
+                
+            }
+            ChildrenLayout::Line => {
+                let mut x = bounds.x_left_top;
+                
+                let step = (bounds.x_right_bottom - bounds.x_left_top) / (positions.into_iter().count() as f32);
+
+                positions.into_iter().for_each(|p|{
+                    debug!("ChildrenLayout::Line: x={}", x);
+                    p.x = x;
+                    x += step;
+                });
+                
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -250,7 +287,8 @@ pub struct VisualInstance {
     name: String,
     visual_bounds: VisualBounds,
     data: VisualInstanceData,
-    children: Option<Vec<Box<VisualInstance>>>
+    children: Option<Vec<Box<VisualInstance>>>,
+    children_layout:Option<ChildrenLayout>
 }
 
 static VISUAL_INSTANCE_ID: AtomicU32 = AtomicU32::new(0);
@@ -261,19 +299,25 @@ fn get_next_id() -> u32 {
 
     v
 }
+const DEFAULT_LAYOUT:ChildrenLayout = ChildrenLayout::Line;
 
 impl VisualInstance {
 
     pub fn new<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData) -> Self {
-        Self::_new_with_children(position, rotation, name, data, None)
+        Self::_new_with_children(position, rotation, name, data, None, None, VisualBounds::default())
     }
 
 
-    pub fn new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Vec<Box<VisualInstance>>) -> Self {
-        Self::_new_with_children(position, rotation, name, data, Some(children))
+    pub fn new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Vec<Box<VisualInstance>>, children_layout:ChildrenLayout, bounds: VisualBounds) -> Self {
+        Self::_new_with_children(position, rotation, name, data, Some(children), Some(children_layout), bounds)
     }
     
-    fn _new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Option<Vec<Box<VisualInstance>>>) -> Self {
+    fn _new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children_op:Option<Vec<Box<VisualInstance>>>, children_layout: Option<ChildrenLayout>, visual_bounds: VisualBounds) -> Self {
+        let mut children_op_mut = children_op;
+
+        if let Some(children)  = children_op_mut.as_mut() {
+            children_layout.as_ref().unwrap_or(&DEFAULT_LAYOUT).layout(  children.iter_mut().map(|c|&mut *c.position), &visual_bounds);
+        }
 
         Self {
             id: get_next_id(),
@@ -281,9 +325,10 @@ impl VisualInstance {
             rotation,
             scale: Vector3::new(1., 1., 1.),
             name: name.into(),
-            visual_bounds: VisualBounds::default(),
+            visual_bounds,//TODO here relative, will be updated to screen in State::update
             data,
-            children
+            children: children_op_mut,
+            children_layout
         }
     }
 
@@ -417,30 +462,36 @@ impl VisualDataController {
                       VisualInstanceData::DataGroup(group),
                       vec![
                           Box::new(VisualInstance::new(
-                               cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
+                               // cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
+                               cgmath::Vector3::zero(),
                                cgmath::Quaternion::new(1., 0., 0., 0.),
                                "property_1",
                                VisualInstanceData::Empty
                           )),
                           Box::new(VisualInstance::new(
-                               cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
+                               // cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
+                               cgmath::Vector3::zero(),
                                cgmath::Quaternion::new(1., 0., 0., 0.),
                                "property_2",
                                VisualInstanceData::Empty
                           )),
                           Box::new(VisualInstance::new(
-                               cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
+                               // cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
+                               cgmath::Vector3::zero(),
                                cgmath::Quaternion::new(1., 0., 0., 0.),
                                "property_3",
                                VisualInstanceData::Empty
                           )),
                           Box::new(VisualInstance::new(
-                               cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
+                               // cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
+                               cgmath::Vector3::zero(),
                                cgmath::Quaternion::new(1., 0., 0., 0.),
                                "property_4",
                                VisualInstanceData::Empty
                           ))
-                      ]
+                      ],
+                      ChildrenLayout::Line, 
+                      VisualBounds::from_width_heigh(2. * d_property, 2. * d_property)
                   )
                 );
 
