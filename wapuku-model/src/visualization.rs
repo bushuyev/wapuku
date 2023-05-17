@@ -1,16 +1,17 @@
 use std::collections::{HashMap, HashSet};
+use std::f32::consts::PI;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Div, Mul, Sub};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use cgmath::{ElementWise, MetricSpace, Quaternion, Vector3, Vector4, Zero};
+use cgmath::{ElementWise, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
 use log::debug;
 use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
 pub struct VisualBounds {
-    x_left_top: f32,
+    x_left_top: f32,//TODO to Vector3
     y_left_top: f32,
     x_right_bottom: f32,
     y_right_bottom: f32,
@@ -208,7 +209,14 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T> + Copy + Debug + Lerpable<T=T>
 impl VisualBounds {
 
     pub fn new(x_left_top: f32, y_left_top: f32, x_right_bottom: f32, y_right_bottom: f32) -> Self {
-        Self { x_left_top, y_left_top, x_right_bottom, y_right_bottom }
+        let bounds = Self {
+            x_left_top,
+            y_left_top,
+            x_right_bottom,
+            y_right_bottom
+        };
+        debug!("VisualBounds::new {:?}", bounds);
+        bounds
     }
 
     fn from_width_heigh(width:f32, height:f32) -> Self {
@@ -230,7 +238,30 @@ impl VisualBounds {
 
         b_x && b_y
     }
+
+    // fn move_to(&mut self, p:&Vector3<f32>) {
+    //     self.x_right_bottom += p.x;
+    //     self.x_left_top += p.x;
+    // 
+    //     self.y_right_bottom += p.y;
+    //     self.y_left_top += p.y;
+    // }
+    
+    fn center(&self) -> Vector2<f32> {
+        Vector2::new(
+            self.x_left_top - (self.x_left_top - self.x_right_bottom)/2.,
+            self.y_left_top - (self.y_left_top - self.y_right_bottom)/2.
+        )
+    }
+
+    fn width_hgith(&self) -> Vector2<f32> {
+        Vector2::new(
+             self.x_right_bottom - self.x_left_top,
+            self.y_left_top - self.y_right_bottom
+        )
+    }
 }
+
 
 impl Default for VisualBounds {
     fn default() -> Self {
@@ -255,21 +286,44 @@ pub enum ChildrenLayout {
 
 impl ChildrenLayout {
 
-    fn layout<'a, T>(&self, positions:T, bounds:&VisualBounds) where
-        T: IntoIterator<Item = &'a mut Vector3<f32>> {
+    fn layout<'a> (&self, mut positions:Vec<&'a mut Vector3<f32>>, bounds:&VisualBounds){
         
         match self {
-            ChildrenLayout::Circle { .. } => {
+            ChildrenLayout::Circle => {
+                let center = bounds.center();
+                let r = bounds.width_hgith().x / 2.;
                 
+                debug!("ChildrenLayout::Circle:layout center={:?}, r={:?}", center, r);
+                
+                if positions.len() == 1 {
+                    let position_0 = positions.get_mut(0).unwrap();
+                    position_0.x = center.x;
+                    position_0.y = center.y;
+                    
+                } else {
+                    let step = 2. * PI /  (positions.len() as f32);
+                    let mut φ:f32 = 0.;
+
+                    positions.into_iter().for_each(|p|{
+                        p.x = r * φ.cos();
+                        p.y = r * φ.sin();
+
+                        φ += step;
+                    });
+                    
+                }
             }
+
             ChildrenLayout::Line => {
                 let mut x = bounds.x_left_top;
+                let mut y = bounds.y_left_top - (bounds.y_left_top - bounds.y_right_bottom)/2.;
                 
-                let step = (bounds.x_right_bottom - bounds.x_left_top) / (positions.into_iter().count() as f32);
+                let step = (bounds.x_right_bottom - bounds.x_left_top) / (positions.len() as f32);
 
                 positions.into_iter().for_each(|p|{
-                    debug!("ChildrenLayout::Line: x={}", x);
+                    debug!("ChildrenLayout::Line:layout x={}", x);
                     p.x = x;
+                    p.y = y;
                     x += step;
                 });
                 
@@ -277,6 +331,7 @@ impl ChildrenLayout {
         }
     }
 }
+
 
 #[derive(Debug)]
 pub struct VisualInstance {
@@ -308,7 +363,10 @@ impl VisualInstance {
     }
 
 
-    pub fn new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Vec<Box<VisualInstance>>, children_layout:ChildrenLayout, bounds: VisualBounds) -> Self {
+    pub fn new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Vec<Box<VisualInstance>>, children_layout:ChildrenLayout, bounds:(f32, f32)) -> Self {
+        let mut bounds = VisualBounds::from_width_heigh(bounds.0, bounds.1);
+        // bounds.move_to(&position);
+
         Self::_new_with_children(position, rotation, name, data, Some(children), Some(children_layout), bounds)
     }
     
@@ -316,7 +374,11 @@ impl VisualInstance {
         let mut children_op_mut = children_op;
 
         if let Some(children)  = children_op_mut.as_mut() {
-            children_layout.as_ref().unwrap_or(&DEFAULT_LAYOUT).layout(  children.iter_mut().map(|c|&mut *c.position), &visual_bounds);
+            children_layout.as_ref().unwrap_or(&DEFAULT_LAYOUT).layout(  children.iter_mut().map(|vi|vi.position_mut()).collect(), &visual_bounds);
+            children.iter_mut().for_each(|c|{
+                c.position.x += position.x;
+                c.position.y += position.y;
+            })
         }
 
         Self {
@@ -490,8 +552,8 @@ impl VisualDataController {
                                VisualInstanceData::Empty
                           ))
                       ],
-                      ChildrenLayout::Line, 
-                      VisualBounds::from_width_heigh(2. * d_property, 2. * d_property)
+                      ChildrenLayout::Circle, 
+                      (2. * d_property, 2. * d_property)
                   )
                 );
 
