@@ -56,20 +56,20 @@ impl Eq for &dyn Property {}
 #[derive(Debug)]
 pub struct PropertyRange {
     property: Box<dyn Property>,
-    min: Option<f64>,
-    max: Option<f64>,
+    min: Option<i64>,
+    max: Option<i64>,
 }
 
 impl PropertyRange {
 
-    pub fn new(property: &dyn Property, min: Option<f64>, max: Option<f64>) -> Self {
+    pub fn new(property: &dyn Property, min: Option<i64>, max: Option<i64>) -> Self {
         Self {
             property: property.clone_to_box(),
             min, max 
         }
     }
     
-    pub fn to_range(&self, min: Option<f64>, max: Option<f64>)->Self {
+    pub fn to_range(&self, min: Option<i64>, max: Option<i64>)->Self {
         Self {
             property: self.property.clone_to_box(), 
             min, max 
@@ -82,12 +82,12 @@ impl PropertyRange {
     }
 
     #[inline]
-    pub fn min(&self) -> Option<f64> {
+    pub fn min(&self) -> Option<i64> {
         self.min
     }
 
     #[inline]
-    pub fn max(&self) -> Option<f64> {
+    pub fn max(&self) -> Option<i64> {
         self.max
     }
 }
@@ -106,21 +106,21 @@ pub enum DataBounds {
 }
 
 pub trait DataGroup: Debug {
-    fn volume(&self) -> u8;
+    fn volume(&self) -> usize;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
     fn bounds(&self)->DataBounds;
 }
 
 #[derive(Debug)]
 pub struct SimpleDataGroup {
-    volume: u8,
+    volume: usize,
     property_sizes: Vec<PropertyInGroup>,
     bounds: DataBounds
 }
 
 impl SimpleDataGroup {
 
-    pub fn new(volume: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
+    pub fn new(volume: usize, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
         Self { 
             volume, 
             property_sizes,
@@ -130,7 +130,7 @@ impl SimpleDataGroup {
 }
 
 impl DataGroup for SimpleDataGroup {
-    fn volume(&self) -> u8 {
+    fn volume(&self) -> usize {
         self.volume
     }
 

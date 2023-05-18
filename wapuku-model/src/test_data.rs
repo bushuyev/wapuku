@@ -55,7 +55,7 @@ impl  Data for TestData {
     fn group_by_1(&self, property_range: PropertyRange) -> GroupsVec {
 
         GroupsVec::new(property_range.property().clone_to_box(), vec![
-            Box::new(SimpleDataGroup::new(10, vec![], DataBounds::X(property_range.to_range(Some(0.0),Some(10.0)))))
+            Box::new(SimpleDataGroup::new(10, vec![], DataBounds::X(property_range.to_range(Some(0),Some(10)))))
         ])
     }
 
@@ -68,10 +68,10 @@ impl  Data for TestData {
             
                 (0..groups_nr_y).map(|y|
                     (0..groups_nr_x).map(|x|
-                        Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(x+y, vec![],
+                        Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new((x+y) as usize, vec![],
                              DataBounds::XY(
-                                 property_x.to_range(Some(x as f64 * 10.0), Some(x as f64 * 10.0 + 10.0)),
-                                 property_y.to_range(Some(x as f64 * 10.0), Some(x as f64 * 10.0 + 10.0)),
+                                 property_x.to_range(Some((x as f64 * 10.0).ceil() as i64), Some((x as f64 * 10.0 + 10.0).ceil() as i64)),
+                                 property_y.to_range(Some((x as f64 * 10.0).ceil() as i64), Some((x as f64 * 10.0 + 10.0).ceil() as i64)),
                              ),
                         )))
                     ).collect::<Vec<Box<dyn DataGroup>>>()

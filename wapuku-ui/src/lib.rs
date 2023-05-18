@@ -89,15 +89,17 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
         })
         .expect("Couldn't append canvas to document body.");
 
-    // let mut state = State::new(winit_window, Box::new(PolarsData::new())).await;
+    
+    // let data:Box<dyn Data> = Box::new(PolarsData::new(parquet_scan()));
     let data:Box<dyn Data> = Box::new(TestData::new());
+    
     let all_properties:HashSet<&dyn Property> = data.all_properties();
     
 
     let (property_1, property_2, property_3) = {
         let mut all_properties_iter = all_properties.into_iter();
         
-        (all_properties_iter.next().expect("property_1"), all_properties_iter.next().expect("property_2"), all_properties_iter.next().expect("property_2"))
+        (all_properties_iter.next().expect("property_1"), all_properties_iter.next().expect("property_2"), all_properties_iter.next().expect("property_3"))
     };
 
     let data_grid = data.group_by_2(

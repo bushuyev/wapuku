@@ -626,7 +626,7 @@ impl VisualDataController {
         let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_x {} not found", property_y_name).as_str());
 
         let groups_nr_x = 3;
-        let groups_nr_y = 2;
+        let groups_nr_y = 3;
         let mut data_grid = data.group_by_2(
             PropertyRange::new(property_x, None, None),
             PropertyRange::new(property_y, None, None),
