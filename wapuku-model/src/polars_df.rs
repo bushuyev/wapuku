@@ -14,6 +14,7 @@ use polars::io::parquet::*;
 use polars::lazy::*;
 use polars::prelude::*;
 use polars::prelude::Expr::Columns;
+use polars::prelude::StartBy::WindowBound;
 use polars::time::*;
 use polars::time::Duration;
 // use parquet::arrow::parquet_to_arrow_schema;
@@ -90,14 +91,14 @@ impl Data for PolarsData {
         let min_df = properties_df.min();
         let max_df = properties_df.max();
         
-        let property_x_step = (max_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() - min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap())/(x_n as f32);
-        let property_y_step = (max_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() - min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap())/(y_n as f32);
+        let property_x_step = ((max_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() * 1.1 - min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap())/(x_n as f32)).ceil() as i64;
+        let property_y_step = ((max_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() * 1.1 - min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap())/(y_n as f32)).ceil() as i64;
 
         debug!("max_df={:?}, min_df={:?} property_x_step={:?}, property_y_step={:?}", max_df, min_df, property_x_step, property_y_step);
 
         let mut df = group_by(&self.df,
-                          property_x_name, property_x_step.ceil() as i64,
-                          property_y_name, property_y_step.ceil() as i64,
+                          property_x_name, property_x_step,
+                          property_y_name, property_y_step,
                           [
                   col("property_3").count().alias("property_3_count"),
               ]
@@ -105,6 +106,7 @@ impl Data for PolarsData {
         
         debug!("df={:?}", df);
 
+        // https://stackoverflow.com/questions/72440403/iterate-over-rows-polars-rust df is small here, should be ok
         df.as_single_chunk_par();
         let mut iters = df.columns(["primary_field_group", "secondary_group_field", "property_3_count"]).unwrap()
             .iter().map(|s| {
@@ -117,17 +119,18 @@ impl Data for PolarsData {
 
         let mut groups_hash:HashMap<i64, HashMap<i64, Vec<AnyValue>>> = HashMap::new();
 
+        
         for row in 0..df.height() {
             // for iter in &mut iters {
             //     let value = iter.next().expect("should have as many iterations as rows");
             //     debug!("value={:?}", value);
             // }
-
+        
             let mut row_vec = iters.iter_mut().map(|i|i.next().unwrap()).collect::<Vec<_>>();
-
+        
             let mut y_hashmap = groups_hash.entry(row_vec[0].try_extract::<i64>().unwrap()).or_insert(HashMap::new());
             y_hashmap.entry(row_vec[1].try_extract::<i64>().unwrap()).or_insert(row_vec[2..].to_vec());
-
+        
             debug!("row={:?}", row_vec);
         }
 
@@ -137,14 +140,19 @@ impl Data for PolarsData {
 
             (0..x_n).map(|x|
                 (0..y_n).map(|y| {
-                    let x_0 = (x as f32 * property_x_step).ceil() as i64;
-                    let x_1 = (x as f32 * property_x_step + property_x_step).ceil()  as i64;
-                    let y_0 = (y as f32 * property_y_step).ceil()  as i64;
-                    let y_1 = (y as f32 * property_y_step + property_y_step).ceil() as i64;
-                    
+                    let x_0 = x as i64 * property_x_step;
+                    let x_1 = x as i64 * property_x_step + property_x_step;
+                    let y_0 = y as i64 * property_y_step;
+                    let y_1 = y as i64 * property_y_step + property_y_step;
+
+                    // let mut row_vec = iters.iter_mut().map(|i|i.next().unwrap()).collect::<Vec<_>>();
+                    // debug!("x={:?}, y={:?} row_vec={:?}", (x_0, x_1), (y_0, y_1), row_vec);
                     debug!("x={:?}, y={:?}", (x_0, x_1), (y_0, y_1));
 
-                    Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(groups_hash.get(&x_0).and_then(|h|h.get(&y_0)).map(|v|v.len()).unwrap_or(0), vec![],
+                    Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(
+                        groups_hash.get(&x_0).and_then(|h|h.get(&y_0)).and_then(|v|v.get(0).map(|a|a.try_extract::<usize>().unwrap())).unwrap_or(0),
+                        // row_vec.get(2).map(|a|a.try_extract::<usize>().unwrap()).unwrap_or(0),
+                        vec![],
                          DataBounds::XY(property_x.to_range(Some(x_0), Some(x_1)), property_y.to_range(Some(y_0), Some(y_1))),
                         )))
                     }
@@ -199,11 +207,11 @@ pub(crate) fn group_by<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: 
             index_column: primary_field_group.into(),
             every: Duration::new(primary_step),
             period: Duration::new(primary_step),
-            offset: Duration::new(0),
+            offset: Duration::new(-1),
             truncate: true,
             include_boundaries: true,
             closed_window: ClosedWindow::Left,
-            start_by: Default::default(),
+            start_by: WindowBound,
         }
     ).agg([
         col(primary_field_group).alias(primary_field_value)
@@ -236,11 +244,11 @@ pub(crate) fn group_by<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: 
                 index_column: secondary_group_by_field.into(),
                 every: Duration::new(secondary_step),
                 period: Duration::new(secondary_step),
-                offset: Duration::new(0),
+                offset: Duration::new(-1),
                 truncate: true,
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
-                start_by: Default::default(),
+                start_by: WindowBound,
          }
         )
         .agg(aggregations)
@@ -275,11 +283,16 @@ mod tests {
     
     #[test]
     fn test_polars_data(){
-        let mut data = PolarsData::new(df!(
-            "property_1" => &(0..10).into_iter().collect::<Vec<i64>>(),
-            "property_2" => &(0..10).into_iter().map(|i|i*10).collect::<Vec<i64>>(),
-            "property_3" => &(0..10).into_iter().map(|i|i).collect::<Vec<i32>>(),
-        ).unwrap());
+        let df = df!(
+            "property_1" => &(30..100).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+            "property_2" => &(30..100).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+            "property_3" => &(30..100).into_iter().map(|i|i).collect::<Vec<i32>>(),
+        ).unwrap();
+        
+        debug!("df: {:?}", df);
+        
+        let mut data = PolarsData::new(df);
+        
 
         let all_properties:HashSet<&dyn Property> = data.all_properties();
 
@@ -555,13 +568,31 @@ mod tests {
     #[test]
     fn test_simp(){
         let df = df!(
-        "field_1" => &[1,       1,      2,      2,    2],
-        "field_2" => &["a",     "b",    "c",    "d",  "e"]
+        "field_1" => &[/*1,       2,  */    3,      4,    5],
+        "field_2" => &[/*"a",     "b",*/    "c",    "d",  "e"],
+        "field_3" => &[/*10,     20,  */  30,    40,  50]
     ).unwrap();
 
-        let group_by = df.groupby(["field_1"]).unwrap();
-        let by = group_by.select(["field_2"]);
-        let df = by.groups().unwrap();
+        // let group_by = df.groupby(["field_1"]).unwrap();
+        // let by = group_by.select(["field_2"]);
+        // let df = by.groups().unwrap();
+
+        let df = df.clone().lazy().groupby_dynamic(
+            [],
+            DynamicGroupOptions {
+                index_column: "field_1".into(),
+                every: Duration::new(2),
+                period: Duration::new(2),
+                offset: Duration::new(0),
+                truncate: false,
+                include_boundaries: true,
+                closed_window: ClosedWindow::Left,
+                start_by: Default::default(),
+            }
+
+        )
+            .agg([col("field_2").alias("field_2"), col("field_3")])
+            .collect().unwrap();
 
         debug!("parquet_scan: df={:?}", df);
         

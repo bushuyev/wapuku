@@ -16,6 +16,7 @@ mod tests {
     // use crate::visualization::MeshModel;
     use polars::df;
     use std::ops::Mul;
+    use polars::time::Duration;
     use cgmath::{SquareMatrix, Vector3, Vector4};
     use crate::transform_point;
     use polars::prelude::*;
@@ -83,7 +84,25 @@ mod tests {
             "field_4" => &[0.1,     0.1,    0.1,    0.1,  0.1,   0.1,   0.1,    0.1,    0.1,    0.1]
         ).unwrap();
 
-        println!("dfz={:?}", df);
+        // df.
+        let mut df = df.clone()
+            .lazy()
+            .groupby_dynamic(
+                [col("field_1")],
+                DynamicGroupOptions {
+                    index_column: "field_1".into(),
+                    every: Duration::new(10),
+                    period: Duration::new(10),
+                    offset: Duration::new(0),
+                    truncate: true,
+                    include_boundaries: true,
+                    closed_window: ClosedWindow::Left,
+                    start_by: Default::default(),
+                }
+            )
+            .agg([col("field_2").count()])
+            .collect()?;
+        println!("df={:?}", df);
     }
 }
 
