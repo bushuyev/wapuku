@@ -90,18 +90,30 @@ impl Data for PolarsData {
         let properties_df = self.df.select([property_x_name, property_y_name]).unwrap();
         let min_df = properties_df.min();
         let max_df = properties_df.max();
-        
-        let property_x_step = ((max_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() * 1.1 - min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap())/(x_n as f32)).ceil() as i64;
-        let property_y_step = ((max_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() * 1.1 - min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap())/(y_n as f32)).ceil() as i64;
 
-        debug!("max_df={:?}, min_df={:?} property_x_step={:?}, property_y_step={:?}", max_df, min_df, property_x_step, property_y_step);
+        let min_x =  min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap();
+        let max_x = max_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap();
+        
+        
+        let d_x = (max_x * 0.05).ceil() as i64;
+        let property_x_step = ((max_x * 1.1)/(x_n as f32)).ceil() as i64;
+        let property_x_step = if property_x_step == 0 {1} else {property_x_step};
+
+        let min_y = min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap();
+        let max_y = max_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap();
+        
+        let d_y = (max_y * 0.05).ceil() as i64;
+        let property_y_step = ((max_y * 1.1)/(y_n as f32)).ceil() as i64;
+        let property_y_step = if property_y_step == 0 {1} else {property_y_step};
+
+        debug!("min_df={:?}, max_df={:?} property_x_step={:?}, property_y_step={:?} d_x={}, d_y={}", min_df, max_df, property_x_step, property_y_step, d_x, d_y);
 
         let mut df = group_by(&self.df,
-                          property_x_name, property_x_step,
-                          property_y_name, property_y_step,
-                          [
-                  col("property_3").count().alias("property_3_count"),
-              ]
+                              property_x_name, property_x_step,
+                              property_y_name, property_y_step,
+                              [
+              col("property_3").count().alias("property_3_count"),
+          ], -d_x, -d_y
         ).unwrap();
         
         debug!("df={:?}", df);
@@ -140,15 +152,22 @@ impl Data for PolarsData {
 
             (0..x_n).map(|x|
                 (0..y_n).map(|y| {
-                    let x_0 = x as i64 * property_x_step;
-                    let x_1 = x as i64 * property_x_step + property_x_step;
-                    let y_0 = y as i64 * property_y_step;
-                    let y_1 = y as i64 * property_y_step + property_y_step;
+                    let x_0 = x as i64 * property_x_step - d_x;
+                    let x_1 = x as i64 * property_x_step + property_x_step - d_x;
+                    let y_0 = y as i64 * property_y_step - d_y;
+                    let y_1 = y as i64 * property_y_step + property_y_step - d_y;
 
                     // let mut row_vec = iters.iter_mut().map(|i|i.next().unwrap()).collect::<Vec<_>>();
                     // debug!("x={:?}, y={:?} row_vec={:?}", (x_0, x_1), (y_0, y_1), row_vec);
-                    debug!("x={:?}, y={:?}", (x_0, x_1), (y_0, y_1));
+                    
+                    let count = df.clone().lazy()
+                        .filter(
+                            col("primary_field_group").gt_eq(x_0).and(col("primary_field_group").lt(x_1)
+                                .and(col("secondary_group_field").gt_eq(y_0).and(col("secondary_group_field").lt(y_1)))))
+                        .select([col("property_3_count")]).collect().unwrap();
 
+                    debug!("x={:?}, y={:?} count={:?}", (x_0, x_1), (y_0, y_1), count.get(0));
+                    
                     Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(
                         groups_hash.get(&x_0).and_then(|h|h.get(&y_0)).and_then(|v|v.get(0).map(|a|a.try_extract::<usize>().unwrap())).unwrap_or(0),
                         // row_vec.get(2).map(|a|a.try_extract::<usize>().unwrap()).unwrap_or(0),
@@ -192,7 +211,7 @@ pub fn parquet_scan() -> DataFrame {
 
 
 
-pub(crate) fn group_by<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: &str, primary_step: i64, secondary_group_by_field: &str, secondary_step: i64, aggregations: E) -> WapukuResult<DataFrame> {
+pub(crate) fn group_by<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: &str, primary_step: i64, secondary_group_by_field: &str, secondary_step: i64, aggregations: E, primary_offset: i64, secondary_offset: i64) -> WapukuResult<DataFrame> {
     let primary_field_value = "primary_field_value"; 
     let primary_field_group = "primary_field_group"; //expanded value of the field in the second column group, to be joined back to main frame
 
@@ -207,7 +226,7 @@ pub(crate) fn group_by<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: 
             index_column: primary_field_group.into(),
             every: Duration::new(primary_step),
             period: Duration::new(primary_step),
-            offset: Duration::new(-1),
+            offset: Duration::new(primary_offset),
             truncate: true,
             include_boundaries: true,
             closed_window: ClosedWindow::Left,
@@ -244,7 +263,7 @@ pub(crate) fn group_by<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: 
                 index_column: secondary_group_by_field.into(),
                 every: Duration::new(secondary_step),
                 period: Duration::new(secondary_step),
-                offset: Duration::new(-1),
+                offset: Duration::new(secondary_offset),
                 truncate: true,
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
@@ -284,9 +303,9 @@ mod tests {
     #[test]
     fn test_polars_data(){
         let df = df!(
-            "property_1" => &(30..100).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-            "property_2" => &(30..100).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
-            "property_3" => &(30..100).into_iter().map(|i|i).collect::<Vec<i32>>(),
+            "property_1" => &(0..10).into_iter().map(|i|2 + i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+            "property_2" => &(0..10).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+            "property_3" => &(0..10).into_iter().map(|i|i).collect::<Vec<i32>>(),
         ).unwrap();
         
         debug!("df: {:?}", df);
@@ -386,7 +405,10 @@ mod tests {
          8-10|
         
          */
-        let df = group_by(&df, "field_2", 2,"field_1", 20,[col("field_3").alias("field_3_value")]).expect("df");
+        let df = group_by(
+            &df, "field_2", 2,"field_1", 20,[col("field_3").alias("field_3_value")],
+            -1i64, -1i64
+        ).expect("df");
         
         debug!("df={:?}", df);
        
@@ -430,7 +452,7 @@ mod tests {
 
         debug!("df filtered ={:?}", df);
         
-        let df = group_by(&df, "field_2", 2,"field_1", 20,[col("field_3").alias("field_3_value")]).expect("df");
+        let df = group_by(&df, "field_2", 2,"field_1", 20,[col("field_3").alias("field_3_value")], -1i64, -1i64).expect("df");
 
         
 
@@ -468,7 +490,8 @@ mod tests {
             [
                 col("field_3").count().alias("field_3_count"),
                 col("field_4").sum().alias("field_4_sum")
-            ]
+            ],
+            -1i64, -1i64
         ).expect("df");
 
         debug!("df={:?}", df);
@@ -542,7 +565,7 @@ mod tests {
          8-10|
         
          */
-        let df = group_by(&df, "field_2", 2, "field_1",  20,[col("field_3").alias("field_3_value")]).expect("df");
+        let df = group_by(&df, "field_2", 2, "field_1",  20,[col("field_3").alias("field_3_value")], -1i64, -1i64).expect("df");
 
         debug!("df={:?}", df);
 
