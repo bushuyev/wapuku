@@ -59,7 +59,7 @@ impl  Data for TestData {
         ])
     }
 
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8) -> GroupsGrid {
+    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid {
         
 
         GroupsGrid::new(
@@ -114,18 +114,18 @@ mod tests {
 
         let data_vec = wapuku_data.group_by_1(PropertyRange::new (property_1,  None, None ));
 
-        let mut data_grid = wapuku_data.group_by_2(
+        let mut data_grid = wapuku_data.build_grid(
             PropertyRange::new (property_1,  None, None ),
             PropertyRange::new (property_2,  None, None ),
-            3, 3
+            3, 3, "property_3"
         );
 
         if let Some(group) = data_grid.data().first().and_then(|first_row|first_row.first()) {
 
-            let data_grid_0_0 = wapuku_data.group_by_2(
+            let data_grid_0_0 = wapuku_data.build_grid(
                 PropertyRange::new (property_1,  None, None ),
                 PropertyRange::new (property_2,  None, None ),
-                3, 3
+                3, 3, "property_3"
             );
         }
 

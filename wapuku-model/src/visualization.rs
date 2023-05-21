@@ -627,10 +627,10 @@ impl VisualDataController {
 
         let groups_nr_x = 3;
         let groups_nr_y = 3;
-        let mut data_grid = data.group_by_2(
+        let mut data_grid = data.build_grid(
             PropertyRange::new(property_x, None, None),
             PropertyRange::new(property_y, None, None),
-            groups_nr_x, groups_nr_y,
+            groups_nr_x, groups_nr_y, "property_3",
         );
 
         let step = 9.;

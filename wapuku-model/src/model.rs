@@ -160,8 +160,8 @@ impl GroupsVec {
 
 }
 
-type VecX<T> = Vec<Box<T>>;
-type VecY<T> = Vec<VecX<T>>;
+pub type VecX<T> = Vec<Box<T>>;
+pub type VecY<T> = Vec<VecX<T>>;
 
 #[derive(Debug)]
 pub struct GroupsGrid {
@@ -192,7 +192,7 @@ pub trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8) -> GroupsGrid;
+    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
 }
 
 
