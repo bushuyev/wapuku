@@ -68,15 +68,15 @@ impl  Data for TestData {
             
                 (0..groups_nr_y).map(|y|
                     (0..groups_nr_x).map(|x|
-                        Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new((x+y) as usize, vec![],
+                        Some(Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new((x+y) as usize, vec![],
                              DataBounds::XY(
                                  property_x.to_range(Some((x as f64 * 10.0).ceil() as i64), Some((x as f64 * 10.0 + 10.0).ceil() as i64)),
                                  property_y.to_range(Some((x as f64 * 10.0).ceil() as i64), Some((x as f64 * 10.0 + 10.0).ceil() as i64)),
                              ),
-                        )))
-                    ).collect::<Vec<Box<dyn DataGroup>>>()
+                        ))))
+                    ).collect::<Vec<Option<Box<dyn DataGroup>>>>()
 
-            ).collect::<Vec<Vec<Box<dyn DataGroup>>>>()
+            ).collect::<Vec<Vec<Option<Box<dyn DataGroup>>>>>()
             
         )
     }

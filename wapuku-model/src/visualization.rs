@@ -645,7 +645,7 @@ impl VisualDataController {
         let visuals:Vec<VisualInstance> = data_grid.data()
             .drain(..).enumerate()
             .flat_map(
-                move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Box<dyn DataGroup>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
+                move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Option<Box<dyn DataGroup>>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
             )
             .fold(vec![], move |mut h:Vec<VisualInstance>, (x, y, group)|{
                 // if group.volume() > 0 {
@@ -658,47 +658,49 @@ impl VisualDataController {
 
                 debug!("VisualDataController::new x={}, y={}  plate_x={}, plate_y={}", x, y, plate_x, plate_y);
 
-                h.push(
-                  VisualInstance::new_with_children(
-                      cgmath::Vector3 { x: plate_x, y: plate_y, z: plate_z },
-                      cgmath::Quaternion::new(1., 0., 0., 0.),
-                      // format!("plate: x={} y={}", x, y),
-                      format!("plate"),
-                      VisualInstanceData::DataGroup(group),
-                      vec![
-                          Box::new(VisualInstance::new(
-                               // cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
-                               cgmath::Vector3::zero(),
-                               cgmath::Quaternion::new(1., 0., 0., 0.),
-                               "property_1",
-                               VisualInstanceData::Empty
-                          )),
-                          Box::new(VisualInstance::new(
-                               // cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
-                               cgmath::Vector3::zero(),
-                               cgmath::Quaternion::new(1., 0., 0., 0.),
-                               "property_2",
-                               VisualInstanceData::Empty
-                          )),
-                          Box::new(VisualInstance::new(
-                               // cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
-                               cgmath::Vector3::zero(),
-                               cgmath::Quaternion::new(1., 0., 0., 0.),
-                               "property_3",
-                               VisualInstanceData::Empty
-                          )),
-                          Box::new(VisualInstance::new(
-                               // cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
-                               cgmath::Vector3::zero(),
-                               cgmath::Quaternion::new(1., 0., 0., 0.),
-                               "property_4",
-                               VisualInstanceData::Empty
-                          ))
-                      ],
-                      ChildrenLayout::Circle, 
-                      (2. * d_property, 2. * d_property)
-                  )
-                );
+                if let Some(group) = group {
+                    h.push(
+                        VisualInstance::new_with_children(
+                            cgmath::Vector3 { x: plate_x, y: plate_y, z: plate_z },
+                            cgmath::Quaternion::new(1., 0., 0., 0.),
+                            // format!("plate: x={} y={}", x, y),
+                            format!("plate"),
+                            VisualInstanceData::DataGroup(group),
+                            vec![
+                                Box::new(VisualInstance::new(
+                                    // cgmath::Vector3 { x: plate_x - d_property, y: plate_y - d_property, z: properties_z },
+                                    cgmath::Vector3::zero(),
+                                    cgmath::Quaternion::new(1., 0., 0., 0.),
+                                    "property_1",
+                                    VisualInstanceData::Empty
+                                )),
+                                Box::new(VisualInstance::new(
+                                    // cgmath::Vector3 { x: plate_x - d_property, y: plate_y + d_property, z: properties_z },
+                                    cgmath::Vector3::zero(),
+                                    cgmath::Quaternion::new(1., 0., 0., 0.),
+                                    "property_2",
+                                    VisualInstanceData::Empty
+                                )),
+                                Box::new(VisualInstance::new(
+                                    // cgmath::Vector3 { x: plate_x + d_property, y: plate_y + d_property, z: properties_z },
+                                    cgmath::Vector3::zero(),
+                                    cgmath::Quaternion::new(1., 0., 0., 0.),
+                                    "property_3",
+                                    VisualInstanceData::Empty
+                                )),
+                                Box::new(VisualInstance::new(
+                                    // cgmath::Vector3 { x: plate_x + d_property, y: plate_y - d_property, z: properties_z },
+                                    cgmath::Vector3::zero(),
+                                    cgmath::Quaternion::new(1., 0., 0., 0.),
+                                    "property_4",
+                                    VisualInstanceData::Empty
+                                ))
+                            ],
+                            ChildrenLayout::Circle,
+                            (2. * d_property, 2. * d_property)
+                        )
+                    )
+                };
 
                 h
         });

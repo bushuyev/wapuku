@@ -160,7 +160,7 @@ impl GroupsVec {
 
 }
 
-pub type VecX<T> = Vec<Box<T>>;
+pub type VecX<T> = Vec<Option<Box<T>>>;
 pub type VecY<T> = Vec<VecX<T>>;
 
 #[derive(Debug)]
@@ -169,6 +169,26 @@ pub struct GroupsGrid {
     property_y:Box<dyn Property>,
     data: VecY<dyn DataGroup>
 }
+
+
+
+// impl Debug for GroupsGrid {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+// 
+//         let builder = f.debug_tuple("GroupsGrid")
+//             .field(&self.property_x)
+//             .field(&self.property_y)
+//             .field(&self.data);
+// 
+//         // self.data.iter().enumerate().for_each(|(i, r)|{
+//         //     builder.field(&r);
+//         // });
+//         
+// 
+//         builder.finish()
+// 
+//     }
+// }
 
 impl  GroupsGrid {
     pub fn new(property_x: Box<dyn Property>, property_y: Box<dyn Property>, data: VecY<dyn DataGroup>) -> Self {
@@ -184,6 +204,10 @@ impl  GroupsGrid {
     }
     pub fn data(&mut self) -> &mut VecY<dyn DataGroup> {
         &mut self.data
+    }
+    
+    pub fn group_at(&self, x:usize, y:usize) -> Option<&Box<dyn DataGroup>> {
+       self.data.get(y).and_then(|row|row.get(x).and_then(|v|v.as_ref()))
     }
 }
 
