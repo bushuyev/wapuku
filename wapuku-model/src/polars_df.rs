@@ -105,7 +105,7 @@ impl Data for PolarsData {
         debug!("min_df={:?} max_df={:?}", min_df, max_df);
 
        
-        let (property_x_step, d_x) = (( (max_x - min_x) / x_n as f32).ceil() as i64, 1); //if max_x - min_x <= x_n as f32 {(1, 0)} else {((((max_x - min_x) * 1.1)/(x_n as f32)).ceil() as i64, ((max_x - min_x) * 0.05 -1.).abs().ceil() as i64)};
+        let (property_x_step, d_x) = ( (( (max_x - min_x) * 1.1 / x_n as f32).ceil()) as i64, (((max_x - min_x) * 1.1 - (max_x - min_x))/2.) as i64); //if max_x - min_x <= x_n as f32 {(1, 0)} else {((((max_x - min_x) * 1.1)/(x_n as f32)).ceil() as i64, ((max_x - min_x) * 0.05 -1.).abs().ceil() as i64)};
         // let property_x_step = if property_x_step == 0 {1} else {property_x_step};
 
         let mut min_y =  property_y.min().unwrap_or(min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
@@ -122,7 +122,7 @@ impl Data for PolarsData {
         
         let d_y = (max_y * 0.05 -1.).abs().ceil() as i64;
         // let property_y_step = if max_y - min_y < y_n as f32 {1} else {((max_y * 1.1)/(y_n as f32)).ceil() as i64};
-        let (property_y_step, d_y) = (( (max_y - min_y) / y_n as f32).ceil() as i64, 1); //if max_y - min_y <= y_n as f32 {(1, 0)} else {((((max_y  - min_y)* 1.1)/(y_n as f32)).ceil() as i64, ((max_y  - min_y) * 0.05 -1.).abs().ceil() as i64)};
+        let (property_y_step, d_y) = ((((max_y - min_y) * 1.1 / y_n as f32).ceil()) as i64, (((max_x - min_x) * 1.1 - (max_x - min_x))/2.) as i64); //if max_y - min_y <= y_n as f32 {(1, 0)} else {((((max_y  - min_y)* 1.1)/(y_n as f32)).ceil() as i64, ((max_y  - min_y) * 0.05 -1.).abs().ceil() as i64)};
         // let property_y_step = if property_y_step == 0 {1} else {property_y_step};
 
         debug!("min_df={:?}, max_df={:?} property_x_step={:?}, property_y_step={:?} d_x={}, d_y={}", min_df, max_df, property_x_step, property_y_step, d_x, d_y);
@@ -346,8 +346,8 @@ mod tests {
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,], 
-            "property_2" => &[1,   1,   1,   2,   2,   2,   3,   3,   3,],
+            "property_1" => &[10,   20,   30,   10,   20,   30,   10,   20,   30,], 
+            "property_2" => &[10,   10,   10,   20,   20,   20,   30,   30,   30,],
             "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
         ).unwrap();
         
@@ -400,8 +400,8 @@ mod tests {
         **/
 
         let mut df = df!(
-            "property_1" => &[2,   3,   2,   3,   2,   3,], 
-            "property_2" => &[1,   2,   3,   1,   2,   3,],
+            "property_1" => &[20,   30,   20,   30,   20,   30,], 
+            "property_2" => &[10,   20,   30,   10,   20,   30,],
             "property_3" => &[12,  13,  22,  23,  32,  33,] 
         ).unwrap();
 
@@ -452,8 +452,8 @@ mod tests {
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   1,   2,   3,], 
-            "property_2" => &[2,   2,   2,   3,   3,   3,],
+            "property_1" => &[10,   20,   30,   10,   20,   30,], 
+            "property_2" => &[20,   20,   20,   30,   30,   30,],
             "property_3" => &[21,  22,  23,  31,  32,  33,] 
         ).unwrap();
 
@@ -503,8 +503,8 @@ mod tests {
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   4,   1,   2,   3,   4,  1,   2,   3,  4], 
-            "property_2" => &[1,   1,   1,   1,   2,   2,   2,   2,  3,   3,   3,  3],
+            "property_1" => &[10,   20,   30,   40,   10,   20,   30,   40,  10,   20,   30,  40], 
+            "property_2" => &[10,   10,   10,   10,   20,   20,   20,   20,  30,   30,   30,  30],
             "property_3" => &[11,  12,  13,  14,  21,  22,  23,  24, 31,  32,  33, 34] 
         ).unwrap();
 
