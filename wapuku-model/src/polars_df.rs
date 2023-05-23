@@ -82,8 +82,8 @@ impl Data for PolarsData {
 
         let property_y_step = (((max_y - min_y)  / y_n as f32).ceil()) as i64;
 
-        // debug!("min_df={:?} max_df={:?}", min_df, max_df);
-        debug!("min/max_x={:?}, min/max_y={:?} property_x_step={:?}, property_y_step={:?}", (min_x, max_x), (min_y, max_y), property_x_step, property_y_step);
+        // debug!("wapuku: min_df={:?} max_df={:?}", min_df, max_df);
+        debug!("wapuku: min/max_x={:?}, min/max_y={:?} property_x_step={:?}, property_y_step={:?}", (min_x, max_x), (min_y, max_y), property_x_step, property_y_step);
         
         let mut df = if max_x == min_x {
             
@@ -116,7 +116,7 @@ impl Data for PolarsData {
 
        
         
-        debug!("df={:?}", df);
+        debug!("wapuku: df={:?}", df);
 
         // // https://stackoverflow.com/questions/72440403/iterate-over-rows-polars-rust df is small here, should be ok
         // df.as_single_chunk_par();
@@ -155,7 +155,7 @@ impl Data for PolarsData {
                 let v = count.get(0).and_then(|v| v.get(0).map(|v| v.try_extract::<u32>().unwrap())).unwrap_or(0) as usize;
                 
                 
-                debug!("data_vec: (x, y)={:?}, (x_0, x_1)={:?}, (y_0, y_1)={:?}, v={:?}", (x, y), (x_0, x_1), (y_0, y_1), v);
+                debug!("wapuku: data_vec: (x, y)={:?}, (x_0, x_1)={:?}, (y_0, y_1)={:?}, v={:?}", (x, y), (x_0, x_1), (y_0, y_1), v);
                 
                 if v > 0 {
                     let group_box = Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(
@@ -180,6 +180,25 @@ impl Data for PolarsData {
 
 }
 
+pub fn fake_df() -> DataFrame {
+    // df!(
+    //     "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+    //     "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+    //     "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+    // ).unwrap()
+    // df!(
+    //     "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,], 
+    //     "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
+    //     "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
+    // ).unwrap() 
+    
+    df!(
+       "property_1" => &(0..10000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+       "property_2" => &(0..10000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+       "property_3" => &(0..10000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+    ).unwrap()
+}
+
 //TODO move to resources?
 pub fn parquet_scan() -> DataFrame {
     // let parquet_bytes = include_bytes!("../../wapuku-model/data/s1_transactions_pi_message.par");
@@ -200,7 +219,7 @@ pub fn parquet_scan() -> DataFrame {
         .collect()
         .unwrap();
   
-    debug!("parquet_scan: height={:?}", df.height());
+    debug!("wapuku: parquet_scan: height={:?}", df.height());
 
     df
 }
@@ -234,7 +253,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
     // let df = df.clone().lazy().with_column(lit(1).alias("primary_field_group")).collect()?;
     // df.rename(group_by_field, "secondary_group_field");
     
-    debug!("df grouped={:?}", df);
+    debug!("wapuku: df grouped={:?}", df);
 
     Ok(df)
 }
@@ -267,7 +286,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         .explode([primary_field_value]).collect()?;//primary_field_in_group not used, for debug
 
 
-    debug!("primary_field_grouped_and_expanded={:?}", primary_field_grouped_and_expanded);
+    debug!("wapuku: primary_field_grouped_and_expanded={:?}", primary_field_grouped_and_expanded);
     let mut df = df.sort([primary_group_by_field], false)?;
     
     let df = df
@@ -284,7 +303,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
     
-    debug!("df={:?}", df);
+    debug!("wapuku: df={:?}", df);
     
     let mut df = df.clone()
         .lazy()
@@ -309,7 +328,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
     
     df.rename(secondary_group_by_field, "secondary_group_field");
     
-    debug!("df grouped={:?}", df);
+    debug!("wapuku: df grouped={:?}", df);
 
     Ok(df)
 }
@@ -322,7 +341,8 @@ mod tests {
     use polars::datatypes::AnyValue::List;
     use polars::df;
     use polars::prelude::*;
-    use crate::model::{Data, DataGroup, GroupsGrid, Property, PropertyRange, VecY};
+    use crate::data_type::WapukuDataType;
+    use crate::model::{Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, VecY};
 
     use crate::polars_df::{group_by_2, PolarsData};
     use crate::tests::init_log;
@@ -354,13 +374,13 @@ mod tests {
             "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
         ).unwrap();
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
-        debug!("grid: {:?}", grid);
+        debug!("wapuku: grid: {:?}", grid);
         
         let data = grid.data();
 
@@ -398,13 +418,13 @@ mod tests {
             "property_3" => &[11,  21,  31, ] 
         ).unwrap();
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
 
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1_i64), Some(1_i64)), (Some(10i64), Some(31i64)));
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
-        debug!("grid: {:?}", grid);
+        debug!("wapuku: grid: {:?}", grid);
 
         let data = grid.data();
 
@@ -440,13 +460,13 @@ mod tests {
             "property_3" => &[11,  12,  13, ] 
         ).unwrap();
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1_i64), Some(4_i64)), (Some(10_i64), Some(10_i64)));
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
-        debug!("grid: {:?}", grid);
+        debug!("wapuku: grid: {:?}", grid);
 
         let data = grid.data();
 
@@ -485,12 +505,12 @@ mod tests {
             "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,   110, 120, 130, 210, 220, 230, 310, 320, 330,] 
         ).unwrap();
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
-        debug!("grid: {:?}", grid);
+        debug!("wapuku: grid: {:?}", grid);
 
         let data = grid.data();
 
@@ -530,12 +550,12 @@ mod tests {
         ).unwrap();
 
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
         // let data = grid.data();
         
-        debug!("grid={:?}", grid);
+        debug!("wapuku: grid={:?}", grid);
         
         assert_eq!(grid.group_at(0, 0).is_none(), true);
         assert_eq!(grid.group_at(1, 0).unwrap().volume(), 1);
@@ -570,7 +590,7 @@ mod tests {
         ).unwrap();
 
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
         // let data = gird.data();
@@ -610,7 +630,7 @@ mod tests {
         ).unwrap();
 
 
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
 
         let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(0i64), Some(5i64)), (Some(0i64), Some(31i64)));
         // let data = grid.data();
@@ -661,7 +681,7 @@ mod tests {
             "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
         ).unwrap();
         
-        debug!("df: {:?}", df);
+        debug!("wapuku: df: {:?}", df);
         let t_0 = Instant::now();
         
         let mut data = PolarsData::new(df);
@@ -684,7 +704,7 @@ mod tests {
 
         let data = data_grid.data();
         
-        debug!("done in {}", t_0.elapsed().as_millis());
+        debug!("wapuku: done in {}", t_0.elapsed().as_millis());
 
     }
 
@@ -699,13 +719,13 @@ mod tests {
         ).unwrap();
         
         
-        debug!("{:?}", df);
+        debug!("wapuku: {:?}", df);
         
         let mut polars_data = PolarsData::new(df);
 
         let all_sets = polars_data.all_sets();
         
-        debug!("all_sets={:?}", all_sets);
+        debug!("wapuku: all_sets={:?}", all_sets);
         assert_eq!(all_sets.len(), 1);
         
         let all_properties = polars_data.all_properties();
@@ -723,7 +743,7 @@ mod tests {
             3, 3, "property_3"
         );
         //TODO
-        debug!("data_grid={:?}", data_grid.data());
+        debug!("wapuku: data_grid={:?}", data_grid.data());
         
     }
 
@@ -750,7 +770,7 @@ mod tests {
             0i64, 0i64
         ).expect("df");
         
-        debug!("df={:?}", df);
+        debug!("wapuku: df={:?}", df);
        
         assert_eq!(
             *df.column("field_3_value").expect("field_3_value"),
@@ -770,12 +790,27 @@ mod tests {
     #[test]
     fn test_simp(){
         let df = df!(
-        "field_1" => &[0, 1,   2,      3,      4],
-        "field_2" => &["x", "a",   "b",    "c",    "d"],
-        "field_3" => &[0, 10,  20,    30,    40]
-    ).unwrap();
+            // "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+            // "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+            // "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+            
+            // "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,], 
+            // "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
+            // "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
+            
+            "property_1" => &(0..10000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+            "property_2" => &(0..10000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+            "property_3" => &(0..10000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+        ).unwrap();
 
-        // let group_by = df.groupby(["field_1"]).unwrap();
+        
+        println!("df={:?}", PolarsData::new(df).build_grid(
+            PropertyRange::new (&DataProperty::new(WapukuDataType::Numeric, "property_1"),  Some(-1), Some(100) ),
+            PropertyRange::new (&DataProperty::new(WapukuDataType::Numeric, "property_2"),  Some(-1), Some(100) ),
+            3, 3, "property_3"
+        ));
+
+       /* // let group_by = df.groupby(["field_1"]).unwrap();
         // let by = group_by.select(["field_2"]);
         // let df = by.groups().unwrap();
 
@@ -796,7 +831,7 @@ mod tests {
             .agg([col("field_2").alias("field_2"), col("field_3")])
             .collect().unwrap();
 
-        debug!("parquet_scan: df={:?}", df);
+        debug!("wapuku: parquet_scan: df={:?}", df);*/
 
 
     }

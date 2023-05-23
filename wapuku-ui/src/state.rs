@@ -57,7 +57,7 @@ impl State {
     pub async fn new(window: Window, model:VisualDataController) -> Self {
         let size = window.inner_size();
         
-        debug!("State::new: size={:?}", size);
+        debug!("wapuku: State::new: size={:?}", size);
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -402,7 +402,7 @@ impl State {
 
     //https://github.com/rust-windowing/winit/issues/1661
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        debug!("State::resize: new_size={:?}", new_size);
+        debug!("wapuku: State::resize: new_size={:?}", new_size);
 
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size; //PhysicalSize::new(1476,  493);
@@ -441,7 +441,7 @@ impl State {
 
                 visual_instance.bounds_mut().update(x_left_top, self.size.height as f32 - y_right_bottom, x_right_bottom, self.size.height as f32 - y_left_top);//TODO y
 
-                debug!("State::update: v={:?}  x_left_top={}, y_left_top={}, x_right_bottom={}, y_right_bottom={}", visual_instance, x_left_top, y_left_top, x_right_bottom, y_right_bottom);
+                // debug!("wapuku: State::update: v={:?}  x_left_top={}, y_left_top={}, x_right_bottom={}, y_right_bottom={}", visual_instance, x_left_top, y_left_top, x_right_bottom, y_right_bottom);
             }
 
             let instance_data = Self::visuals_to_raw(visuals, &mut self.mesh_model);
@@ -488,7 +488,7 @@ impl State {
                 &_ => "Torus"
             };
 
-            debug!("State::visualis_to_raw: mesh_name={:?} name={:?}", mesh_name, name);
+            debug!("wapuku: State::visualis_to_raw: mesh_name={:?} name={:?}", mesh_name, name);
 
             let mesh_op = mesh_model.mesh_by_name(mesh_name);
 
@@ -503,7 +503,7 @@ impl State {
             m.into_iter()
         }).map(|i| (*i).into()).collect::<Vec<InstanceRaw>>();
 
-        debug!("State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
+        debug!("wapuku: State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
 
         instance_data
         

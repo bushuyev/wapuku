@@ -78,7 +78,7 @@ impl <V> Animation for ConsecutiveAnimations<V> {
     type V = V;
 
     fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
-        debug!("Animation for ConsecutiveAnimations:tick self.animations.len()={:?}", self.animations.len());
+        debug!("wapuku: Animation for ConsecutiveAnimations:tick self.animations.len()={:?}", self.animations.len());
         
         if let Some(mut animation) = self.animations.last_mut() {
 
@@ -232,7 +232,7 @@ impl Lerpable for Vector3<f32> {
         let dot = (to - *self).dot(d);
         let x = dot <= 0.;
         if !x {
-            debug!("Lerpable for Vector3: is_done, self={:?} to={:?} self.distance2(to)={:?} e={:?} dot={:?}", self, to, self.distance2(to), e, dot);
+            debug!("wapuku: Lerpable for Vector3: is_done, self={:?} to={:?} self.distance2(to)={:?} e={:?} dot={:?}", self, to, self.distance2(to), e, dot);
         }
         x
     }
@@ -260,7 +260,7 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T
 
         let d = (to - (from)).in_steps(steps);
 
-        debug!("ScaleDown::from_to_in_steps: from={:?}, to={:?}, steps={:?},  d={:?}, e={:?}", from, to, steps, d, e);
+        debug!("wapuku: ScaleDown::from_to_in_steps: from={:?}, to={:?}, steps={:?},  d={:?}, e={:?}", from, to, steps, d, e);
         
         Self {
             to,
@@ -355,7 +355,7 @@ impl VisualBounds {
             x_right_bottom,
             y_right_bottom
         };
-        debug!("VisualBounds::new {:?}", bounds);
+        debug!("wapuku: VisualBounds::new {:?}", bounds);
         bounds
     }
 
@@ -374,7 +374,7 @@ impl VisualBounds {
         let b_x = self.x_left_top <= x && x <= self.x_right_bottom;
         let b_y = self.y_left_top >= y && y >= self.y_right_bottom;
 
-        debug!("VisualBounds::contain:  b_x={} b_y={} self={:?}, x={:?}, y={:?} ", b_x, b_y, self, x, y);
+        debug!("wapuku: VisualBounds::contain:  b_x={} b_y={} self={:?}, x={:?}, y={:?} ", b_x, b_y, self, x, y);
 
         b_x && b_y
     }
@@ -423,7 +423,6 @@ pub enum ChildrenLayout {
 }
 
 
-
 impl ChildrenLayout {
 
     fn layout<'a> (&self, mut positions:Vec<&'a mut Vector3<f32>>, bounds:&VisualBounds){
@@ -433,7 +432,7 @@ impl ChildrenLayout {
                 let center = bounds.center();
                 let r = bounds.width_hgith().x / 2.;
                 
-                debug!("ChildrenLayout::Circle:layout center={:?}, r={:?}", center, r);
+                debug!("wapuku: ChildrenLayout::Circle:layout center={:?}, r={:?}", center, r);
                 
                 if positions.len() == 1 {
                     let position_0 = positions.get_mut(0).unwrap();
@@ -461,7 +460,7 @@ impl ChildrenLayout {
                 let step = (bounds.x_right_bottom - bounds.x_left_top) / (positions.len() as f32);
 
                 positions.into_iter().for_each(|p|{
-                    debug!("ChildrenLayout::Line:layout x={}", x);
+                    debug!("wapuku: ChildrenLayout::Line:layout x={}", x);
                     p.x = x;
                     p.y = y;
                     x += step;
@@ -611,7 +610,6 @@ pub struct VisualDataController {
     property_x: Box<dyn Property>,
     property_y: Box<dyn Property>,
     data: Box<dyn Data>,
-    current_grid: GroupsGrid,
     visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
     has_updates: bool,
@@ -623,7 +621,7 @@ impl VisualDataController {
 
     pub fn new(data: Box<dyn Data>, property_x_name: String, property_y_name: String, width:i32, height:i32) -> Self {
         let property_x = data.all_properties().into_iter().find(|p| p.name() == &property_x_name).expect(format!("property_x {} not found", property_x_name).as_str());
-        let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_x {} not found", property_y_name).as_str());
+        let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_y {} not found", property_y_name).as_str());
 
         let groups_nr_x = 3;
         let groups_nr_y = 3;
@@ -640,6 +638,7 @@ impl VisualDataController {
         let plate_z = 1.0;
         let properties_z = 0.0;
 
+        debug!("wapuku: VisualDataController::new: data_grid={:?}", data_grid);
 
         //TODO layout
         let visuals:Vec<VisualInstance> = data_grid.data()
@@ -705,7 +704,7 @@ impl VisualDataController {
                 h
         });
 
-        
+
         // visuals.insert(String::from("plate"), vec![
         //     VisualInstance::new(
         //         cgmath::Vector3 { x: 5.0, y:  0.0, z: 1.0 },
@@ -720,7 +719,6 @@ impl VisualDataController {
             property_x: property_x.clone_to_box(),
             property_y: property_y.clone_to_box(),
             data,
-            current_grid: data_grid,
             visuals,
             has_updates: true,
             animations: HashMap::new(),
@@ -733,15 +731,15 @@ impl VisualDataController {
     pub fn visuals_updates(&mut self) -> Option<&mut Vec<VisualInstance>> {
         
         for visual_instance in self.visuals.iter_mut() {
-            debug!("visuals_updates: visual_instance={:?}", visual_instance);
+            // debug!("wapuku: visuals_updates: visual_instance={:?}", visual_instance);
             if let Some(animation) = self.animations.get_mut(&visual_instance.id) {
                 self.has_updates = true;
-                debug!("visuals_updates: animation for id={:?}", visual_instance.id);
+                // debug!("wapuku: visuals_updates: animation for id={:?}", visual_instance.id);
                 
                 if animation.tick(visual_instance) == AnimationState::Done {
                     self.animations.remove(&visual_instance.id);
 
-                    debug!("visuals_updates: removed animation for id={:?}", visual_instance.id);
+                    // debug!("wapuku: visuals_updates: removed animation for id={:?}", visual_instance.id);
                 }
             }
         }
@@ -758,19 +756,19 @@ impl VisualDataController {
     }
 
     pub fn on_pointer_moved(&mut self, x:f32, y:f32){
-        debug!("on_pointer_moved: x={}, y={}", x, y);
+        debug!("wapuku: on_pointer_moved: x={}, y={}", x, y);
 
         let visual_under_pointer_op = self.visuals.iter().find(|v|v.bounds().contain(x, y));
 
         
         match visual_under_pointer_op {
             None => {
-                debug!("on_pointer_moved: no visual_under_pointer_op");
+                debug!("wapuku: on_pointer_moved: no visual_under_pointer_op");
                 self.clear_prev_visual_under_pointer(None);
             }
             Some(visual_under_pointer) => {
                 if self.visual_id_under_pointer_op.map(|visual_id_under_pointer| visual_under_pointer.id != visual_id_under_pointer).unwrap_or(true) {
-                    debug!("on_pointer_moved: visual_under_pointer_op");
+                    debug!("wapuku: on_pointer_moved: visual_under_pointer_op");
 
                     if !self.animations.contains_key(&visual_under_pointer.id) {
                         self.animations.insert(
@@ -791,7 +789,7 @@ impl VisualDataController {
     }
 
     fn clear_prev_visual_under_pointer(&mut self, current_visual_id_under_pointer_op:Option<u32>) {
-        debug!("clear_prev_visual_under_pointer: self.visual_id_under_pointer_op={:?}", self.visual_id_under_pointer_op);
+        debug!("wapuku: clear_prev_visual_under_pointer: self.visual_id_under_pointer_op={:?}", self.visual_id_under_pointer_op);
         
         if let Some(prev_visual_under_pointer) = self.visual_id_under_pointer_op.take().and_then(|prev_visual_id_under_pointer| self.visuals.iter().find(|v| v.id == prev_visual_id_under_pointer)) {
             if !self.animations.contains_key(&prev_visual_under_pointer.id) {
@@ -822,14 +820,14 @@ impl VisualDataController {
     }
 
     pub fn on_pointer_input(&mut self, x: f32, y: f32) {
-        debug!("on_pointer_input:  x={}, y={}", x, y);
+        debug!("wapuku: on_pointer_input:  x={}, y={}", x, y);
         
         if let Some(visual_under_pointer) = self.visuals.iter().find(|v|v.bounds().contain(x, y)) {
 
             for visual in self.visuals.iter_mut() {
                 let position = visual.position;
                 
-                debug!("on_pointer_input: visual={:?}", visual);
+                debug!("wapuku: on_pointer_input: visual={:?}", visual);
                 
                 if visual.bounds().contain(x, y) {
                     self.animations.insert(

@@ -14,7 +14,7 @@ path = "src/lib.rs"
 #arrow-schema = { version = "37.0.0", default-features = false }
 #parquet = { version = "37.0.0", default-features = false, features= ["arrow", "snap", "brotli", "flate2", "base64"] }
 
-polars = {path = "../../polars/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "fmt"]} # "fmt"
+polars = {path = "../../polars/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window"]} # "fmt"
 #polars = {version="0.28.0", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "temporal", "rolling_window", "fmt"]} # "fmt"
 
 smartstring = "1.0.1"

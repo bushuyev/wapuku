@@ -112,6 +112,7 @@ pub trait DataGroup: Debug {
 }
 
 
+
 pub struct SimpleDataGroup {
     volume: usize,
     property_sizes: Vec<PropertyInGroup>,
@@ -178,30 +179,18 @@ pub struct GroupsGrid {
     data: VecY<dyn DataGroup>
 }
 
-
-
 impl Debug for GroupsGrid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 
         write!(f, "GroupsGrid:");
         write!(f, "property_x: {:?}\r\n", self.property_x);
         write!(f, "property_y: {:?}\r\n", self.property_y);
-            /*.field(&self.data)*/;
+        /*.field(&self.data)*/;
         
-        // // f.debug_list()
-        // let mut debug_list = f.debug_list();
         self.data.iter().enumerate().for_each(|(i, r)|{
             write!(f, "data: row={:?}\r\n", r);
-        //     debug_list.entries(r.iter()).finish();
         });
-        // // let lists = debug_list.finish().unwrap();
-        // 
-        // 
-        // f.debug_struct("GroupsGrid")
-        //     .field("property_x", &self.property_x)
-        //     .field("property_y", &self.property_y)
-        //     .field("data", &debug_list)
-        //     .finish()
+       
         Ok(())
 
     }
@@ -219,8 +208,9 @@ impl  GroupsGrid {
     pub fn property_y(&self) -> &Box<dyn Property> {
         &self.property_y
     }
-    pub fn data(&mut self) -> &mut VecY<dyn DataGroup> {
-        &mut self.data
+    
+    pub fn data(self) -> VecY<dyn DataGroup> {
+        self.data
     }
     
     pub fn group_at(&self, x:usize, y:usize) -> Option<&Box<dyn DataGroup>> {

@@ -95,7 +95,7 @@ mod tests {
         // 
         // let all_properties = wapuku_data.all_properties();
         // 
-        // debug!("all_properties: {:?}", all_properties);
+        // debug!("wapuku: all_properties: {:?}", all_properties);
         // 
         // let all_sets = wapuku_data.all_sets();
         // let property_set_1 = all_sets.first().expect("no first property se");

@@ -31,20 +31,17 @@ use wapuku_model::visualization::*;
 
 #[wasm_bindgen]
 pub async fn init_thread_pool(threads:usize){
-    debug!("init_thread_pool threads={}", threads);
+    debug!("wapuku: init_thread_pool threads={}", threads);
     wasm_bindgen_rayon::init_thread_pool(2);
 }
 
 #[wasm_bindgen(start)]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
 
-    // let runtime = RuntimeEnv::default();
-    // let config  = SessionConfig::default();
-    
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
-    debug!("running");
+    debug!("wapuku: running");
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let winit_window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
@@ -69,11 +66,11 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
             winit_window.set_inner_size(PhysicalSize::new(width, height));
 
-            debug!("web_sys::window: size: width={}, height={}", width, height);
+            debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
             let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
-                debug!("canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
-                debug!("canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
+                debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
+                debug!("wapuku: canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
 
                 if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
                     mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
@@ -91,33 +88,29 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     
     // let data:Box<dyn Data> = Box::new(PolarsData::new(parquet_scan()));
-    let data:Box<dyn Data> = Box::new(TestData::new());
+    let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
+    // let data:Box<dyn Data> = Box::new(TestData::new());
     
     let all_properties:HashSet<&dyn Property> = data.all_properties();
     
 
     let (property_1, property_2, property_3) = {
-        let mut all_properties_iter = all_properties.into_iter();
-        
-        (all_properties_iter.next().expect("property_1"), all_properties_iter.next().expect("property_2"), all_properties_iter.next().expect("property_3"))
-    };
+        let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
+        all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
 
-    let data_grid = data.group_by_2(
-        PropertyRange::new (property_1,  None, None ),
-        PropertyRange::new (property_2,  None, None ),
-        3, 3
-    );
+        (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
+    };
 
     let property_x: String = property_1.name().clone();
     let property_y: String = property_2.name().clone();
     
-    debug!("data_grid: {:?} property_x={} property_y={}", data_grid, property_x, property_y);
+    debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
     
     // data
     let mut gpu_state = State::new(winit_window, VisualDataController::new(data, property_x, property_y, width, height)).await;
 
     event_loop.run(move |event, _, control_flow| {
-        // debug!("event_loop.run={:?}", event);
+        // debug!("wapuku: event_loop.run={:?}", event);
 
         match event {
             Event::RedrawRequested(window_id) if window_id == gpu_state.window().id() => {
@@ -145,7 +138,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
             } => {
                 match device_event {
                     DeviceEvent::MouseMotion { delta } => {
-                        debug!("event_loop::DeviceEvent::MouseMotion: delta={:?}", delta);
+                        debug!("wapuku: event_loop::DeviceEvent::MouseMotion: delta={:?}", delta);
                     }
                     _ => {
                         
@@ -162,18 +155,18 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 
                     match window_event {
                         WindowEvent::MouseInput { device_id, state, button, ..} => {
-                            debug!("event_loop::WindowEvent::MouseInput device_id={:?}, state={:?}, button={:?}", device_id, state, button);
+                            debug!("wapuku: event_loop::WindowEvent::MouseInput device_id={:?}, state={:?}, button={:?}", device_id, state, button);
                             match state {
                                 ElementState::Pressed => {}
                                 ElementState::Released => {
                                     if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
-                                        debug!("event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
+                                        debug!("wapuku: event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
 
                                         if let Some(xy) = xy_ref.as_ref() {
                                             gpu_state.pointer_input(xy.0, xy.1);
                                         }
                                     } else {
-                                        debug!("event_loop::WindowEvent::MouseInput can't get pointer_xy_for_state_update ");
+                                        debug!("wapuku: event_loop::WindowEvent::MouseInput can't get pointer_xy_for_state_update ");
                                     }
 
                                 }
