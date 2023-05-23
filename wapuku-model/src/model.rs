@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::error;
+use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -111,7 +111,7 @@ pub trait DataGroup: Debug {
     fn bounds(&self)->DataBounds;
 }
 
-#[derive(Debug)]
+
 pub struct SimpleDataGroup {
     volume: usize,
     property_sizes: Vec<PropertyInGroup>,
@@ -128,6 +128,14 @@ impl SimpleDataGroup {
         }
     }
 }
+
+impl Debug for SimpleDataGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("")
+            .field("volume", &self.volume)
+            .field("property_sizes", &self.property_sizes)
+            .finish()
+    }}
 
 impl DataGroup for SimpleDataGroup {
     fn volume(&self) -> usize {
@@ -163,7 +171,7 @@ impl GroupsVec {
 pub type VecX<T> = Vec<Option<Box<T>>>;
 pub type VecY<T> = Vec<VecX<T>>;
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct GroupsGrid {
     property_x:Box<dyn Property>,
     property_y:Box<dyn Property>,
@@ -172,23 +180,32 @@ pub struct GroupsGrid {
 
 
 
-// impl Debug for GroupsGrid {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-// 
-//         let builder = f.debug_tuple("GroupsGrid")
-//             .field(&self.property_x)
-//             .field(&self.property_y)
-//             .field(&self.data);
-// 
-//         // self.data.iter().enumerate().for_each(|(i, r)|{
-//         //     builder.field(&r);
-//         // });
-//         
-// 
-//         builder.finish()
-// 
-//     }
-// }
+impl Debug for GroupsGrid {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+
+        write!(f, "GroupsGrid:");
+        write!(f, "property_x: {:?}\r\n", self.property_x);
+        write!(f, "property_y: {:?}\r\n", self.property_y);
+            /*.field(&self.data)*/;
+        
+        // // f.debug_list()
+        // let mut debug_list = f.debug_list();
+        self.data.iter().enumerate().for_each(|(i, r)|{
+            write!(f, "data: row={:?}\r\n", r);
+        //     debug_list.entries(r.iter()).finish();
+        });
+        // // let lists = debug_list.finish().unwrap();
+        // 
+        // 
+        // f.debug_struct("GroupsGrid")
+        //     .field("property_x", &self.property_x)
+        //     .field("property_y", &self.property_y)
+        //     .field("data", &debug_list)
+        //     .finish()
+        Ok(())
+
+    }
+}
 
 impl  GroupsGrid {
     pub fn new(property_x: Box<dyn Property>, property_y: Box<dyn Property>, data: VecY<dyn DataGroup>) -> Self {
@@ -215,7 +232,6 @@ impl  GroupsGrid {
 pub trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
-    fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
 }
 
