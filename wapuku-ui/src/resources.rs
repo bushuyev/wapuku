@@ -56,7 +56,7 @@ pub async fn load_model(
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
 ) -> anyhow::Result<mesh_model::MeshModel> {
-    debug!("load_model: obj file_name={:?}", file_name);
+    // debug!("wapuku: load_model: obj file_name={:?}", file_name);
     
     let obj_text = load_string(file_name).await?;
     let obj_cursor = Cursor::new(obj_text);
@@ -70,7 +70,7 @@ pub async fn load_model(
             ..Default::default()
         },
         |p| async move {
-            debug!("material url={:?}", p);
+            debug!("wapuku: material url={:?}", p);
             let p = format!("data/{}", p);
             
             let mat_text = load_string(&p).await.unwrap();
@@ -108,7 +108,7 @@ pub async fn load_model(
                 })
                 .collect::<Vec<_>>();
     
-            debug!("load_model: name={:?} vertices={:?}", m.name, vertices);
+            // debug!("wapuku: load_model: name={:?} vertices={:?}", m.name, vertices);
     
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("{:?} Vertex Buffer", file_name)),

@@ -3,14 +3,23 @@ use std::io::Cursor;
 use cgmath::{Matrix3, Matrix4, Vector3};
 // use polars::prelude::*;
 // use polars::io::parquet::*;
+// use polars::io::parquet::*;
+// use polars::lazy::*;
+use polars::prelude::*;
+use polars::df;
+// use polars::prelude::Expr::Columns;
+use polars::time::*;
+use polars::time::Duration;
 
 #[cfg(test)]
 mod tests {
     // use crate::visualization::MeshModel;
-
+    use polars::df;
     use std::ops::Mul;
+    use polars::time::Duration;
     use cgmath::{SquareMatrix, Vector3, Vector4};
     use crate::transform_point;
+    use polars::prelude::*;
 
     #[test]
     pub fn test_build_instances(){
@@ -64,6 +73,36 @@ mod tests {
 
         println!("m={:?} v_clip={:?} v_ndc={:?}  x={}, y={}", proj_m, v_clip, v_ndc, x, y);
 
+    }
+    
+    #[test]
+    fn test_group(){
+        let mut df = df!(
+            "field_1" => &[10,      20,     30,     40,   41,    50,     60,     70,     80,     90], 
+            "field_2" => &[1,       1,      1,      1,    3,     2,      2,      2,      2,      2],
+            "field_3" => &["a",     "b",    "c",    "d",  "dd",  "e",   "f",    "g",    "h",    "ii"],
+            "field_4" => &[0.1,     0.1,    0.1,    0.1,  0.1,   0.1,   0.1,    0.1,    0.1,    0.1]
+        ).unwrap();
+
+        // df.
+        let mut df = df.clone()
+            .lazy()
+            .groupby_dynamic(
+                [col("field_1")],
+                DynamicGroupOptions {
+                    index_column: "field_1".into(),
+                    every: Duration::new(10),
+                    period: Duration::new(10),
+                    offset: Duration::new(0),
+                    truncate: true,
+                    include_boundaries: true,
+                    closed_window: ClosedWindow::Left,
+                    start_by: Default::default(),
+                }
+            )
+            .agg([col("field_2").count()])
+            .collect()?;
+        println!("df={:?}", df);
     }
 }
 

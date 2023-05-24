@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::error;
+use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -56,20 +56,20 @@ impl Eq for &dyn Property {}
 #[derive(Debug)]
 pub struct PropertyRange {
     property: Box<dyn Property>,
-    min: Option<f64>,
-    max: Option<f64>,
+    min: Option<i64>,
+    max: Option<i64>,
 }
 
 impl PropertyRange {
 
-    pub fn new(property: &dyn Property, min: Option<f64>, max: Option<f64>) -> Self {
+    pub fn new(property: &dyn Property, min: Option<i64>, max: Option<i64>) -> Self {
         Self {
             property: property.clone_to_box(),
             min, max 
         }
     }
     
-    pub fn to_range(&self, min: Option<f64>, max: Option<f64>)->Self {
+    pub fn to_range(&self, min: Option<i64>, max: Option<i64>)->Self {
         Self {
             property: self.property.clone_to_box(), 
             min, max 
@@ -82,12 +82,12 @@ impl PropertyRange {
     }
 
     #[inline]
-    pub fn min(&self) -> Option<f64> {
+    pub fn min(&self) -> Option<i64> {
         self.min
     }
 
     #[inline]
-    pub fn max(&self) -> Option<f64> {
+    pub fn max(&self) -> Option<i64> {
         self.max
     }
 }
@@ -106,31 +106,40 @@ pub enum DataBounds {
 }
 
 pub trait DataGroup: Debug {
-    fn volume(&self) -> u8;
+    fn volume(&self) -> usize;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
     fn bounds(&self)->DataBounds;
 }
 
-#[derive(Debug)]
+
+
 pub struct SimpleDataGroup {
-    volume: u8,
+    volume: usize,
     property_sizes: Vec<PropertyInGroup>,
     bounds: DataBounds
 }
 
 impl SimpleDataGroup {
 
-    pub fn new(size: u8, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
+    pub fn new(volume: usize, property_sizes: Vec<PropertyInGroup>, bounds: DataBounds) -> Self {
         Self { 
-            volume: size, 
+            volume, 
             property_sizes,
             bounds
         }
     }
 }
 
+impl Debug for SimpleDataGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("")
+            .field("volume", &self.volume)
+            .field("property_sizes", &self.property_sizes)
+            .finish()
+    }}
+
 impl DataGroup for SimpleDataGroup {
-    fn volume(&self) -> u8 {
+    fn volume(&self) -> usize {
         self.volume
     }
 
@@ -160,14 +169,31 @@ impl GroupsVec {
 
 }
 
-type VecX<T> = Vec<Box<T>>;
-type VecY<T> = Vec<VecX<T>>;
+pub type VecX<T> = Vec<Option<Box<T>>>;
+pub type VecY<T> = Vec<VecX<T>>;
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct GroupsGrid {
     property_x:Box<dyn Property>,
     property_y:Box<dyn Property>,
     data: VecY<dyn DataGroup>
+}
+
+impl Debug for GroupsGrid {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+
+        write!(f, "GroupsGrid:");
+        write!(f, "property_x: {:?}\r\n", self.property_x);
+        write!(f, "property_y: {:?}\r\n", self.property_y);
+        /*.field(&self.data)*/;
+        
+        self.data.iter().enumerate().for_each(|(i, r)|{
+            write!(f, "data: row={:?}\r\n", r);
+        });
+       
+        Ok(())
+
+    }
 }
 
 impl  GroupsGrid {
@@ -182,8 +208,13 @@ impl  GroupsGrid {
     pub fn property_y(&self) -> &Box<dyn Property> {
         &self.property_y
     }
-    pub fn data(&mut self) -> &mut VecY<dyn DataGroup> {
-        &mut self.data
+    
+    pub fn data(self) -> VecY<dyn DataGroup> {
+        self.data
+    }
+    
+    pub fn group_at(&self, x:usize, y:usize) -> Option<&Box<dyn DataGroup>> {
+       self.data.get(y).and_then(|row|row.get(x).and_then(|v|v.as_ref()))
     }
 }
 
@@ -191,8 +222,7 @@ impl  GroupsGrid {
 pub trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
-    fn group_by_1(&self, property_x: PropertyRange) -> GroupsVec;
-    fn group_by_2(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8) -> GroupsGrid;
+    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
 }
 
 

@@ -7,14 +7,14 @@ use wapuku_model::visualization::*;
 impl From<&VisualInstance> for InstanceRaw {
     fn from(value: &VisualInstance) -> Self {
         //TODO
-        let mut model:[[f32; 4]; 4] = (cgmath::Matrix4::from_translation(value.position()) * cgmath::Matrix4::from(value.rotation())).into();
+        let mut model:[[f32; 4]; 4] = (cgmath::Matrix4::from_translation(*value.position()) * cgmath::Matrix4::from(value.rotation())).into();
 
 
         model[0][0] = value.scale().x;
         model[1][1] = value.scale().y;
         model[2][2] = value.scale().z;
         
-        debug!("From<&VisualInstance> for InstanceRaw: model={:?}", model);
+        debug!("wapuku: From<&VisualInstance> for InstanceRaw: model={:?}", model);
 
         InstanceRaw {
             model,
@@ -193,7 +193,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a> where 'b: 'a {
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup
     ) {
-        // debug!("RenderPass::draw_mesh_instanced: instances={:?}", mesh.instances);
+        // debug!("wapuku: RenderPass::draw_mesh_instanced: instances={:?}", mesh.instances);
         
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);

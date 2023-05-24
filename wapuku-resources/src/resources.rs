@@ -63,7 +63,7 @@ mod tests {
 
         println!("model={:?}", model.iter().map(|m|m.name.to_owned()).collect::<Vec<String>>());
         println!("mat={:?}", mat_r.unwrap());
-        debug!("Ok");
+        debug!("wapuku: Ok");
     }
     
     #[test]
