@@ -4,12 +4,15 @@
   "main": "index.js",
   "scripts": {
     "serv": "./serve.sh",
+    "build:wasm-worker": "rustup run nightly-2022-12-12 wasm-pack build ../../wapuku-workers --target web --out-dir ../wapuku-ui/pkg-workers -- -Z build-std=panic_abort,std",
+    "build:js-worker": "webpack build ./wasm-worker.js --mode production --target webworker -o dist --output-filename wasm-worker.js",
+    "build:worker": "npm run build:wasm-worker && npm run build:js-worker",
 
     "build:wasm": "rustup run nightly-2022-12-12 wasm-pack build .. --target web --out-dir pkg -- -Z build-std=panic_abort,std",
     "build:main": "webpack build ./index.js --mode production -o dist --output-filename index.js && cp index.html dist/",
     
     "build:clean": "rm -rf dist/*",
-    "build:all": "npm run build:clean && npm run build:wasm && npm run build:main"
+    "build:all": "npm run build:clean && npm run build:worker && npm run build:wasm && npm run build:main"
   },
   "repository": {
     "type": "git",
@@ -17,7 +20,8 @@
   },
   "dependencies": {
     "wapuku": "file:../pkg",
-    "wasm-feature-detect": "^1.3.0"
+    "wasm-feature-detect": "^1.3.0",
+    "comlink": "4.4.1"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

@@ -27,12 +27,20 @@ use wapuku_model::model::*;
 use wapuku_model::test_data::*;
 use wapuku_model::visualization::*;
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+
 
 
 #[wasm_bindgen]
-pub async fn init_thread_pool(threads:usize){
-    debug!("wapuku: init_thread_pool threads={}", threads);
-    wasm_bindgen_rayon::init_thread_pool(2);
+pub async fn zzz(threads:usize){
+    log(format!("wapuku: init_thread_pool threads={}", threads/2).as_str());
+    // wasm_bindgen_rayon::init_thread_pool(2);
+   
 }
 
 #[wasm_bindgen(start)]
@@ -42,6 +50,34 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
     debug!("wapuku: running");
+
+    //Atomics.wait cannot be called in this context
+    /*let POOL =  rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        // We could use postMessage here instead of Rust channels,
+        // but currently we can't due to a Chrome bug that will cause
+        // the main thread to lock up before it even sends the message:
+        // https://bugs.chromium.org/p/chromium/issues/detail?id=1075645
+        .spawn_handler(move |thread| {
+            // Note: `send` will return an error if there are no receivers.
+            // We can use it because all the threads are spawned and ready to accept
+            // messages by the time we call `build()` to instantiate spawn handler.
+            log(format!("wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
+            // self.sender.send(thread).unwrap_throw();
+            Ok(())
+        })
+        .build_global()
+        .unwrap_throw();*/
+    let worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
+    worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
+
+    // let msg = js_sys::Array::new();
+    // 
+    // msg.push(&JsValue::from("zzz"));
+    // 
+    // worker.post_message(&msg).expect("failed to post");
+
+    debug!("workers started");
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let winit_window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
@@ -69,16 +105,22 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
             debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
             let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
-                debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
-                debug!("wapuku: canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
-
-                if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
-                    mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
-                }
+                // debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
+                // debug!("wapuku: canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
+                // 
+                // if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
+                //     mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
+                // }
+                debug!("wapuku: click");
+                let msg = js_sys::Array::new();
+                
+                msg.push(&JsValue::from(7));
+                
+                worker.post_message(&msg).expect("failed to post");
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
 
-            div.add_event_listener_with_callback("mousemove", &closure_on_mousemove.as_ref().unchecked_ref());
+            div.add_event_listener_with_callback("click", &closure_on_mousemove.as_ref().unchecked_ref());
 
             closure_on_mousemove.forget();
             
@@ -105,11 +147,16 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     let property_y: String = property_2.name().clone();
     
     debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
-    
-    // data
-    let mut gpu_state = State::new(winit_window, VisualDataController::new(data, property_x, property_y, width, height)).await;
 
+    VisualDataController::new(data, property_x, property_y, width, height);
+    // data
+
+
+/*
+    let mut gpu_state = State::new(winit_window, VisualDataController::new(data, property_x, property_y, width, height)).await;
+    
     event_loop.run(move |event, _, control_flow| {
+
         // debug!("wapuku: event_loop.run={:?}", event);
 
         match event {
@@ -201,6 +248,6 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
             }
             _ => {}
         }
-    });
+    })*/;
     
 }
