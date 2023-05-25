@@ -26,6 +26,7 @@ use wapuku_model::polars_df::*;
 use wapuku_model::model::*;
 use wapuku_model::test_data::*;
 use wapuku_model::visualization::*;
+use futures::future::BoxFuture;
 
 #[wasm_bindgen]
 extern "C" {
@@ -37,10 +38,19 @@ extern "C" {
 
 
 #[wasm_bindgen]
-pub async fn zzz(threads:usize){
+pub async fn zzz(threads:u32){
     log(format!("wapuku: zzz={}", threads).as_str());
     // wasm_bindgen_rayon::init_thread_pool(2);
    
+}
+
+#[wasm_bindgen]
+pub fn run_closure(ptr: u32) {
+    debug!("run_closure ok: ptr={}", ptr);
+
+    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce()>) };
+    (*closure)();
+
 }
 
 #[wasm_bindgen]
@@ -113,9 +123,21 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 // }
                 debug!("wapuku: click");
                 let msg = js_sys::Array::new();
-                
-                msg.push(&JsValue::from(7));
-                
+
+                let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
+                    debug!("click: In Worker");
+
+                    // Box::pin(async {
+                    //     trace!("click: In Worker async");
+                    // 
+                    //     ()
+                    // }) as BoxFuture<'static, ()>
+
+                }) as Box<dyn FnOnce()>)) as u32);
+
+                msg.push(&JsValue::from("run_closure"));
+                msg.push(&worker_param_ptr);
+
                 worker.post_message(&msg).expect("failed to post");
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);

@@ -4,9 +4,9 @@
   "main": "index.js",
   "scripts": {
     "serv": "./serve.sh",
-    "build:wasm-worker": "rustup run nightly-2022-12-12 wasm-pack build ../../wapuku-workers --target web --out-dir ../wapuku-ui/pkg-workers -- -Z build-std=panic_abort,std",
+
     "build:js-worker": "webpack build ./wasm-worker.js --mode production --target webworker -o dist --output-filename wasm-worker.js",
-    "build:worker": "npm run build:wasm-worker && npm run build:js-worker",
+    "build:worker": "npm run build:js-worker",
 
     "build:wasm": "rustup run nightly-2022-12-12 wasm-pack build .. --target web --out-dir pkg -- -Z build-std=panic_abort,std",
     "build:main": "webpack build ./index.js --mode production -o dist --output-filename index.js && cp index.html dist/",
