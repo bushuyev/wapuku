@@ -1,12 +1,13 @@
 
-import init, {worker_entry_point} from '../pkg-workers/wapuku_workers';
+import init from '../pkg/wapuku_ui';
+import {zzz} from "../pkg";
 
 
 self.onmessage = async event => {
 
     console.log("worker init "+event.data);
 
-    let initialised =  await  init()/*.then((r)=>{
+    let initialised =  await  init(undefined, event.data)/*.then((r)=>{
         console.log('r='+r);
     }, (e)=>{
         console.log('e='+e);
@@ -18,7 +19,8 @@ self.onmessage = async event => {
     //      // initialised;
     //
         console.log("event: "+event.data[0]);
-        worker_entry_point(5);
+        // worker_entry_point(5);
+        zzz(5);
     //
     //     switch (event.data[0]) {
     //         default:

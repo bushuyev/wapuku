@@ -1,10 +1,11 @@
-import init from '../pkg/wapuku_ui';
-import {zzz} from "../pkg";
+import init, {run} from '../pkg/wapuku_ui';
 
-(async function run() {
+(async function() {
     console.log('init');
     
     await init();
+    
+    await run();
 
     
     console.log('init done');

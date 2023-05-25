@@ -38,12 +38,12 @@ extern "C" {
 
 #[wasm_bindgen]
 pub async fn zzz(threads:usize){
-    log(format!("wapuku: init_thread_pool threads={}", threads/2).as_str());
+    log(format!("wapuku: zzz={}", threads).as_str());
     // wasm_bindgen_rayon::init_thread_pool(2);
    
 }
 
-#[wasm_bindgen(start)]
+#[wasm_bindgen]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
 
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
