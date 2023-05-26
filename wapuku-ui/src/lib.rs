@@ -8,8 +8,8 @@ mod light;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::ops::Add;
 use std::rc::Rc;
-use std::sync::Arc;
 use log::{debug, trace};
 use winit::{
     event::*,
@@ -27,6 +27,8 @@ use wapuku_model::model::*;
 use wapuku_model::test_data::*;
 use wapuku_model::visualization::*;
 use futures::future::BoxFuture;
+use lazy_static::lazy_static;
+use std::sync::{Arc, Mutex, TryLockResult};
 
 #[wasm_bindgen]
 extern "C" {
@@ -36,21 +38,89 @@ extern "C" {
 
 
 
+lazy_static! {
+    static ref POOL_PR:Mutex<Option<u32>> = Mutex::new(None);
+}
+
 
 #[wasm_bindgen]
-pub async fn zzz(threads:u32){
-    log(format!("wapuku: zzz={}", threads).as_str());
-    // wasm_bindgen_rayon::init_thread_pool(2);
+pub fn init_pool(threads:u32){
+    log(format!("wapuku: init_pool,threads={}", threads).as_str());
+
+    // POOL_PR = 1u32;
+
+    // debug!("run_closure ok: ptr={}", ptr);
+
+    // JsValue::from(Box::into_raw(Box::new(Box::new(move || {
+    //     debug!("click: In Worker");
+    // 
+    //     // Box::pin(async {
+    //     //     trace!("click: In Worker async");
+    //     // 
+    //     //     ()
+    //     // }) as BoxFuture<'static, ()>
+    // 
+    // }) as Box<dyn FnOnce()>)) as u32)
+
+    let pool_addr =  Box::into_raw(Box::new(Box::new(rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        // We could use postMessage here instead of Rust channels,
+        // but currently we can't due to a Chrome bug that will cause
+        // the main thread to lock up before it even sends the message:
+        // https://bugs.chromium.org/p/chromium/issues/detail?id=1075645
+        .spawn_handler(move |thread| {
+            // Note: `send` will return an error if there are no receivers.
+            // We can use it because all the threads are spawned and ready to accept
+            // messages by the time we call `build()` to instantiate spawn handler.
+            log(format!("wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
+
+            let worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
+            // worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
+            // self.sender.send(thread).unwrap_throw();
+            let msg = js_sys::Array::new();
+            msg.push(&JsValue::from(&wasm_bindgen::memory()));
+            msg.push(&JsValue::from("init_worker"));
+            msg.push(&JsValue::from(Box::into_raw(Box::new(Box::new(|| thread.run()) as Box<dyn FnOnce()>)) as u32));
+            worker.post_message(&msg).expect("failed to post");
+            
+            Ok(())
+        })
+        .build().unwrap()) as Box<rayon::ThreadPool>)) as u32;
+
+    if let Ok(mut pool_locked) = POOL_PR.try_lock() {
+        pool_locked.replace(pool_addr);
+        debug!("POOL_PR: {:?}", pool_locked);
+    }
+
+    if let Ok(mut pool_locked) = POOL_PR.try_lock() {
+        debug!("POOL_PR: {:?}", pool_locked);
+    }
+
+    
    
 }
 
+
 #[wasm_bindgen]
 pub fn run_closure(ptr: u32) {
-    debug!("run_closure ok: ptr={}", ptr);
-
-    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce()>) };
+    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
+}
 
+#[wasm_bindgen]
+pub fn run_in_pool(ptr: u32) {
+    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
+
+    // POOL.install(closure);
+    if let Ok(pool_locked) = POOL_PR.try_lock() {
+        if pool_locked.is_some() {
+            let pool_addr = pool_locked.unwrap();
+            let mut pool = unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) };
+    
+            pool.install(closure);
+        }
+    }
+    // (*closure)();
 }
 
 #[wasm_bindgen]
@@ -62,30 +132,16 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     debug!("wapuku: running");
 
     //Atomics.wait cannot be called in this context
-    /*let POOL =  rayon::ThreadPoolBuilder::new()
-        .num_threads(2)
-        // We could use postMessage here instead of Rust channels,
-        // but currently we can't due to a Chrome bug that will cause
-        // the main thread to lock up before it even sends the message:
-        // https://bugs.chromium.org/p/chromium/issues/detail?id=1075645
-        .spawn_handler(move |thread| {
-            // Note: `send` will return an error if there are no receivers.
-            // We can use it because all the threads are spawned and ready to accept
-            // messages by the time we call `build()` to instantiate spawn handler.
-            log(format!("wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
-            // self.sender.send(thread).unwrap_throw();
-            Ok(())
-        })
-        .build_global()
-        .unwrap_throw();*/
-    let worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
-    worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
+    
+    let pool_worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
+    // worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
 
-    // let msg = js_sys::Array::new();
-    // 
-    // msg.push(&JsValue::from("zzz"));
-    // 
-    // worker.post_message(&msg).expect("failed to post");
+    let msg = js_sys::Array::new();
+    
+    msg.push(&JsValue::from(&wasm_bindgen::memory()));
+    msg.push(&JsValue::from("init_pool"));
+    
+    pool_worker.post_message(&msg).expect("failed to post");
 
     debug!("workers started");
 
@@ -122,23 +178,31 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 //     mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
                 // }
                 debug!("wapuku: click");
+               /* if let Ok(pool_locked) = POOL_PR.try_lock() {
+                    if pool_locked.is_some() {
+                        let pool_addr = pool_locked.unwrap();
+                        let mut pool = unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) };
+
+                        pool.install(||debug!("click click click"));
+                    }
+                }*/
                 let msg = js_sys::Array::new();
 
                 let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
                     debug!("click: In Worker");
-
+                
                     // Box::pin(async {
                     //     trace!("click: In Worker async");
                     // 
                     //     ()
                     // }) as BoxFuture<'static, ()>
-
+                
                 }) as Box<dyn FnOnce()>)) as u32);
-
-                msg.push(&JsValue::from("run_closure"));
+                
+                msg.push(&JsValue::from("run_in_pool"));
                 msg.push(&worker_param_ptr);
 
-                worker.post_message(&msg).expect("failed to post");
+                pool_worker.post_message(&msg).expect("failed to post");
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
 

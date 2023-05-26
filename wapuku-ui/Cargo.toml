@@ -49,6 +49,7 @@ wapuku-resources = {path = "../wapuku-resources" }
 
 rayon = "1.7.0"
 wasm-bindgen-rayon = {path= "../../wasm-bindgen-rayon"}
+lazy_static = "1.4.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

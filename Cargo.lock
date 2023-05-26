@@ -3053,6 +3053,7 @@ dependencies = [
  "getrandom",
  "image",
  "js-sys",
+ "lazy_static",
  "log",
  "rayon",
  "reqwest",
@@ -3062,34 +3063,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-rayon",
- "wasm-bindgen-test",
- "web-sys",
- "wgpu",
- "winit",
-]
-
-[[package]]
-name = "wapuku-workers"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "cfg-if",
- "cgmath",
- "console_error_panic_hook",
- "console_log",
- "env_logger",
- "futures",
- "getrandom",
- "image",
- "log",
- "rayon",
- "reqwest",
- "tobj",
- "wapuku-model",
- "wapuku-resources",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
  "wgpu",
