@@ -177,39 +177,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
     let mut closure_on_worker = Closure::wrap(Box::new( move |e: web_sys::MessageEvent| {
         debug!("pool is ready: e={:?}", e);
-        let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
-
-        let all_properties:HashSet<&dyn Property> = data.all_properties();
-
-
-        let (property_1, property_2, property_3) = {
-            let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
-            all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
-
-            (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
-        };
-
-        let property_x: String = property_1.name().clone();
-        let property_y: String = property_2.name().clone();
-
-        debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
-
-        
-
-        let msg = js_sys::Array::new();
-
-        let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
-            debug!("click1: VisualDataController");
-
-            VisualDataController::new(data, property_x, property_y, 100, 100);
-            debug!("click2: VisualDataController");
-
-           
-
-        }) as Box<dyn FnOnce()>)) as u32);
-
-        msg.push(&JsValue::from("run_in_pool"));
-        msg.push(&worker_param_ptr);
+       
 
         // pool_worker_1.post_message(&msg).expect("failed to post");
         
@@ -264,24 +232,37 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                         pool.install(||debug!("click click click"));
                     }
                 }*/
+                let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
+
+                let all_properties:HashSet<&dyn Property> = data.all_properties();
+
+
+                let (property_1, property_2, property_3) = {
+                    let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
+                    all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
+
+                    (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
+                };
+
+                let property_x: String = property_1.name().clone();
+                let property_y: String = property_2.name().clone();
+
+                debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
+
+
+
                 let msg = js_sys::Array::new();
 
                 let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
-                    
+                    debug!("click1: VisualDataController");
 
-                    let v: Vec<_> = (0..10_000_000).collect();
-                    let x = v.par_iter().sum::<i32>();
+                    VisualDataController::new(data, property_x, property_y, 100, 100);
+                    debug!("click2: VisualDataController");
 
-                    debug!("click: In Worker: x={}", x);
-                    
-                    // Box::pin(async {
-                    //     trace!("click: In Worker async");
-                    // 
-                    //     ()
-                    // }) as BoxFuture<'static, ()>
-                
+
+
                 }) as Box<dyn FnOnce()>)) as u32);
-                
+
                 msg.push(&JsValue::from("run_in_pool"));
                 msg.push(&worker_param_ptr);
 
