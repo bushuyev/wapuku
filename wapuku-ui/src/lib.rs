@@ -35,6 +35,17 @@ use rayon::*;
 use rayon::iter::*;
 use web_sys::*;
 
+use std::alloc::System;
+use wasm_tracing_allocator::WasmTracingAllocator;
+
+extern crate alloc;
+
+use lol_alloc::{FreeListAllocator, LockedAllocator};
+
+#[global_allocator]
+static ALLOCATOR: LockedAllocator<FreeListAllocator> = LockedAllocator::new(FreeListAllocator::new());
+
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
@@ -53,8 +64,10 @@ pub extern "C" fn get_pool()->ThreadPool {
     if let Ok(pool_locked) = POOL_PR.try_lock() {
         debug!("get_pool: got pool");
         if pool_locked.is_some() {
-            debug!("get_pool: got pool is_some");
+            
             let pool_addr = pool_locked.unwrap();
+
+            debug!("get_pool: got pool pool_addr={}", pool_addr);
             
             **unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) }
             
@@ -111,9 +124,10 @@ pub fn init_pool(threads:u32){
     
     let pool_addr =  Box::into_raw(Box::new(Box::new(pool) as Box<rayon::ThreadPool>)) as u32;
 
+    
     if let Ok(mut pool_locked) = POOL_PR.try_lock() {
         pool_locked.replace(pool_addr);
-        debug!("POOL_PR: {:?}", pool_locked);
+        debug!("init_pool: pool_addr={}", pool_addr);
     }
     
    
@@ -131,23 +145,24 @@ pub fn run_in_pool(ptr: u32) {
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
 
     // POOL.install(closure);
-    if let Ok(pool_locked) = POOL_PR.try_lock() {
-        debug!("run_in_pool: got pool");
-        if pool_locked.is_some() {
-            debug!("run_in_pool: got pool is_some");
-            
-            let pool_addr = pool_locked.unwrap();
+    // if let Ok(pool_locked) = POOL_PR.try_lock() {
+    //     debug!("run_in_pool: got pool");
+    //     if pool_locked.is_some() {
+    //         debug!("run_in_pool: got pool is_some");
+    //         
+            let pool_addr = POOL_PR.try_lock().unwrap().unwrap();
+            debug!("run_in_pool: pool_addr={}", pool_addr);
             let mut pool = unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) };
     
             pool.install(closure);
             
             mem::forget(pool);
 
-            debug!("run_in_pool: pool.install done");
-        }
-    } else {
-        debug!("run_in_pool: pool_locked")
-    }
+    //         debug!("run_in_pool: pool.install done");
+    //     }
+    // } else {
+    //     debug!("run_in_pool: pool_locked")
+    // }
     // (*closure)();
 }
 

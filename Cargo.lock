@@ -1404,6 +1404,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lol_alloc"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36aabc32b791f1a506e0bb90e0fa03e983500549d7b1f2dad45b5fc20ef45974"
+dependencies = [
+ "spin",
+]
+
+[[package]]
 name = "malloc_buf"
 version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2594,6 +2603,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+dependencies = [
+ "lock_api",
+]
+
+[[package]]
 name = "spirv"
 version = "0.2.0+1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2988,6 +3006,7 @@ dependencies = [
  "js-sys",
  "lazy_static",
  "log",
+ "lol_alloc",
  "rayon",
  "reqwest",
  "tobj",
@@ -2996,6 +3015,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
+ "wasm-tracing-allocator",
  "web-sys",
  "wgpu",
  "winit",
@@ -3116,6 +3136,15 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "wasm-tracing-allocator"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00638b0f463575ce0ad7fe03809c9b86b2a3abbb6c1f2e4d5569572b74ca65ae"
+dependencies = [
+ "wasm-bindgen",
 ]
 
 [[package]]

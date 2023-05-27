@@ -52,6 +52,8 @@ rayon = {path= "../../rayon"}
 #rayon = "1.7.0"
 #wasm-bindgen-rayon = {path= "../../wasm-bindgen-rayon"}
 lazy_static = "1.4.0"
+wasm-tracing-allocator = "0.1.0"
+lol_alloc = "0.4.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
