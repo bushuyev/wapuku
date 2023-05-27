@@ -41,6 +41,7 @@ web-sys = { version = "0.3.63", features = [
     "Window",
     "Element",
     "Location",
+    "Worker"
 ]}
 js-sys = "0.3.63"
 

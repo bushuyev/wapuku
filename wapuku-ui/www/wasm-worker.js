@@ -12,6 +12,7 @@ self.onmessage = async event => {
          init_pool(2);
 
          console.log("pool init done");
+         postMessage("done");
 
      } else if (event.data[1] === "init_worker") {
          return  run_closure(event.data[2]);

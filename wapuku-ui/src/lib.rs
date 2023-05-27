@@ -20,6 +20,7 @@ use winit::{
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event_loop::EventLoopBuilder;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::closure::*;
 use winit::platform::web::WindowExtWebSys;
 use winit::window::Fullscreen;
 use crate::state::State;
@@ -32,6 +33,7 @@ use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex, TryLockResult};
 use rayon::*;
 use rayon::iter::*;
+use web_sys::*;
 
 #[wasm_bindgen]
 extern "C" {
@@ -41,10 +43,28 @@ extern "C" {
 
 
 
+
 lazy_static! {
     static ref POOL_PR:Mutex<Option<u32>> = Mutex::new(None);
 }
 
+#[no_mangle]
+pub extern "C" fn get_pool()->ThreadPool {
+    if let Ok(pool_locked) = POOL_PR.try_lock() {
+        debug!("get_pool: got pool");
+        if pool_locked.is_some() {
+            debug!("get_pool: got pool is_some");
+            let pool_addr = pool_locked.unwrap();
+            
+            **unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) }
+            
+        } else {
+            panic!("get_pool: no pool");
+        }
+    } else {
+        panic!("get_pool: pool_locked");
+    }
+}
 
 #[wasm_bindgen]
 pub fn init_pool(threads:u32){
@@ -148,8 +168,58 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
     msg.push(&JsValue::from(&wasm_bindgen::memory()));
     msg.push(&JsValue::from("init_pool"));
-    
     pool_worker.post_message(&msg).expect("failed to post");
+    
+    let pool_worker_rc = Rc::new(pool_worker);
+    let pool_worker_1 = Rc::clone(&pool_worker_rc);
+    let pool_worker_2 = Rc::clone(&pool_worker_rc);
+    let pool_worker_3 = Rc::clone(&pool_worker_rc);
+    
+    let mut closure_on_worker = Closure::wrap(Box::new( move |e: web_sys::MessageEvent| {
+        debug!("pool is ready: e={:?}", e);
+        let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
+
+        let all_properties:HashSet<&dyn Property> = data.all_properties();
+
+
+        let (property_1, property_2, property_3) = {
+            let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
+            all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
+
+            (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
+        };
+
+        let property_x: String = property_1.name().clone();
+        let property_y: String = property_2.name().clone();
+
+        debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
+
+        
+
+        let msg = js_sys::Array::new();
+
+        let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
+            debug!("click1: VisualDataController");
+
+            VisualDataController::new(data, property_x, property_y, 100, 100);
+            debug!("click2: VisualDataController");
+
+           
+
+        }) as Box<dyn FnOnce()>)) as u32);
+
+        msg.push(&JsValue::from("run_in_pool"));
+        msg.push(&worker_param_ptr);
+
+        // pool_worker_1.post_message(&msg).expect("failed to post");
+        
+    }) as Box<dyn FnMut(web_sys::MessageEvent)>);
+    pool_worker_2.set_onmessage(Some(&closure_on_worker.as_ref().unchecked_ref()));
+    closure_on_worker.forget();
+
+
+
+
 
     debug!("workers started");
 
@@ -215,7 +285,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 msg.push(&JsValue::from("run_in_pool"));
                 msg.push(&worker_param_ptr);
 
-                pool_worker.post_message(&msg).expect("failed to post");
+                pool_worker_3.post_message(&msg).expect("failed to post");
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
 
@@ -229,7 +299,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     
     // let data:Box<dyn Data> = Box::new(PolarsData::new(parquet_scan()));
-    let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
+   /* let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
     // let data:Box<dyn Data> = Box::new(TestData::new());
     
     let all_properties:HashSet<&dyn Property> = data.all_properties();
@@ -247,7 +317,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
     debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
 
-    VisualDataController::new(data, property_x, property_y, width, height);
+    VisualDataController::new(data, property_x, property_y, width, height);*/
     // data
 
 
