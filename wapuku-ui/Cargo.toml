@@ -47,8 +47,9 @@ js-sys = "0.3.63"
 wapuku-model = {path = "../wapuku-model" }
 wapuku-resources = {path = "../wapuku-resources" }
 
-rayon = "1.7.0"
-wasm-bindgen-rayon = {path= "../../wasm-bindgen-rayon"}
+rayon = {path= "../../rayon"}
+#rayon = "1.7.0"
+#wasm-bindgen-rayon = {path= "../../wasm-bindgen-rayon"}
 lazy_static = "1.4.0"
 
 [dev-dependencies]

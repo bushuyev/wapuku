@@ -12,7 +12,7 @@
     "build:main": "webpack build ./index.js --mode production -o dist --output-filename index.js && cp index.html dist/",
     
     "build:clean": "rm -rf dist/*",
-    "build:all": "npm run build:clean && npm run build:worker && npm run build:wasm && npm run build:main"
+    "build:all": "npm run build:clean && npm run build:wasm && npm run build:main && npm run build:worker"
   },
   "repository": {
     "type": "git",
