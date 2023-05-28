@@ -9,7 +9,7 @@ self.onmessage = async event => {
      await init(undefined, event.data[0]);
      
      if (event.data[1] === "init_pool") {
-         init_pool(2);
+         init_pool(4);
 
          console.log("pool init done");
          postMessage("done");

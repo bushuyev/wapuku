@@ -49,11 +49,17 @@ wapuku-model = {path = "../wapuku-model" }
 wapuku-resources = {path = "../wapuku-resources" }
 
 rayon = {path= "../../rayon"}
+
 #rayon = "1.7.0"
 #wasm-bindgen-rayon = {path= "../../wasm-bindgen-rayon"}
 lazy_static = "1.4.0"
 wasm-tracing-allocator = "0.1.0"
 lol_alloc = "0.4.0"
+
+#[patch.crates-io]
+#crossbeam-channel = {path= "../../crossbeam/crossbeam-channel"}
+#crossbeam-deque = {path= "../../crossbeam/crossbeam-deque"}
+#crossbeam-utils = {path= "../../crossbeam/crossbeam-utils"}
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

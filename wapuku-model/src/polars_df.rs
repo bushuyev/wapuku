@@ -64,6 +64,19 @@ impl Data for PolarsData {
     }
 
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8, group_volume_property: &str) -> GroupsGrid {
+        
+       /* let r = self.df.clone().lazy().with_optimizations(OptState {
+            projection_pushdown: true,
+            predicate_pushdown: true,
+            type_coercion: true,
+            simplify_expr: true,
+            slice_pushdown: true,
+            // will be toggled by a scan operation such as csv scan or parquet scan
+            file_caching: false,
+            streaming: false,
+        }).select(&[col(property_x.property().name().as_str())]).sum().collect();*/
+        // debug!("build_grid: r={:?}", r);
+
         let property_x_name = property_x.property().name().as_str();
         let property_y_name = property_y.property().name().as_str();
 
@@ -176,6 +189,12 @@ impl Data for PolarsData {
             property_y.property().clone_to_box(),
             data_vec
         )
+
+       /* GroupsGrid::new(
+            property_x.property().clone_to_box(),
+            property_y.property().clone_to_box(),
+            vec![]
+        )*/
     }
 
 }
@@ -229,6 +248,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
+            col(group_by_field.into()),
             [],
             DynamicGroupOptions {
                 index_column: group_by_field.into(),
@@ -269,7 +289,9 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
             col(primary_group_by_field).alias(primary_field_group)
         ])
         .sort(primary_field_group, Default::default())
-        .groupby_dynamic([], 
+        .groupby_dynamic(
+            col(primary_field_group.into()),
+            [], 
  DynamicGroupOptions {
             index_column: primary_field_group.into(),
             every: Duration::new(primary_step),
@@ -308,6 +330,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
+            col(secondary_group_by_field.into()),
             [col(primary_field_group)],
             DynamicGroupOptions {
                 index_column: secondary_group_by_field.into(),
