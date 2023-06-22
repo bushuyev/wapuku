@@ -1,11 +1,5 @@
-/target
+**/target
 /.idea/
-/pkg/
-/tests/target/
+**/pkg/
 /wapuku-ui/www/node_modules/
 /wapuku-ui/www/dist/
-/test_test/target/
-/wapuku-model/target/
-/wapuku-ui/target/
-/wapuku-resources/target/
-/target/

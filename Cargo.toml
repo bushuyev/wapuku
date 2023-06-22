@@ -5,3 +5,12 @@ members = [
     "wapuku-resources",
     "wapuku-ui",
 ]
+
+resolver = "2"
+
+
+
+[patch.crates-io]
+wasm-bindgen = {path = "/enc/my-dev/wasm-bindgen"}
+wasm-bindgen-macro-support = { path = "/enc/my-dev/wasm-bindgen/crates/macro-support"}
+

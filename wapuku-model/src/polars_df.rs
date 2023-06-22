@@ -1,9 +1,11 @@
+
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -116,7 +118,7 @@ impl Data for PolarsData {
 
        
         
-        debug!("wapuku: df={:?}", df);
+        debug!("1. wapuku: df={:?}", df);
 
         // // https://stackoverflow.com/questions/72440403/iterate-over-rows-polars-rust df is small here, should be ok
         // df.as_single_chunk_par();
@@ -193,9 +195,9 @@ pub fn fake_df() -> DataFrame {
     // ).unwrap() 
     
     df!(
-       "property_1" => &(0..10000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-       "property_2" => &(0..10000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
-       "property_3" => &(0..10000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+       "property_1" => &(0..1_0_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+       "property_2" => &(0..1_0_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+       "property_3" => &(0..1_0_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
     ).unwrap()
 }
 
@@ -229,6 +231,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
+            col(group_by_field.into()),
             [],
             DynamicGroupOptions {
                 index_column: group_by_field.into(),
@@ -269,7 +272,9 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
             col(primary_group_by_field).alias(primary_field_group)
         ])
         .sort(primary_field_group, Default::default())
-        .groupby_dynamic([], 
+        .groupby_dynamic(
+            col(primary_field_group.into()),
+            [], 
  DynamicGroupOptions {
             index_column: primary_field_group.into(),
             every: Duration::new(primary_step),
@@ -303,11 +308,12 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
     
-    debug!("wapuku: df={:?}", df);
+    debug!("2. wapuku: df={:?}", df);
     
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
+            col(secondary_group_by_field.into()),
             [col(primary_field_group)],
             DynamicGroupOptions {
                 index_column: secondary_group_by_field.into(),
@@ -770,7 +776,7 @@ mod tests {
             0i64, 0i64
         ).expect("df");
         
-        debug!("wapuku: df={:?}", df);
+        debug!("3. wapuku: df={:?}", df);
        
         assert_eq!(
             *df.column("field_3_value").expect("field_3_value"),

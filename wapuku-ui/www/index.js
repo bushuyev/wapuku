@@ -1,13 +1,23 @@
-import init from '../pkg/wapuku_ui';
-import {initThreadPool} from "../pkg";
+import init, {run} from '../pkg/wapuku_ui';
 
-(async function run() {
+(async function() {
     console.log('init');
+
+    const memory = new WebAssembly.Memory({
+        initial: 80,
+        maximum: 10000,
+        shared: true
+    });
     
-    await init();
+    await init(undefined, memory);
+    
+    await run();
+
     
     console.log('init done');
 
-    await initThreadPool(navigator.hardwareConcurrency);
+    // await zzz(navigator.hardwareConcurrency);
 
+    // console.log('init thread done');
+    
 })();
