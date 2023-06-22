@@ -4,7 +4,7 @@ mod mesh_model;
 mod texture;
 mod camera;
 mod light;
-mod allocator;
+mod workers;
 
 
 use std::cell::RefCell;
@@ -33,14 +33,7 @@ use rayon::iter::*;
 use web_sys::*;
 
 use std::alloc::System;
-use wasm_tracing_allocator::WasmTracingAllocator;
-
-extern crate alloc;
-
-use lol_alloc::{FreeListAllocator, LeakingPageAllocator, LockedAllocator};
-// use crate::allocator::LockedAllocator;
-
-// use crate::allocator::{LockedAllocator, WapukuAllocator};
+use workers::*;
 
 
 #[wasm_bindgen]
@@ -152,22 +145,16 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     debug!("wapuku: running");
 
   
-    
-    let pool_worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
-   
-    let msg = js_sys::Array::new();
-    
-    msg.push(&JsValue::from(&wasm_bindgen::memory()));
-    msg.push(&JsValue::from("init_pool"));
-    pool_worker.post_message(&msg).expect("failed to post");
+    let init_pool_futrue = WorkerFuture::new(
+        "./wasm-worker.js",
+        Box::new(|| {
+            let msg = js_sys::Array::new();
 
-    let mut closure_on_worker = Closure::wrap(Box::new( move |e: web_sys::MessageEvent| {
-        debug!("pool is ready: e={:?}", e);
-       
-        
-    }) as Box<dyn FnMut(web_sys::MessageEvent)>);
-    pool_worker.set_onmessage(Some(&closure_on_worker.as_ref().unchecked_ref()));
-    closure_on_worker.forget();
+            msg.push(&JsValue::from(&wasm_bindgen::memory()));
+            msg.push(&JsValue::from("init_pool"));
+            msg
+        })
+    ).await;
     
     debug!("workers started");
 
