@@ -13,7 +13,7 @@ set -ex
 #   shared memory, passive segments, etc.
 
 RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-  cargo build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
+  cargo +nightly build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 
 (cd /enc/my-dev/wasm-bindgen && cargo run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir /enc/my-dev/wapuku/wapuku-ui/pkg/  --target web   /enc/my-dev/wapuku/wapuku-ui/target/wasm32-unknown-unknown/release/wapuku_ui.wasm)
 (cd www && npm run build:main && npm run build:worker)

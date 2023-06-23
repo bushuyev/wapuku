@@ -65,7 +65,7 @@ impl Data for PolarsData {
         self.property_sets.iter().flat_map(|property_set|property_set.properties().into_iter()).collect()
     }
 
-    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8, group_volume_property: &str) -> GroupsGrid {
+    async fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8, group_volume_property: &str) -> GroupsGrid {
         let property_x_name = property_x.property().name().as_str();
         let property_y_name = property_y.property().name().as_str();
 

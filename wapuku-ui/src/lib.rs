@@ -1,3 +1,5 @@
+#![feature(async_fn_in_trait)]
+
 mod state;
 mod resources;
 mod mesh_model;
@@ -128,9 +130,6 @@ pub fn run_closure(ptr: u32) {
 
 #[wasm_bindgen]
 pub fn run_in_pool(ptr: u32) {
-
-   
-
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 }
@@ -187,8 +186,8 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
                 debug!("wapuku: canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
 
-                if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
-                    mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
+                if let Ok(mut mouse_xy_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
+                    mouse_xy_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
                 }
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
@@ -203,26 +202,14 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     
     // let data:Box<dyn Data> = Box::new(PolarsData::new(parquet_scan()));
-    let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
+    // let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
     // let data:Box<dyn Data> = Box::new(TestData::new());
+    let data = PolarsData::new(fake_df());
     
-    let all_properties:HashSet<&dyn Property> = data.all_properties();
     
-
-    let (property_1, property_2, property_3) = {
-        let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
-        all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
-
-        (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
-    };
-
-    let property_x: String = property_1.name().clone();
-    let property_y: String = property_2.name().clone();
-    
-    debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
     
     // data
-    let mut gpu_state = State::new(winit_window, VisualDataController::new(data, property_x, property_y, width, height)).await;
+    let mut gpu_state = State::new(winit_window, VisualDataController::new(&data, width, height)).await;
 
     event_loop.run(move |event, _, control_flow| {
         // debug!("wapuku: event_loop.run={:?}", event);

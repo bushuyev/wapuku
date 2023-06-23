@@ -1,3 +1,5 @@
+#![feature(async_fn_in_trait)]
+
 use std::collections::{HashMap, HashSet};
 use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
@@ -218,11 +220,14 @@ impl  GroupsGrid {
     }
 }
 
+pub trait X {
+    async fn test();
+}
 
 pub trait Data {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
-    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
+    async fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
  
 }
 

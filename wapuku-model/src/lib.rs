@@ -1,4 +1,4 @@
-
+#![feature(async_fn_in_trait)]
 pub mod polars_df;
 pub mod model;
 pub mod visualization;
