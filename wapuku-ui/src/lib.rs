@@ -56,9 +56,7 @@ pub extern "C" fn get_pool()->ThreadPool {
         if pool_locked.is_some() {
             log("get_pool: got pool is_some");
             let pool_addr = pool_locked.unwrap();
-
-
-            log("wapuku: get_pool: pool.install done");
+            
             Some(pool_addr)
         } else {
             log("wapuku: get_pool: no pool_addr");
@@ -126,9 +124,9 @@ pub fn init_pool(threads:usize){
 
 #[wasm_bindgen]
 pub fn init_worker(ptr: u32) {
-    log(format!("wapuku: init_worker={}", ptr).as_str());
+    // log(format!("wapuku: init_worker={}", ptr).as_str());
 
-    console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
+    // console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
     
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
@@ -137,7 +135,7 @@ pub fn init_worker(ptr: u32) {
 
 #[wasm_bindgen]
 pub fn run_in_pool(ptr: u32) {
-    log("wapuku: run_in_pool");
+    //log("wapuku: run_in_pool");
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 }
@@ -150,15 +148,22 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
     debug!("wapuku: running");
+    /*let pool_worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
+    let msg = js_sys::Array::new();
 
-    let workder_rc = Rc::new(RefCell::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str())));
+    msg.push(&JsValue::from("init_pool"));
+    msg.push(&JsValue::from(&wasm_bindgen::memory()));
+    pool_worker.post_message(&msg).expect("failed to post");
+    let workder_rc = Rc::new(pool_worker);*/
 
-  
+    let workder_rc = Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()));
+    
+    
     let init_pool_futrue = WorkerFuture::new(
         Rc::clone(&workder_rc), //"./wasm-worker.js",
         Box::new(|| {
             let msg = js_sys::Array::new();
-
+    
             msg.push(&JsValue::from("init_pool"));
             msg.push(&JsValue::from(&wasm_bindgen::memory()));
             msg
@@ -190,19 +195,48 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
             winit_window.set_inner_size(PhysicalSize::new(width, height));
 
+            let data = PolarsData::new(fake_df());
+            let mut visual_data_controller = Rc::new(VisualDataController::new(&data, width, height));
+            let data_rc = Rc::new(data);
+            
+
             debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
             let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
-                debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
-                debug!("wapuku: canvas.mousemove e.offset_x()={:?}, e.offset_y()={:?}", e.offset_x(), e.offset_y());
 
-                if let Ok(mut mouse_xy_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
-                    mouse_xy_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
-                }
+                let data_in_init = Rc::clone(&data_rc);
+                let data_in_init_rc = Rc::clone(&visual_data_controller);
+
+                let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
+
+                    log(format!("wapuku: running in pool").as_str());
+
+                    let property_x = &*data_in_init_rc.property_x;
+                    let property_y = &*data_in_init_rc.property_y;
+                    let groups_nr_x = data_in_init_rc.groups_nr_x;
+                    let groups_nr_y = data_in_init_rc.groups_nr_y;
+
+                    let data_grid =  data_in_init.build_grid(
+                        PropertyRange::new(property_x, None, None),
+                        PropertyRange::new(property_y, None, None),
+                        groups_nr_x, groups_nr_y, "property_3",//TODO
+                    );
+
+                    log(format!("wapuku: got data_grid={:?}", data_grid).as_str());
+
+                }) as Box<dyn FnMut()>)) as u32);
+
+                let msg = js_sys::Array::new();
+                msg.push(&JsValue::from("run_in_pool"));
+                msg.push(&worker_param_ptr);
+                
+
+                workder_rc.post_message(&msg).expect("failed to post");
+
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
 
-            div.add_event_listener_with_callback("mousemove", &closure_on_mousemove.as_ref().unchecked_ref());
+            div.add_event_listener_with_callback("click", &closure_on_mousemove.as_ref().unchecked_ref());
 
             closure_on_mousemove.forget();
             
@@ -214,131 +248,108 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     // let data:Box<dyn Data> = Box::new(PolarsData::new(parquet_scan()));
     // let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
     // let data:Box<dyn Data> = Box::new(TestData::new());
-    let data = PolarsData::new(fake_df());
-
-   
-    let mut visual_data_controller = VisualDataController::new(&data, width, height);
-    let msg = js_sys::Array::new();
-
-    let property_x = &*visual_data_controller.property_x;
-    let property_y = &*visual_data_controller.property_y;
-    let groups_nr_x = visual_data_controller.groups_nr_x;
-    let groups_nr_y = visual_data_controller.groups_nr_y;
     
-    let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
-        log(format!("wapuku: running in pool 2 data={:?}", data).as_str());
+    
 
-        let data_grid =  data.build_grid(
-            PropertyRange::new(property_x, None, None),
-            PropertyRange::new(property_y, None, None),
-            groups_nr_x, groups_nr_y, "property_3",//TODO
-        );
-        
-        log(format!("wapuku: got data_grid={:?}", data_grid).as_str());
-
-    }) as Box<dyn FnOnce()>)) as u32);
-
-    msg.push(&JsValue::from("run_in_pool"));
-    msg.push(&worker_param_ptr);
-
-    Rc::clone(&workder_rc).borrow_mut().post_message(&msg).expect("failed to post");
-
+    
+    
+   
     // visual_data_controller.update_visuals(&data);
     
-    let mut gpu_state = State::new(winit_window, visual_data_controller).await;
+    // let mut gpu_state = State::new(winit_window, visual_data_controller).await;
 
-    event_loop.run(move |event, _, control_flow| {
-        // debug!("wapuku: event_loop.run={:?}", event);
-
-        match event {
-            event::Event::RedrawRequested(window_id) if window_id == gpu_state.window().id() => {
-                gpu_state.update(/*data.visuals()*/);
-                match gpu_state.render() {
-                    Ok(_) => {}
-                    // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => gpu_state.resize(gpu_state.size),
-                    // The system is out of memory, we should probably quit
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // All other errors (Outdated, Timeout) should be resolved by the next frame
-                    Err(e) => eprintln!("{:?}", e),
-                }
-            }
-
-            event::Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-                gpu_state.window().request_redraw();
-            }
-
-            event::Event::DeviceEvent {
-                event: ref device_event,
-                device_id,
-            } => {
-                match device_event {
-                    DeviceEvent::MouseMotion { delta } => {
-                        debug!("wapuku: event_loop::DeviceEvent::MouseMotion: delta={:?}", delta);
-                    }
-                    _ => {
-                        
-                    }
-                }
-            }
-
-            event::Event::WindowEvent {
-                event: ref window_event,
-                window_id,
-            } if window_id == gpu_state.window().id() => {
-                
-                if !gpu_state.input(window_event) {
-                
-                    match window_event {
-                        WindowEvent::MouseInput { device_id, state, button, ..} => {
-                            debug!("wapuku: event_loop::WindowEvent::MouseInput device_id={:?}, state={:?}, button={:?}", device_id, state, button);
-                            match state {
-                                ElementState::Pressed => {}
-                                ElementState::Released => {
-                                    if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
-                                        debug!("wapuku: event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
-
-                                        if let Some(xy) = xy_ref.as_ref() {
-                                            gpu_state.pointer_input(xy.0, xy.1);
-                                        }
-                                    } else {
-                                        debug!("wapuku: event_loop::WindowEvent::MouseInput can't get pointer_xy_for_state_update ");
-                                    }
-
-                                }
-                            }
-                        }
-                        WindowEvent::CursorMoved {..} => {
-                            
-                            if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
-                                if let Some(xy) = xy_ref.as_ref() {
-                                    gpu_state.pointer_moved(xy.0, xy.1);
-                                }
-                            }
-                        }
-                        WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
-                            input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
-                                ..
-                            },
-                            ..
-                        } => *control_flow = ControlFlow::Exit,
-                        WindowEvent::Resized(physical_size) => {
-                            gpu_state.resize(*physical_size);
-                        }
-                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                            gpu_state.resize(**new_inner_size);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    });
+    // event_loop.run(move |event, _, control_flow| {
+    //     // debug!("wapuku: event_loop.run={:?}", event);
+    // 
+    //     match event {
+    //         event::Event::RedrawRequested(window_id) if window_id == gpu_state.window().id() => {
+    //             gpu_state.update(/*data.visuals()*/);
+    //             match gpu_state.render() {
+    //                 Ok(_) => {}
+    //                 // Reconfigure the surface if lost
+    //                 Err(wgpu::SurfaceError::Lost) => gpu_state.resize(gpu_state.size),
+    //                 // The system is out of memory, we should probably quit
+    //                 Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+    //                 // All other errors (Outdated, Timeout) should be resolved by the next frame
+    //                 Err(e) => eprintln!("{:?}", e),
+    //             }
+    //         }
+    // 
+    //         event::Event::MainEventsCleared => {
+    //             // RedrawRequested will only trigger once, unless we manually
+    //             // request it.
+    //             gpu_state.window().request_redraw();
+    //         }
+    // 
+    //         event::Event::DeviceEvent {
+    //             event: ref device_event,
+    //             device_id,
+    //         } => {
+    //             match device_event {
+    //                 DeviceEvent::MouseMotion { delta } => {
+    //                     debug!("wapuku: event_loop::DeviceEvent::MouseMotion: delta={:?}", delta);
+    //                 }
+    //                 _ => {
+    //                     
+    //                 }
+    //             }
+    //         }
+    // 
+    //         event::Event::WindowEvent {
+    //             event: ref window_event,
+    //             window_id,
+    //         } if window_id == gpu_state.window().id() => {
+    //             
+    //             if !gpu_state.input(window_event) {
+    //             
+    //                 match window_event {
+    //                     WindowEvent::MouseInput { device_id, state, button, ..} => {
+    //                         debug!("wapuku: event_loop::WindowEvent::MouseInput device_id={:?}, state={:?}, button={:?}", device_id, state, button);
+    //                         match state {
+    //                             ElementState::Pressed => {}
+    //                             ElementState::Released => {
+    //                                 if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
+    //                                     debug!("wapuku: event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
+    // 
+    //                                     if let Some(xy) = xy_ref.as_ref() {
+    //                                         gpu_state.pointer_input(xy.0, xy.1);
+    //                                     }
+    //                                 } else {
+    //                                     debug!("wapuku: event_loop::WindowEvent::MouseInput can't get pointer_xy_for_state_update ");
+    //                                 }
+    // 
+    //                             }
+    //                         }
+    //                     }
+    //                     WindowEvent::CursorMoved {..} => {
+    //                         
+    //                         if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
+    //                             if let Some(xy) = xy_ref.as_ref() {
+    //                                 gpu_state.pointer_moved(xy.0, xy.1);
+    //                             }
+    //                         }
+    //                     }
+    //                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
+    //                         input:
+    //                         KeyboardInput {
+    //                             state: ElementState::Pressed,
+    //                             virtual_keycode: Some(VirtualKeyCode::Escape),
+    //                             ..
+    //                         },
+    //                         ..
+    //                     } => *control_flow = ControlFlow::Exit,
+    //                     WindowEvent::Resized(physical_size) => {
+    //                         gpu_state.resize(*physical_size);
+    //                     }
+    //                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+    //                         gpu_state.resize(**new_inner_size);
+    //                     }
+    //                     _ => {}
+    //                 }
+    //             }
+    //         }
+    //         _ => {}
+    //     }
+    // });
     
 }

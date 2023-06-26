@@ -9,13 +9,13 @@ use std::rc::Rc;
 
 
 pub struct WorkerFuture {
-    worker: Rc<RefCell<web_sys::Worker>>,
+    worker: Rc<web_sys::Worker>,
     msg: Box<dyn Fn() -> js_sys::Array>,
     result: Rc<RefCell<Option<String>>>,
 }
 
 impl WorkerFuture {
-    pub fn new(worker: Rc<RefCell<web_sys::Worker>>, msg: Box<dyn Fn() -> js_sys::Array>) -> Self {
+    pub fn new(worker: Rc<web_sys::Worker>, msg: Box<dyn Fn() -> js_sys::Array>) -> Self {
         Self {
             worker,
             msg,
@@ -43,10 +43,10 @@ impl Future for WorkerFuture {
                     waker.wake_by_ref();
                 }) as Box<dyn FnMut(web_sys::MessageEvent)>);
 
-                self.worker.borrow_mut().set_onmessage(Some(&closure_on_worker.as_ref().unchecked_ref()));
+                self.worker.set_onmessage(Some(&closure_on_worker.as_ref().unchecked_ref()));
                 closure_on_worker.forget();
 
-                self.worker.borrow_mut().post_message(&(self.msg)()).expect("failed to post");
+                self.worker.post_message(&(self.msg)()).expect("failed to post");
 
                 Poll::Pending
             }
