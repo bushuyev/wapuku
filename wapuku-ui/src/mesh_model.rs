@@ -1,7 +1,7 @@
 use std::ops::Range;
 use log::debug;
 use wgpu::util::DeviceExt;
-use wapuku_model::visualization::*;
+
 
 
 impl From<&VisualInstance> for InstanceRaw {
@@ -66,6 +66,7 @@ impl InstanceRaw {
 }
 
 use crate::texture;
+use crate::visualization::VisualInstance;
 
 pub trait Vertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;

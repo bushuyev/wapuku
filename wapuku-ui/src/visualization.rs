@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use cgmath::{ElementWise, InnerSpace, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
 use log::{debug, trace};
-use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
+use wapuku_model::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
 pub struct VisualBounds {
@@ -111,7 +111,7 @@ impl <V> Animation for ConsecutiveAnimations<V> {
 mod animation_tests {
     use cgmath::{Quaternion, Vector3, Zero};
     use log::trace;
-    use crate::visualization::{Animation, AnimationState, ConsecutiveAnimations, Lerp, VisualInstance, VisualInstanceData};
+    use wapuku_ui::visualization::{Animation, AnimationState, ConsecutiveAnimations, Lerp, VisualInstance, VisualInstanceData};
 
     #[test]
     fn test_scale_xy() {
@@ -276,7 +276,7 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T
 #[cfg(test)]
 mod test_lerpables {
     use cgmath::Vector3;
-    use crate::visualization::Lerpable;
+    use wapuku_ui::visualization::Lerpable;
 
     #[test]
     fn test_f32(){
@@ -608,10 +608,11 @@ impl Named for VisualInstance {
 }
 
 pub struct VisualDataController {
-    property_x: Box<dyn Property>,
-    property_y: Box<dyn Property>,
-    groups_nr_x: u8,
-    groups_nr_y: u8,
+    //TODO pubs
+    pub(crate) property_x: Box<dyn Property>,
+    pub(crate) property_y: Box<dyn Property>,
+    pub(crate) groups_nr_x: u8,
+    pub(crate) groups_nr_y: u8,
     // data: Box<dyn Data>,
     visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
@@ -657,12 +658,12 @@ impl VisualDataController {
         }
     }
 
-    pub async fn update_visuals(&mut self, data: &dyn Data) {
-        let mut data_grid = data.build_grid(
-            PropertyRange::new(&*self.property_x, None, None),
-            PropertyRange::new(&*self.property_y, None, None),
-            self.groups_nr_x, self.groups_nr_y, "property_3",//TODO
-        );
+    pub fn update_visuals(&mut self, data_grid: GroupsGrid) {
+        // let mut data_grid = data.build_grid(
+        //     PropertyRange::new(&*self.property_x, None, None),
+        //     PropertyRange::new(&*self.property_y, None, None),
+        //     self.groups_nr_x, self.groups_nr_y, "property_3",//TODO
+        // );
         
         // let mut data_grid = GroupsGrid::new(
         //     self.property_x.clone_to_box(),

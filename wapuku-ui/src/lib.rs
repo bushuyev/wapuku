@@ -7,6 +7,7 @@ mod texture;
 mod camera;
 mod light;
 mod workers;
+pub mod visualization;
 
 
 use std::cell::RefCell;
@@ -26,7 +27,7 @@ use crate::state::State;
 use wapuku_model::polars_df::*;
 use wapuku_model::model::*;
 use wapuku_model::test_data::*;
-use wapuku_model::visualization::*;
+
 use futures::future::BoxFuture;
 use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex, TryLockResult};
@@ -36,6 +37,7 @@ use web_sys::*;
 
 use std::alloc::System;
 use workers::*;
+use crate::visualization::VisualDataController;
 
 
 #[wasm_bindgen]
@@ -50,23 +52,25 @@ static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed, addr
 pub extern "C" fn get_pool()->ThreadPool {
 
     let pool_addr_op:Option<u32> = if let Ok(pool_locked) = POOL_PR.try_lock() {
-        debug!("run_in_pool: got pool");
+        log("wapuku: get_pool: got pool");
         if pool_locked.is_some() {
-            debug!("run_in_pool: got pool is_some");
+            log("get_pool: got pool is_some");
             let pool_addr = pool_locked.unwrap();
 
 
-            debug!("run_in_pool: pool.install done");
+            log("wapuku: get_pool: pool.install done");
             Some(pool_addr)
         } else {
-            debug!("run_in_pool: no pool_addr");
+            log("wapuku: get_pool: no pool_addr");
             None
         }
     } else {
-        debug!("run_in_pool: pool_locked");
+        log("wapuku: get_pool: pool_locked");
         None
     };
 
+    log(format!("wapuku: get_pool: pool_addr_op={:?}", pool_addr_op).as_str());
+    
     if let Some(pool_addr) = pool_addr_op {
         //invalidates
         **unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) }
@@ -83,25 +87,26 @@ pub fn init_pool(threads:usize){
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .panic_handler(|_| {
-            debug!("Panick!!!!!!!!!!!!!!")
+            debug!("wapuku: Panick!!!!!!!!!!!!!!")
         }).exit_handler(|n| {
         debug!("Exit {}", n);
     })
         .spawn_handler(move |thread| {
-            log(format!("wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
+            log(format!("wapuku: wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
 
             let worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
             // worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
             // self.sender.send(thread).unwrap_throw();
             let msg = js_sys::Array::new();
-            msg.push(&JsValue::from(&wasm_bindgen::memory()));
             msg.push(&JsValue::from("init_worker"));
+            msg.push(&JsValue::from(&wasm_bindgen::memory()));
             msg.push(&JsValue::from(Box::into_raw(Box::new(Box::new(|| {
-                debug!("running thread in pool");
+                log("wapuku: running thread in pool");
                 thread.run()
             }) as Box<dyn FnOnce()>)) as u32));
             worker.post_message(&msg).expect("failed to post");
-            
+
+            log(format!("wapuku: wbg_rayon_PoolBuilder::build: done").as_str());
 
             Ok(())
         })
@@ -113,23 +118,26 @@ pub fn init_pool(threads:usize){
     
     if let Ok(mut pool_locked) = POOL_PR.try_lock() {
         pool_locked.replace(pool_addr);
-        debug!("init_pool: pool_addr={}", pool_addr);
+        debug!("wapuku: init_pool: pool_addr={}", pool_addr);
     }
     
    
 }
 
-
 #[wasm_bindgen]
-pub fn run_closure(ptr: u32) {
+pub fn init_worker(ptr: u32) {
+    log(format!("wapuku: init_worker={}", ptr).as_str());
+
+    console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
+    
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 
-    
 }
 
 #[wasm_bindgen]
 pub fn run_in_pool(ptr: u32) {
+    log("wapuku: run_in_pool");
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 }
@@ -139,23 +147,25 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
 
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    console_log::init_with_level(log::Level::Trace).expect("Couldn't initialize logger");
+    console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
     debug!("wapuku: running");
 
+    let workder_rc = Rc::new(RefCell::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str())));
+
   
     let init_pool_futrue = WorkerFuture::new(
-        "./wasm-worker.js",
+        Rc::clone(&workder_rc), //"./wasm-worker.js",
         Box::new(|| {
             let msg = js_sys::Array::new();
 
-            msg.push(&JsValue::from(&wasm_bindgen::memory()));
             msg.push(&JsValue::from("init_pool"));
+            msg.push(&JsValue::from(&wasm_bindgen::memory()));
             msg
         })
     ).await;
     
-    debug!("workers started");
+    debug!("wapuku: workers started");
 
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let winit_window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
@@ -205,12 +215,36 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     // let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
     // let data:Box<dyn Data> = Box::new(TestData::new());
     let data = PolarsData::new(fake_df());
-    
-    
-    
-    // data
+
+   
     let mut visual_data_controller = VisualDataController::new(&data, width, height);
-    visual_data_controller.update_visuals(&data).await;
+    let msg = js_sys::Array::new();
+
+    let property_x = &*visual_data_controller.property_x;
+    let property_y = &*visual_data_controller.property_y;
+    let groups_nr_x = visual_data_controller.groups_nr_x;
+    let groups_nr_y = visual_data_controller.groups_nr_y;
+    
+    let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
+        log(format!("wapuku: running in pool 2 data={:?}", data).as_str());
+
+        let data_grid =  data.build_grid(
+            PropertyRange::new(property_x, None, None),
+            PropertyRange::new(property_y, None, None),
+            groups_nr_x, groups_nr_y, "property_3",//TODO
+        );
+        
+        log(format!("wapuku: got data_grid={:?}", data_grid).as_str());
+
+    }) as Box<dyn FnOnce()>)) as u32);
+
+    msg.push(&JsValue::from("run_in_pool"));
+    msg.push(&worker_param_ptr);
+
+    Rc::clone(&workder_rc).borrow_mut().post_message(&msg).expect("failed to post");
+
+    // visual_data_controller.update_visuals(&data);
+    
     let mut gpu_state = State::new(winit_window, visual_data_controller).await;
 
     event_loop.run(move |event, _, control_flow| {

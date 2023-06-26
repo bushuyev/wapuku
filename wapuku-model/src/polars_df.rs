@@ -29,7 +29,7 @@ impl From<PolarsError> for WapukuError {
 }
 
 
-
+#[derive(Debug)]
 pub struct PolarsData {
     df:DataFrame,
     property_sets: Vec<SimplePropertiesSet>,
@@ -195,9 +195,9 @@ pub fn fake_df() -> DataFrame {
     // ).unwrap() 
     
     df!(
-       "property_1" => &(0..1_0_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-       "property_2" => &(0..1_0_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
-       "property_3" => &(0..1_0_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+       "property_1" => &(0..1_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+       "property_2" => &(0..1_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+       "property_3" => &(0..1_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
     ).unwrap()
 }
 

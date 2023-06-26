@@ -14,7 +14,8 @@ use winit::dpi::PhysicalSize;
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
 use wapuku_model::model::*;
-use wapuku_model::visualization::*;
+
+use crate::visualization::{V_LEFT_TOP, V_RIGHT_BOTTOM, VisualDataController, VisualInstance};
 
 
 pub struct State {
