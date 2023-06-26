@@ -209,7 +209,9 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
     
     // data
-    let mut gpu_state = State::new(winit_window, VisualDataController::new(&data, width, height)).await;
+    let mut visual_data_controller = VisualDataController::new(&data, width, height);
+    visual_data_controller.update_visuals(&data).await;
+    let mut gpu_state = State::new(winit_window, visual_data_controller).await;
 
     event_loop.run(move |event, _, control_flow| {
         // debug!("wapuku: event_loop.run={:?}", event);

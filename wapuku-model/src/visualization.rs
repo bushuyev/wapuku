@@ -1,3 +1,4 @@
+//moved from wapuku-ui to run tests
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use std::fmt::Debug;
@@ -609,6 +610,8 @@ impl Named for VisualInstance {
 pub struct VisualDataController {
     property_x: Box<dyn Property>,
     property_y: Box<dyn Property>,
+    groups_nr_x: u8,
+    groups_nr_y: u8,
     // data: Box<dyn Data>,
     visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
@@ -639,42 +642,55 @@ impl VisualDataController {
         let property_x = data.all_properties().into_iter().find(|p| p.name() == &property_x_name).expect(format!("property_x {} not found", property_x_name).as_str());
         let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_y {} not found", property_y_name).as_str());
 
-        let groups_nr_x = 3;
-        let groups_nr_y = 3;
-        
-        // let mut data_grid = data.build_grid(
-        //     PropertyRange::new(property_x, None, None),
-        //     PropertyRange::new(property_y, None, None),
-        //     groups_nr_x, groups_nr_y, "property_3",
-        // );
 
-        let mut data_grid = GroupsGrid::new(
-            property_x.clone_to_box(),
-            property_y.clone_to_box(),
-            vec![]
+        Self { 
+            property_x: property_x.clone_to_box(),
+            property_y: property_y.clone_to_box(),
+            groups_nr_x: 3,
+            groups_nr_y: 3,
+            // data,
+            visuals:vec![],
+            has_updates: true,
+            animations: HashMap::new(),
+            visual_id_under_pointer_op: None,
+            width, height
+        }
+    }
+
+    pub async fn update_visuals(&mut self, data: &dyn Data) {
+        let mut data_grid = data.build_grid(
+            PropertyRange::new(&*self.property_x, None, None),
+            PropertyRange::new(&*self.property_y, None, None),
+            self.groups_nr_x, self.groups_nr_y, "property_3",//TODO
         );
+        
+        // let mut data_grid = GroupsGrid::new(
+        //     self.property_x.clone_to_box(),
+        //     self.property_y.clone_to_box(),
+        //     vec![]
+        // );
 
 
         let step = 9.;
         let d_property = step / 5.;
-        let min_x = ((groups_nr_x as f32 - 1.0) / -2.) * step;
-        let min_y = ((groups_nr_y as f32 - 1.0) / 2.) * step;
+        let min_x = ((self.groups_nr_x as f32 - 1.0) / -2.) * step;
+        let min_y = ((self.groups_nr_y as f32 - 1.0) / 2.) * step;
         let plate_z = 1.0;
         let properties_z = 0.0;
 
         debug!("wapuku: VisualDataController::new: data_grid={:?}", data_grid);
 
         //TODO layout
-        let visuals:Vec<VisualInstance> = data_grid.data()
+        let visuals: Vec<VisualInstance> = data_grid.data()
             .drain(..).enumerate()
             .flat_map(
                 move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Option<Box<dyn DataGroup>>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
             )
-            .fold(vec![], move |mut h:Vec<VisualInstance>, (x, y, group)|{
+            .fold(vec![], move |mut h: Vec<VisualInstance>, (x, y, group)| {
                 // if group.volume() > 0 {
                 //     return h;
                 // }
-                
+
 
                 let plate_x = (min_x + x as f32 * step) as f32;
                 let plate_y = (min_y - y as f32 * step) as f32;
@@ -726,31 +742,10 @@ impl VisualDataController {
                 };
 
                 h
-        });
-
-
-        // visuals.insert(String::from("plate"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: 5.0, y:  0.0, z: 1.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "plate",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
-      
-
-        Self { 
-            property_x: property_x.clone_to_box(),
-            property_y: property_y.clone_to_box(),
-            // data,
-            visuals,
-            has_updates: true,
-            animations: HashMap::new(),
-            visual_id_under_pointer_op: None,
-            width, height
-        }
+            });
+        self.visuals = visuals;
     }
-    
+
 
     pub fn visuals_updates(&mut self) -> Option<&mut Vec<VisualInstance>> {
         
