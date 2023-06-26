@@ -52,7 +52,7 @@ impl  Data for TestData {
         self.property_sets.iter().flat_map(|property_set|property_set.properties().into_iter()).collect()
     }
 
-    async fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid {
+    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid {
         
 
         GroupsGrid::new(

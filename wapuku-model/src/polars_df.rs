@@ -65,7 +65,7 @@ impl Data for PolarsData {
         self.property_sets.iter().flat_map(|property_set|property_set.properties().into_iter()).collect()
     }
 
-    async fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8, group_volume_property: &str) -> GroupsGrid {
+    fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, x_n: u8, y_n: u8, group_volume_property: &str) -> GroupsGrid {
         let property_x_name = property_x.property().name().as_str();
         let property_y_name = property_y.property().name().as_str();
 
@@ -384,11 +384,11 @@ mod tests {
 
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
-        let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
+        let grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
         debug!("wapuku: grid: {:?}", grid);
         
-        let data = grid.data();
+        // let data = grid.data();
 
         
         assert_eq!(grid.group_at(0, 0).unwrap().volume(), 1);
@@ -427,12 +427,12 @@ mod tests {
         debug!("wapuku: df: {:?}", df);
 
 
-        let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1_i64), Some(1_i64)), (Some(10i64), Some(31i64)));
+        let grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1_i64), Some(1_i64)), (Some(10i64), Some(31i64)));
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
         debug!("wapuku: grid: {:?}", grid);
 
-        let data = grid.data();
+        // let data = grid.data();
 
 
         assert_eq!(grid.group_at(0, 0).unwrap().volume(), 1);
@@ -474,7 +474,7 @@ mod tests {
 
         debug!("wapuku: grid: {:?}", grid);
 
-        let data = grid.data();
+        // let data = grid.data();
 
 
         // assert_eq!(grid.group_at(0, 0).is_none(), true);
@@ -514,11 +514,11 @@ mod tests {
         debug!("wapuku: df: {:?}", df);
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
-        let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
+        let grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
         debug!("wapuku: grid: {:?}", grid);
 
-        let data = grid.data();
+        // let data = grid.data();
 
         assert_eq!(grid.group_at(0, 0).unwrap().volume(), 2);
         assert_eq!(grid.group_at(0, 1).unwrap().volume(), 2);

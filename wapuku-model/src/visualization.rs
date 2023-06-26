@@ -631,10 +631,10 @@ impl VisualDataController {
             (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
         };
 
-        let property_x: String = property_1.name().clone();
-        let property_y: String = property_2.name().clone();
+        let property_x_name: String = property_1.name().clone();
+        let property_y_name: String = property_2.name().clone();
 
-        debug!("wapuku: property_x={} property_y={}",  property_x, property_y);
+        debug!("wapuku: property_x={} property_y={}",  property_x_name, property_y_name);
         
         let property_x = data.all_properties().into_iter().find(|p| p.name() == &property_x_name).expect(format!("property_x {} not found", property_x_name).as_str());
         let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_y {} not found", property_y_name).as_str());
