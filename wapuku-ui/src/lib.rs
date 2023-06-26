@@ -148,13 +148,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
     debug!("wapuku: running");
-    /*let pool_worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
-    let msg = js_sys::Array::new();
-
-    msg.push(&JsValue::from("init_pool"));
-    msg.push(&JsValue::from(&wasm_bindgen::memory()));
-    pool_worker.post_message(&msg).expect("failed to post");
-    let workder_rc = Rc::new(pool_worker);*/
+    
 
     let workder_rc = Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()));
     
@@ -198,7 +192,6 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
             let data = PolarsData::new(fake_df());
             let mut visual_data_controller = Rc::new(VisualDataController::new(&data, width, height));
             let data_rc = Rc::new(data);
-            
 
             debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
