@@ -258,26 +258,22 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
     let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
+        debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
 
-        
-       
+        if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
+            mouse_yx_for_on_mousemove_borrowed.replace((e.offset_x() as f32, e.offset_y() as f32));
+        }
 
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
-    div.add_event_listener_with_callback("click", &closure_on_mousemove.as_ref().unchecked_ref());
+    div.add_event_listener_with_callback("mousemove", &closure_on_mousemove.as_ref().unchecked_ref());
     closure_on_mousemove.forget();
             
-            
-
     
     // let data:Box<dyn Data> = Box::new(PolarsData::new(parquet_scan()));
     // let data:Box<dyn Data> = Box::new(PolarsData::new(fake_df()));
     // let data:Box<dyn Data> = Box::new(TestData::new());
     
     
-
-    
-    
-   
     // visual_data_controller.update_visuals(&data);
     
     let mut gpu_state = State::new(winit_window).await;
@@ -345,7 +341,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                                         debug!("wapuku: event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
     
                                         if let Some(xy) = xy_ref.as_ref() {
-                                            gpu_state.pointer_input(xy.0, xy.1);
+                                            visual_data_controller_borrowed_mut.on_pointer_input(xy.0, xy.1);
                                         }
                                     } else {
                                         debug!("wapuku: event_loop::WindowEvent::MouseInput can't get pointer_xy_for_state_update ");
@@ -355,10 +351,13 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                             }
                         }
                         WindowEvent::CursorMoved {..} => {
+                            debug!("wapuku: event_loop::WindowEvent::CursorMoved pointer_xy_for_state_update={:?}", pointer_xy_for_state_update);
                             
                             if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
+                                debug!("wapuku: event_loop::WindowEvent::CursorMoved xy_ref={:?}", xy_ref);
+                                
                                 if let Some(xy) = xy_ref.as_ref() {
-                                    gpu_state.pointer_moved(xy.0, xy.1);
+                                    visual_data_controller_borrowed_mut.on_pointer_moved(xy.0, xy.1);
                                 }
                             }
                         }
