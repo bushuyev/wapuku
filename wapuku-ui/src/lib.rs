@@ -37,11 +37,14 @@ use web_sys::*;
 
 use std::alloc::System;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 use workers::*;
 use crate::visualization::VisualDataController;
-
+use std::{hint};
+use std::future::Future;
+use crate::workers::interval_future::IntervalFuture;
 
 #[wasm_bindgen]
 extern "C" {
@@ -53,6 +56,10 @@ static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed, addr
 
 static mut TO_POOL_SENDER: Option<Box<Sender<&str>>> = None;
 static mut FROM_MAIN_RECEIVER: Option<Box<Receiver<&str>>> = None;
+
+fn worker_global_scope() -> Option<WorkerGlobalScope> {
+    js_sys::global().dyn_into::<WorkerGlobalScope>().ok()
+}
 
 #[no_mangle]
 pub extern "C" fn get_pool()->ThreadPool {
@@ -84,10 +91,12 @@ pub extern "C" fn get_pool()->ThreadPool {
 }
 
 #[wasm_bindgen]
-pub fn init_pool(threads:usize, from_main_ptr: u32){
+pub async fn init_pool(threads:usize) {
     log(format!("wapuku: init_pool,threads={}", threads).as_str());
 
-
+    let mut counter = Arc::new(AtomicUsize::new(0));
+    let  counter_clone_top = Arc::clone(&counter);
+    let  counter_clone_clear = Arc::clone(&counter);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .panic_handler(|_| {
@@ -97,7 +106,8 @@ pub fn init_pool(threads:usize, from_main_ptr: u32){
     })
         .spawn_handler(move |thread| {
             log(format!("wapuku: wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
-
+            let counter_clone = Arc::clone(&counter);
+            
             let worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
             // worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
             // self.sender.send(thread).unwrap_throw();
@@ -105,9 +115,19 @@ pub fn init_pool(threads:usize, from_main_ptr: u32){
             msg.push(&JsValue::from("init_worker"));
             msg.push(&JsValue::from(&wasm_bindgen::memory()));
             msg.push(&JsValue::from(Box::into_raw(Box::new(Box::new(|| {
-                log("wapuku: running thread in pool");
+                log(format!("wapuku: running thread in pool").as_str());
                 thread.run()
+                
             }) as Box<dyn FnOnce()>)) as u32));
+
+            let mut closure_on_worker = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
+                debug!("worker is ready: counter_clone={:?}", counter_clone);
+                counter_clone.fetch_add(1, Ordering::Relaxed);
+            }) as Box<dyn FnMut(web_sys::MessageEvent)>);
+
+            worker.set_onmessage(Some(&closure_on_worker.as_ref().unchecked_ref()));
+            closure_on_worker.forget();
+            
             worker.post_message(&msg).expect("failed to post");
 
             log(format!("wapuku: wbg_rayon_PoolBuilder::build: done").as_str());
@@ -115,7 +135,14 @@ pub fn init_pool(threads:usize, from_main_ptr: u32){
             Ok(())
         })
         .build().unwrap();
+    
     // pool.install(||());
+    debug!("wapuku: init_pool: 1. counter={:?}", counter_clone_top);
+    // while counter_clone_top.load(Ordering::Acquire) != threads {
+        // hint::spin_loop();
+    // }
+   
+    
     
     let pool_addr =  Box::into_raw(Box::new(Box::new(pool) as Box<rayon::ThreadPool>)) as u32;
 
@@ -124,31 +151,17 @@ pub fn init_pool(threads:usize, from_main_ptr: u32){
         pool_locked.replace(pool_addr);
         debug!("wapuku: init_pool: pool_addr={}", pool_addr);
     }
-
-    let mut from_main = unsafe { Box::from_raw(from_main_ptr as *mut Receiver<&str>) };
-
-    debug!("wapuku: init_pool: from_main_ptr={} from_main={:?}", from_main_ptr, from_main);
     
-    // unsafe  {
-    //     let rv = FROM_MAIN_RECEIVER.as_ref().unwrap();
-    //     debug!("wapuku: init_pool: rv={:?}", rv);
-    //     
-    //     
-    //     
-    while let Ok(msg) = from_main.recv() {
-    //     loop {
-    //         // log(format!("wapuku: rv.iter().sum()={:?}", rv.iter().count()).as_str());
-            debug!("xxxxxxxxxxxxxxxxxxxx: rv={:?}", msg);
-    //     }
-    }
+    IntervalFuture::new(move || {
+        debug!("wapuku: init_pool: 3. counter={:?}", counter_clone_clear);
+        counter_clone_clear.load(Ordering::Acquire) >= threads
 
-    debug!("FFFFFFFFFFFFFFFFFFF");
-   
+    }).await
 }
 
 #[wasm_bindgen]
 pub fn init_worker(ptr: u32) {
-    // log(format!("wapuku: init_worker={}", ptr).as_str());
+    log(format!("wapuku: init_worker={}", ptr).as_str());
 
     // console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
     
@@ -159,7 +172,7 @@ pub fn init_worker(ptr: u32) {
 
 #[wasm_bindgen]
 pub fn run_in_pool(ptr: u32) {
-    //log("wapuku: run_in_pool");
+    log("wapuku: run_in_pool");
     let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 }
@@ -169,15 +182,10 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
-    let (to_pool, from_main) = std::sync::mpsc::channel();
-    let from_main_ptr = Box::into_raw(Box::new(from_main)) as u32;
+
+    let (to_main, from_worker) = std::sync::mpsc::channel::<GroupsGrid>();
     debug!("wapuku: running");
-    // unsafe {
-    //     
-    // 
-    //     TO_POOL_SENDER.replace(Box::new(to_pool));
-    //     FROM_MAIN_RECEIVER.replace(Box::new(from_main));
-    // }
+  
 
     let workder_rc = Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()));
     
@@ -188,10 +196,12 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
             msg.push(&JsValue::from("init_pool"));
             msg.push(&JsValue::from(&wasm_bindgen::memory()));
-            msg.push(&JsValue::from(from_main_ptr));
             msg
         })
     ).await;
+    
+    // let pool_worker = PoolWorker::new();
+    // pool_worker.init().await;
     
     debug!("wapuku: workers started");
 
@@ -222,26 +232,22 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
             let mut visual_data_controller = Rc::new(VisualDataController::new(&data, width, height));
             let data_rc = Rc::new(data);
 
-            debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
-            let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
+            let workder_rc_t = Rc::clone(&workder_rc);
 
-               /* let data_in_init = Rc::clone(&data_rc);
-                let data_in_init_rc = Rc::clone(&visual_data_controller);
-
+            // let closure: Closure<dyn FnMut()> = Closure::new(move || {
+                debug!("wapuku: set_timeout_with_callback");
+                let data_in_init = Rc::clone(&data_rc);
+                let visual_data_controller_rc = Rc::clone(&visual_data_controller);
+                
                 let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
 
                     log(format!("wapuku: running in pool").as_str());
 
-                    let property_x = &*data_in_init_rc.property_x;
-                    let property_y = &*data_in_init_rc.property_y;
-                    let groups_nr_x = data_in_init_rc.groups_nr_x;
-                    let groups_nr_y = data_in_init_rc.groups_nr_y;
-
                     let data_grid =  data_in_init.build_grid(
-                        PropertyRange::new(property_x, None, None),
-                        PropertyRange::new(property_y, None, None),
-                        groups_nr_x, groups_nr_y, "property_3",//TODO
+                        PropertyRange::new(&*visual_data_controller_rc.property_x, None, None),
+                        PropertyRange::new(&*visual_data_controller_rc.property_y, None, None),
+                        visual_data_controller_rc.groups_nr_x, visual_data_controller_rc.groups_nr_y, "property_3",//TODO
                     );
 
                     log(format!("wapuku: got data_grid={:?}", data_grid).as_str());
@@ -251,19 +257,17 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 let msg = js_sys::Array::new();
                 msg.push(&JsValue::from("run_in_pool"));
                 msg.push(&worker_param_ptr);
+
+
+                workder_rc_t.post_message(&msg).expect("failed to post");
+            
+
+            debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
+
+            let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
+
                 
-
-                workder_rc.post_message(&msg).expect("failed to post");*/
-                debug!("wapuku: sending");
-                let res = to_pool.send("ZZZZZZZZZZZ");
-                debug!("wapuku: sent res={:?}", res);
-                // unsafe {
-                //     let mut x = TO_POOL_SENDER.as_ref().unwrap().clone();
-                //     let res =  x.send("zzzz");
-                //     
-                //     debug!("wapuku: send res={:?}", res);
-                // }
-
+               
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
 

@@ -1,3 +1,5 @@
+pub mod interval_future;
+
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -54,5 +56,42 @@ impl Future for WorkerFuture {
                 Poll::Ready(Ok(result.clone()))
             }
         }
+    }
+}
+
+pub struct PoolWorker {
+    workder_rc:Rc<web_sys::Worker>
+}
+
+impl PoolWorker {
+    pub fn new() -> Self {
+        Self {
+            workder_rc: Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()))
+        }
+    }
+    
+    pub fn init(&self) ->WorkerFuture {
+        WorkerFuture::new(
+            Rc::clone(&self.workder_rc), //"./wasm-worker.js",
+            Box::new( move || {
+                let msg = js_sys::Array::new();
+
+                msg.push(&JsValue::from("init_pool"));
+                msg.push(&JsValue::from(&wasm_bindgen::memory()));
+                msg
+            })
+        )
+    }
+
+
+    pub fn run_in_pool<F>(&self, cl:F) where F:FnMut(){
+        let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(cl) as Box<dyn FnMut()>)) as u32);
+
+        let msg = js_sys::Array::new();
+        msg.push(&JsValue::from("run_in_pool"));
+        msg.push(&worker_param_ptr);
+
+
+        self.workder_rc.post_message(&msg).expect("failed to post");
     }
 }

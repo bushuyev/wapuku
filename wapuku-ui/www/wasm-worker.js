@@ -9,19 +9,21 @@ self.onmessage = async event => {
      await init(undefined, event.data[1]);
      
      if (event.data[0] === "init_pool") {
-         postMessage("done");
          
-         init_pool(2, event.data[2]);
-
+         
+         await init_pool(2);
+         
          console.log("wapuku: pool init done");
          
+         postMessage("done");
 
      } else if (event.data[0] === "init_worker") {
 
-         init_worker(event.data[2]);
+         postMessage("done");
 
-         console.log("worker init done");
+         console.log("init worker done");
          
+         init_worker(event.data[2]);
      }
 
     self.onmessage = async event => {
