@@ -36,6 +36,9 @@ use rayon::iter::*;
 use web_sys::*;
 
 use std::alloc::System;
+use std::pin::Pin;
+use std::sync::mpsc::{Receiver, Sender};
+use std::time::Duration;
 use workers::*;
 use crate::visualization::VisualDataController;
 
@@ -47,6 +50,9 @@ extern "C" {
 }
 
 static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed, addr
+
+static mut TO_POOL_SENDER: Option<Box<Sender<&str>>> = None;
+static mut FROM_MAIN_RECEIVER: Option<Box<Receiver<&str>>> = None;
 
 #[no_mangle]
 pub extern "C" fn get_pool()->ThreadPool {
@@ -78,7 +84,7 @@ pub extern "C" fn get_pool()->ThreadPool {
 }
 
 #[wasm_bindgen]
-pub fn init_pool(threads:usize){
+pub fn init_pool(threads:usize, from_main_ptr: u32){
     log(format!("wapuku: init_pool,threads={}", threads).as_str());
 
 
@@ -118,7 +124,25 @@ pub fn init_pool(threads:usize){
         pool_locked.replace(pool_addr);
         debug!("wapuku: init_pool: pool_addr={}", pool_addr);
     }
+
+    let mut from_main = unsafe { Box::from_raw(from_main_ptr as *mut Receiver<&str>) };
+
+    debug!("wapuku: init_pool: from_main_ptr={} from_main={:?}", from_main_ptr, from_main);
     
+    // unsafe  {
+    //     let rv = FROM_MAIN_RECEIVER.as_ref().unwrap();
+    //     debug!("wapuku: init_pool: rv={:?}", rv);
+    //     
+    //     
+    //     
+    while let Ok(msg) = from_main.recv() {
+    //     loop {
+    //         // log(format!("wapuku: rv.iter().sum()={:?}", rv.iter().count()).as_str());
+            debug!("xxxxxxxxxxxxxxxxxxxx: rv={:?}", msg);
+    //     }
+    }
+
+    debug!("FFFFFFFFFFFFFFFFFFF");
    
 }
 
@@ -143,23 +167,28 @@ pub fn run_in_pool(ptr: u32) {
 #[wasm_bindgen]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
     
-
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
-
+    let (to_pool, from_main) = std::sync::mpsc::channel();
+    let from_main_ptr = Box::into_raw(Box::new(from_main)) as u32;
     debug!("wapuku: running");
-    
+    // unsafe {
+    //     
+    // 
+    //     TO_POOL_SENDER.replace(Box::new(to_pool));
+    //     FROM_MAIN_RECEIVER.replace(Box::new(from_main));
+    // }
 
     let workder_rc = Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()));
     
-    
     let init_pool_futrue = WorkerFuture::new(
         Rc::clone(&workder_rc), //"./wasm-worker.js",
-        Box::new(|| {
+        Box::new( move || {
             let msg = js_sys::Array::new();
     
             msg.push(&JsValue::from("init_pool"));
             msg.push(&JsValue::from(&wasm_bindgen::memory()));
+            msg.push(&JsValue::from(from_main_ptr));
             msg
         })
     ).await;
@@ -197,7 +226,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
             let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
 
-                let data_in_init = Rc::clone(&data_rc);
+               /* let data_in_init = Rc::clone(&data_rc);
                 let data_in_init_rc = Rc::clone(&visual_data_controller);
 
                 let worker_param_ptr = JsValue::from(Box::into_raw(Box::new(Box::new(move || {
@@ -224,7 +253,16 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                 msg.push(&worker_param_ptr);
                 
 
-                workder_rc.post_message(&msg).expect("failed to post");
+                workder_rc.post_message(&msg).expect("failed to post");*/
+                debug!("wapuku: sending");
+                let res = to_pool.send("ZZZZZZZZZZZ");
+                debug!("wapuku: sent res={:?}", res);
+                // unsafe {
+                //     let mut x = TO_POOL_SENDER.as_ref().unwrap().clone();
+                //     let res =  x.send("zzzz");
+                //     
+                //     debug!("wapuku: send res={:?}", res);
+                // }
 
 
             }) as Box<dyn FnMut(web_sys::MouseEvent)>);
