@@ -279,17 +279,19 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     let mut gpu_state = State::new(winit_window).await;
     let visual_data_controller_in_loop = Rc::clone(&visual_data_controller_rc);
     event_loop.run(move |event, _, control_flow| {
-        let mut visual_data_controller_borrowed_mut = visual_data_controller_in_loop.borrow_mut();
+        let mut visual_data_controller_borrowed_mut_op = visual_data_controller_in_loop.try_borrow_mut().ok();
         
-        if let Ok(msg) = from_worker.try_recv() {
-            debug!("wapuku: event_loop got data_grid={:?}", msg);
-            visual_data_controller_borrowed_mut.update_visuals(msg);
+        if let Some(mut visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
+            if let Ok(msg) = from_worker.try_recv() {
+                debug!("wapuku: event_loop got data_grid={:?}", msg);
+                visual_data_controller_borrowed_mut.update_visuals(msg);
+            }
         }
         // debug!("wapuku: event_loop.run={:?}", event);
     
         match event {
             event::Event::RedrawRequested(window_id) if window_id == gpu_state.window().id() => {
-                if let Some(visual_updates) = visual_data_controller_borrowed_mut.visuals_updates() {
+                if let Some(visual_updates) = visual_data_controller_borrowed_mut_op.as_mut().and_then(|mut v|v.visuals_updates()) {
                     gpu_state.update(visual_updates);
                 }
 
@@ -339,9 +341,10 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                                 ElementState::Released => {
                                     if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
                                         debug!("wapuku: event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
-    
-                                        if let Some(xy) = xy_ref.as_ref() {
-                                            visual_data_controller_borrowed_mut.on_pointer_input(xy.0, xy.1);
+                                        if let Some(mut visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
+                                            if let Some(xy) = xy_ref.as_ref() {
+                                                visual_data_controller_borrowed_mut.on_pointer_input(xy.0, xy.1);
+                                            }
                                         }
                                     } else {
                                         debug!("wapuku: event_loop::WindowEvent::MouseInput can't get pointer_xy_for_state_update ");
@@ -355,9 +358,10 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                             
                             if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
                                 debug!("wapuku: event_loop::WindowEvent::CursorMoved xy_ref={:?}", xy_ref);
-                                
-                                if let Some(xy) = xy_ref.as_ref() {
-                                    visual_data_controller_borrowed_mut.on_pointer_moved(xy.0, xy.1);
+                                if let Some(mut visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
+                                    if let Some(xy) = xy_ref.as_ref() {
+                                        visual_data_controller_borrowed_mut.on_pointer_moved(xy.0, xy.1);
+                                    }
                                 }
                             }
                         }

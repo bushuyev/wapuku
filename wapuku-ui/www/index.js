@@ -5,7 +5,7 @@ import init, {run} from '../pkg/wapuku_ui';
 
     const memory = new WebAssembly.Memory({
         initial: 80,
-        maximum: 10000,
+        maximum: 20000,
         shared: true
     });
     
