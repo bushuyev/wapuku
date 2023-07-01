@@ -12,6 +12,9 @@ set -ex
 #   features enabled, ensuring that LLVM will generate atomic instructions,
 #   shared memory, passive segments, etc.
 
+rm -rf /enc/my-dev/wapuku/wapuku-ui/pkg
+rm -rf /enc/my-dev/wapuku/wapuku-ui/www/dist
+
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
 cargo +nightly build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 

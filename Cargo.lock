@@ -2232,6 +2232,7 @@ dependencies = [
  "env_logger",
  "log",
  "num_cpus",
+ "wasm-bindgen",
 ]
 
 [[package]]

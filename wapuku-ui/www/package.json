@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rustwasm/create-wasm-app.git"
+    "url": "git+https://github.com/bushuyev/wapuku.git"
   },
   "dependencies": {
     "wapuku": "file:../pkg",

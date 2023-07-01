@@ -97,6 +97,7 @@ pub async fn init_pool(threads:usize) {
     let mut counter = Arc::new(AtomicUsize::new(0));
     let  counter_clone_top = Arc::clone(&counter);
     let  counter_clone_clear = Arc::clone(&counter);
+
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .panic_handler(|_| {
