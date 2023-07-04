@@ -81,6 +81,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocator-api2"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56fc6cf8dc8c4158eed8649f9b8b0ea1518eb62b544fe9490d66fa0b349eafe9"
+
+[[package]]
 name = "android-activity"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,6 +662,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "equivalent"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88bffebc5d80432c9b140ee17875ff173a8ab62faad5b257da912bd2f6c1c0a1"
+
+[[package]]
 name = "errno"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -948,7 +960,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap",
+ "indexmap 1.9.3",
  "slab",
  "tokio",
  "tokio-util",
@@ -972,11 +984,12 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.13.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+checksum = "2c6201b9ff9fd90a5a3bac2e56a830d0caa509576f0e503818ee82c181b3437a"
 dependencies = [
  "ahash 0.8.3",
+ "allocator-api2",
 ]
 
 [[package]]
@@ -993,6 +1006,12 @@ dependencies = [
  "widestring",
  "winapi",
 ]
+
+[[package]]
+name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
@@ -1148,6 +1167,16 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "indexmap"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5477fe2230a79769d8dc68e0eabf5437907c0457a5614a9e8dddb67f65eb65d"
+dependencies = [
+ "equivalent",
+ "hashbrown 0.14.0",
 ]
 
 [[package]]
@@ -1514,7 +1543,7 @@ dependencies = [
  "bitflags 1.3.2",
  "codespan-reporting",
  "hexf-parse",
- "indexmap",
+ "indexmap 1.9.3",
  "log",
  "num-traits",
  "rustc-hash",
@@ -1930,7 +1959,7 @@ dependencies = [
 
 [[package]]
 name = "polars"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "getrandom",
  "polars-core",
@@ -1943,10 +1972,10 @@ dependencies = [
 
 [[package]]
 name = "polars-arrow"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "arrow2",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "multiversion",
  "num-traits",
  "polars-error",
@@ -1955,14 +1984,14 @@ dependencies = [
 
 [[package]]
 name = "polars-core"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "ahash 0.8.3",
  "arrow2",
  "bitflags 1.3.2",
  "chrono",
  "either",
- "indexmap",
+ "indexmap 2.0.0",
  "num-traits",
  "once_cell",
  "polars-arrow",
@@ -1982,7 +2011,7 @@ dependencies = [
 
 [[package]]
 name = "polars-error"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "arrow2",
  "regex",
@@ -1991,7 +2020,7 @@ dependencies = [
 
 [[package]]
 name = "polars-io"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "ahash 0.8.3",
  "arrow2",
@@ -2018,7 +2047,7 @@ dependencies = [
 
 [[package]]
 name = "polars-lazy"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "ahash 0.8.3",
  "bitflags 1.3.2",
@@ -2038,11 +2067,12 @@ dependencies = [
 
 [[package]]
 name = "polars-ops"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "argminmax",
  "arrow2",
  "either",
+ "indexmap 2.0.0",
  "memchr",
  "polars-arrow",
  "polars-core",
@@ -2052,7 +2082,7 @@ dependencies = [
 
 [[package]]
 name = "polars-pipe"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "enum_dispatch",
  "num-traits",
@@ -2069,7 +2099,7 @@ dependencies = [
 
 [[package]]
 name = "polars-plan"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "ahash 0.8.3",
  "arrow2",
@@ -2082,11 +2112,12 @@ dependencies = [
  "polars-utils",
  "rayon",
  "smartstring",
+ "strum_macros",
 ]
 
 [[package]]
 name = "polars-row"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "arrow2",
  "polars-error",
@@ -2095,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "polars-time"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "arrow2",
  "atoi",
@@ -2112,10 +2143,11 @@ dependencies = [
 
 [[package]]
 name = "polars-utils"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "ahash 0.8.3",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
+ "num-traits",
  "once_cell",
  "rayon",
  "smartstring",
@@ -2347,6 +2379,12 @@ dependencies = [
  "linux-raw-sys",
  "windows-sys 0.48.0",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc31bd9b61a32c31f9650d18add92aa83a49ba979c143eefd27fe7177b05bd5f"
 
 [[package]]
 name = "ryu"
@@ -2612,6 +2650,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9df65f20698aeed245efdde3628a6b559ea1239bbb871af1b6e3b58c413b2bd1"
 
 [[package]]
+name = "strum_macros"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6069ca09d878a33f883cc06aaa9718ede171841d3832450354410b718b097232"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.18",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2635,9 +2686,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.28.4"
+version = "0.29.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4c2f3ca6693feb29a89724516f016488e9aafc7f37264f898593ee4b942f31b"
+checksum = "751e810399bba86e9326f5762b7f32ac5a085542df78da6a78d94e07d14d7c11"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
@@ -2806,7 +2857,7 @@ version = "0.19.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2380d56e8670370eee6566b0bfd4265f65b3f432e8c6d85623f728d4fa31f739"
 dependencies = [
- "indexmap",
+ "indexmap 1.9.3",
  "toml_datetime",
  "winnow",
 ]

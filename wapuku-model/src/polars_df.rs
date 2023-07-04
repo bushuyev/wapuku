@@ -242,6 +242,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
+                check_sorted: false
             }
         )
         .agg(aggregations)
@@ -284,6 +285,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
             include_boundaries: true,
             closed_window: ClosedWindow::Left,
             start_by: WindowBound,
+            check_sorted: false
         }
     ).agg([
         col(primary_field_group).alias(primary_field_value)
@@ -324,6 +326,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
+                check_sorted: false
          }
         )
         .agg(aggregations)
