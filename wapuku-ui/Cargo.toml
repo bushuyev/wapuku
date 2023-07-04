@@ -34,7 +34,7 @@ console_log = "0.2.0"
 wgpu = { version = "0.16.0", features = ["webgl"]}
 
 #wasm-bindgen = "0.2.86"
-wasm-bindgen = {path = "/enc/my-dev/wasm-bindgen/"}
+wasm-bindgen = {path = "../../wasm-bindgen/"}
 
 #wasm-bindgen = "0.2.86"
 futures = "0.3.28"
@@ -59,12 +59,16 @@ lazy_static = "1.4.0"
 wasm-tracing-allocator = "0.1.0"
 lol_alloc = "0.4.0"
 #wee_alloc = { path = "../../wee_alloc/wee_alloc"}
+proc-macro2 = "1.0.63"
 
 [patch.crates-io]
 #crossbeam-channel = {path= "../../crossbeam/crossbeam-channel"}
 #crossbeam-deque = {path= "../../crossbeam/crossbeam-deque"}
 #crossbeam-utils = {path= "../../crossbeam/crossbeam-utils"}
-wasm-bindgen = {path= "/enc/my-dev/wasm-bindgen"}
+wasm-bindgen = {path= "../../wasm-bindgen"}
+#https://github.com/rust-lang/rust/issues/113152
+proc-macro2 = {path= "../../proc-macro2"}
+
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

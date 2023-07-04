@@ -12,13 +12,13 @@ set -ex
 #   features enabled, ensuring that LLVM will generate atomic instructions,
 #   shared memory, passive segments, etc.
 
-rm -rf /enc/my-dev/wapuku/wapuku-ui/pkg
-rm -rf /enc/my-dev/wapuku/wapuku-ui/www/dist
+rm -rf pkg
+rm -rf www/dist
 
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
 cargo +nightly build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 
-(cd /enc/my-dev/wasm-bindgen && cargo run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir /enc/my-dev/wapuku/wapuku-ui/pkg/  --target web   /enc/my-dev/wapuku/wapuku-ui/target/wasm32-unknown-unknown/release/wapuku_ui.wasm)
+(cd ../../wasm-bindgen && cargo run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir ../../wapuku/wapuku-ui/pkg/  --target web   ../../wapuku/wapuku-ui/target/wasm32-unknown-unknown/release/wapuku_ui.wasm)
 (cd www && npm run build:main && npm run build:worker)
 #wasm2wat --enable-threads ./target/wasm32-unknown-unknown/release/wasm_threads_template.wasm > ./pkg/wasm_threads_template.wat
 ## Note the usage of `--target no-modules` here which is required for passing
