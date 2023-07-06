@@ -758,7 +758,6 @@ impl VisualDataController {
                 
                 if animation.tick(visual_instance) == AnimationState::Done {
                     self.animations.remove(&visual_instance.id);
-
                     // debug!("wapuku: visuals_updates: removed animation for id={:?}", visual_instance.id);
                 }
             }
@@ -837,6 +836,26 @@ impl VisualDataController {
     fn find_group_by_xy(x: f32, y: f32, visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>, on_each: impl FnMut(&mut VisualInstance) -> &mut VisualInstance) -> Option<&mut VisualInstance> {
 
         Self::flat_visuals(visuals).and_then(|mut visuals_iter|visuals_iter.find(|v| v.bounds().contain(x, y)))
+    }
+
+    pub fn get_visual_under_pointer(&mut self, x: f32, y: f32) -> Option<&Box<dyn DataGroup>> {
+        debug!("wapuku: on_pointer_input:  x={}, y={}", x, y);
+
+        self.visuals.iter().find(|v|v.bounds().contain(x, y)).and_then(|visual_under_pointer|
+            match &visual_under_pointer.data {
+                VisualInstanceData::DataGroup(data_group) => {
+                    Some(data_group)
+                    // match data_group.bounds() {
+                    //     DataBounds::XY(property_x, property_y) => Some({
+                    //         self.data.build_grid(property_x, property_y, 3, 3, "property_3")
+                    // None
+                    },
+                    _ => None
+
+                },
+
+        )
+
     }
 
     pub fn on_pointer_input(&mut self, x: f32, y: f32) {

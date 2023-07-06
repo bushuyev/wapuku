@@ -504,7 +504,7 @@ impl State {
             m.into_iter()
         }).map(|i| (*i).into()).collect::<Vec<InstanceRaw>>();
 
-        debug!("wapuku: State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
+        // debug!("wapuku: State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
 
         instance_data
         

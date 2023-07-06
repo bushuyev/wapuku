@@ -92,6 +92,15 @@ impl PropertyRange {
     pub fn max(&self) -> Option<i64> {
         self.max
     }
+
+    pub fn clone_to_box(&self) -> PropertyRange {
+        PropertyRange {
+            property: self.property.clone_to_box(),
+            min: self.min.clone(),
+            max: self.max.clone(),
+        }
+    }
+
 }
 
 #[derive(Debug)]
@@ -110,7 +119,7 @@ pub enum DataBounds {
 pub trait DataGroup: Debug {
     fn volume(&self) -> usize;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
-    fn bounds(&self)->DataBounds;
+    fn bounds(&self)->&DataBounds;
 }
 
 
@@ -149,8 +158,8 @@ impl DataGroup for SimpleDataGroup {
         self.property_sizes.iter().collect()
     }
 
-    fn bounds(&self) -> DataBounds {
-        todo!()
+    fn bounds(&self) -> &DataBounds {
+        &self.bounds
     }
 }
 

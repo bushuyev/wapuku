@@ -228,6 +228,8 @@ pub fn parquet_scan() -> DataFrame {
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {
 
+    let mut df = df.sort([group_by_field], false)?;
+
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
@@ -242,7 +244,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
-                check_sorted: false
+                check_sorted: true
             }
         )
         .agg(aggregations)
@@ -285,7 +287,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
             include_boundaries: true,
             closed_window: ClosedWindow::Left,
             start_by: WindowBound,
-            check_sorted: false
+            check_sorted: true
         }
     ).agg([
         col(primary_field_group).alias(primary_field_value)
@@ -326,7 +328,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
-                check_sorted: false
+                check_sorted: true
          }
         )
         .agg(aggregations)

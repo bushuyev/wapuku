@@ -14,7 +14,7 @@ impl From<&VisualInstance> for InstanceRaw {
         model[1][1] = value.scale().y;
         model[2][2] = value.scale().z;
         
-        debug!("wapuku: From<&VisualInstance> for InstanceRaw: model={:?}", model);
+        // debug!("wapuku: From<&VisualInstance> for InstanceRaw: model={:?}", model);
 
         InstanceRaw {
             model,

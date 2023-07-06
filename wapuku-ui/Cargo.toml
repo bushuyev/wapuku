@@ -30,7 +30,7 @@ features = ["png", "jpeg"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
-console_log = "0.2.0"
+console_log = "0.2.2"
 wgpu = { version = "0.16.0", features = ["webgl"]}
 
 #wasm-bindgen = "0.2.86"
