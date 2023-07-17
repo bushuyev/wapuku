@@ -9,3 +9,14 @@ jobs:
     steps:
       - run: |
           echo "Ok"
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: wapuku
+
+      - name: Checkout my polars
+        uses: actions/checkout@v3
+        with:
+          repository: bushuyev/polars
+          path: polars
