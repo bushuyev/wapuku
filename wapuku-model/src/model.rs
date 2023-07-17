@@ -1,3 +1,5 @@
+#![feature(async_fn_in_trait)]
+
 use std::collections::{HashMap, HashSet};
 use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
@@ -90,6 +92,15 @@ impl PropertyRange {
     pub fn max(&self) -> Option<i64> {
         self.max
     }
+
+    pub fn clone_to_box(&self) -> PropertyRange {
+        PropertyRange {
+            property: self.property.clone_to_box(),
+            min: self.min.clone(),
+            max: self.max.clone(),
+        }
+    }
+
 }
 
 #[derive(Debug)]
@@ -108,7 +119,7 @@ pub enum DataBounds {
 pub trait DataGroup: Debug {
     fn volume(&self) -> usize;
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
-    fn bounds(&self)->DataBounds;
+    fn bounds(&self)->&DataBounds;
 }
 
 
@@ -147,8 +158,8 @@ impl DataGroup for SimpleDataGroup {
         self.property_sizes.iter().collect()
     }
 
-    fn bounds(&self) -> DataBounds {
-        todo!()
+    fn bounds(&self) -> &DataBounds {
+        &self.bounds
     }
 }
 
@@ -218,11 +229,15 @@ impl  GroupsGrid {
     }
 }
 
+pub trait X {
+    async fn test();
+}
 
-pub trait Data {
+pub trait Data:Debug {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
+ 
 }
 
 

@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use crate::data_type::WapukuDataType;
 use crate::model::{Data, DataBounds, DataGroup, DataProperty, GroupsGrid, GroupsVec, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet};
 
+#[derive(Debug)]
 pub struct TestData {
     property_sets: Vec<SimplePropertiesSet>,
 }

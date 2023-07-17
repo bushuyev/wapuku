@@ -10,7 +10,7 @@ forced-runner = 'wasm-bindgen-test-runner'
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-getrandom = { version = "0.2.9", features = ["js"] }
+#getrandom = { version = "0.2.9", features = ["js"] }
 winit = "0.28.3"
 env_logger = "0.10.0"
 log = "0.4.17"
@@ -30,31 +30,58 @@ features = ["png", "jpeg"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
-console_log = "0.2.0"
+console_log = "0.2.2"
 wgpu = { version = "0.16.0", features = ["webgl"]}
 
-wasm-bindgen = "0.2"
-futures = "0.3.25"
-wasm-bindgen-futures = "0.4.33"
-web-sys = { version = "0.3", features = [
+#wasm-bindgen = "0.2.86"
+wasm-bindgen = {path = "../../wasm-bindgen/"}
+
+#wasm-bindgen = "0.2.86"
+futures = "0.3.28"
+wasm-bindgen-futures = "0.4.36"
+web-sys = { version = "0.3.63", features = [
     "Document",
     "Window",
     "Element",
     "Location",
+    "Worker"
 ]}
-
+js-sys = "0.3.63"
 
 wapuku-model = {path = "../wapuku-model" }
 wapuku-resources = {path = "../wapuku-resources" }
 
-rayon = "1.7.0"
-wasm-bindgen-rayon = "1.0.3"
+rayon = {path= "../../rayon"}
+
+#rayon = "1.7.0"
+#wasm-bindgen-rayon = {path= "../../wasm-bindgen-rayon"}
+lazy_static = "1.4.0"
+wasm-tracing-allocator = "0.1.0"
+lol_alloc = "0.4.0"
+#wee_alloc = { path = "../../wee_alloc/wee_alloc"}
+proc-macro2 = "1.0.63"
+
+[patch.crates-io]
+#crossbeam-channel = {path= "../../crossbeam/crossbeam-channel"}
+#crossbeam-deque = {path= "../../crossbeam/crossbeam-deque"}
+#crossbeam-utils = {path= "../../crossbeam/crossbeam-utils"}
+wasm-bindgen = {path= "../../wasm-bindgen"}
+#https://github.com/rust-lang/rust/issues/113152
+proc-macro2 = {path= "../../proc-macro2"}
+
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
 
 
+#[env]
+#WASM_BINDGEN_THREADS_STACK_SIZE = 2097152
+#WASM_BINDGEN_THREADS = true
+
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
 
+
+[unstable]
+async-fn-in-trait = true
 #[workspace]

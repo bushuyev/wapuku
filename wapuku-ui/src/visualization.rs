@@ -1,3 +1,4 @@
+//moved from wapuku-ui to run tests
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use std::fmt::Debug;
@@ -7,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use cgmath::{ElementWise, InnerSpace, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
 use log::{debug, trace};
-use crate::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
+use wapuku_model::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
 pub struct VisualBounds {
@@ -110,7 +111,7 @@ impl <V> Animation for ConsecutiveAnimations<V> {
 mod animation_tests {
     use cgmath::{Quaternion, Vector3, Zero};
     use log::trace;
-    use crate::visualization::{Animation, AnimationState, ConsecutiveAnimations, Lerp, VisualInstance, VisualInstanceData};
+    use wapuku_ui::visualization::{Animation, AnimationState, ConsecutiveAnimations, Lerp, VisualInstance, VisualInstanceData};
 
     #[test]
     fn test_scale_xy() {
@@ -275,7 +276,7 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T
 #[cfg(test)]
 mod test_lerpables {
     use cgmath::Vector3;
-    use crate::visualization::Lerpable;
+    use wapuku_ui::visualization::Lerpable;
 
     #[test]
     fn test_f32(){
@@ -607,9 +608,12 @@ impl Named for VisualInstance {
 }
 
 pub struct VisualDataController {
-    property_x: Box<dyn Property>,
-    property_y: Box<dyn Property>,
-    data: Box<dyn Data>,
+    //TODO pubs
+    pub(crate) property_x: Box<dyn Property>,
+    pub(crate) property_y: Box<dyn Property>,
+    pub(crate) groups_nr_x: u8,
+    pub(crate) groups_nr_y: u8,
+    // data: Box<dyn Data>,
     visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
     has_updates: bool,
@@ -618,39 +622,76 @@ pub struct VisualDataController {
 }
 
 impl VisualDataController {
+    
 
-    pub fn new(data: Box<dyn Data>, property_x_name: String, property_y_name: String, width:i32, height:i32) -> Self {
+    pub fn new(data: &dyn Data, width:i32, height:i32) -> Self {
+        let all_properties:HashSet<&dyn Property> = data.all_properties();
+
+
+        let (property_1, property_2, property_3) = {
+            let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
+            all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
+
+            (*all_properties_iter.get(0).expect("property_1"), *all_properties_iter.get(1).expect("property_2"), *all_properties_iter.get(2).expect("property_3"))
+        };
+
+        let property_x_name: String = property_1.name().clone();
+        let property_y_name: String = property_2.name().clone();
+
+        debug!("wapuku: property_x={} property_y={}",  property_x_name, property_y_name);
+        
         let property_x = data.all_properties().into_iter().find(|p| p.name() == &property_x_name).expect(format!("property_x {} not found", property_x_name).as_str());
         let property_y = data.all_properties().into_iter().find(|p| p.name() == &property_y_name).expect(format!("property_y {} not found", property_y_name).as_str());
 
-        let groups_nr_x = 3;
-        let groups_nr_y = 3;
-        let mut data_grid = data.build_grid(
-            PropertyRange::new(property_x, None, None),
-            PropertyRange::new(property_y, None, None),
-            groups_nr_x, groups_nr_y, "property_3",
-        );
+
+        Self { 
+            property_x: property_x.clone_to_box(),
+            property_y: property_y.clone_to_box(),
+            groups_nr_x: 3,
+            groups_nr_y: 3,
+            // data,
+            visuals:vec![],
+            has_updates: true,
+            animations: HashMap::new(),
+            visual_id_under_pointer_op: None,
+            width, height
+        }
+    }
+
+    pub fn update_visuals(&mut self, data_grid: GroupsGrid) {
+        // let mut data_grid = data.build_grid(
+        //     PropertyRange::new(&*self.property_x, None, None),
+        //     PropertyRange::new(&*self.property_y, None, None),
+        //     self.groups_nr_x, self.groups_nr_y, "property_3",//TODO
+        // );
+        
+        // let mut data_grid = GroupsGrid::new(
+        //     self.property_x.clone_to_box(),
+        //     self.property_y.clone_to_box(),
+        //     vec![]
+        // );
+
 
         let step = 9.;
         let d_property = step / 5.;
-        let min_x = ((groups_nr_x as f32 - 1.0) / -2.) * step;
-        let min_y = ((groups_nr_y as f32 - 1.0) / 2.) * step;
+        let min_x = ((self.groups_nr_x as f32 - 1.0) / -2.) * step;
+        let min_y = ((self.groups_nr_y as f32 - 1.0) / 2.) * step;
         let plate_z = 1.0;
         let properties_z = 0.0;
 
         debug!("wapuku: VisualDataController::new: data_grid={:?}", data_grid);
 
         //TODO layout
-        let visuals:Vec<VisualInstance> = data_grid.data()
+        let visuals: Vec<VisualInstance> = data_grid.data()
             .drain(..).enumerate()
             .flat_map(
                 move |(y, mut vec_x)| vec_x.drain(..).collect::<Vec<Option<Box<dyn DataGroup>>>>().into_iter().enumerate().map(move |(x, group)| (x, y, group))
             )
-            .fold(vec![], move |mut h:Vec<VisualInstance>, (x, y, group)|{
+            .fold(vec![], move |mut h: Vec<VisualInstance>, (x, y, group)| {
                 // if group.volume() > 0 {
                 //     return h;
                 // }
-                
+
 
                 let plate_x = (min_x + x as f32 * step) as f32;
                 let plate_y = (min_y - y as f32 * step) as f32;
@@ -702,31 +743,10 @@ impl VisualDataController {
                 };
 
                 h
-        });
-
-
-        // visuals.insert(String::from("plate"), vec![
-        //     VisualInstance::new(
-        //         cgmath::Vector3 { x: 5.0, y:  0.0, z: 1.0 },
-        //         cgmath::Quaternion::new(1., 0., 0., 0.),
-        //         "plate",
-        //         VisualInstanceData::Empty
-        //     )
-        // ]);
-      
-
-        Self { 
-            property_x: property_x.clone_to_box(),
-            property_y: property_y.clone_to_box(),
-            data,
-            visuals,
-            has_updates: true,
-            animations: HashMap::new(),
-            visual_id_under_pointer_op: None,
-            width, height
-        }
+            });
+        self.visuals = visuals;
     }
-    
+
 
     pub fn visuals_updates(&mut self) -> Option<&mut Vec<VisualInstance>> {
         
@@ -738,7 +758,6 @@ impl VisualDataController {
                 
                 if animation.tick(visual_instance) == AnimationState::Done {
                     self.animations.remove(&visual_instance.id);
-
                     // debug!("wapuku: visuals_updates: removed animation for id={:?}", visual_instance.id);
                 }
             }
@@ -819,10 +838,43 @@ impl VisualDataController {
         Self::flat_visuals(visuals).and_then(|mut visuals_iter|visuals_iter.find(|v| v.bounds().contain(x, y)))
     }
 
+    pub fn get_visual_under_pointer(&mut self, x: f32, y: f32) -> Option<&Box<dyn DataGroup>> {
+        debug!("wapuku: on_pointer_input:  x={}, y={}", x, y);
+
+        self.visuals.iter().find(|v|v.bounds().contain(x, y)).and_then(|visual_under_pointer|
+            match &visual_under_pointer.data {
+                VisualInstanceData::DataGroup(data_group) => {
+                    Some(data_group)
+                    // match data_group.bounds() {
+                    //     DataBounds::XY(property_x, property_y) => Some({
+                    //         self.data.build_grid(property_x, property_y, 3, 3, "property_3")
+                    // None
+                    },
+                    _ => None
+
+                },
+
+        )
+
+    }
+
     pub fn on_pointer_input(&mut self, x: f32, y: f32) {
         debug!("wapuku: on_pointer_input:  x={}, y={}", x, y);
         
         if let Some(visual_under_pointer) = self.visuals.iter().find(|v|v.bounds().contain(x, y)) {
+            
+/*            match &visual_under_pointer.data {
+                VisualInstanceData::DataGroup(data_group) => {
+                    match data_group.bounds() {
+                        DataBounds::XY(property_x, property_y) => {
+                            let grid = self.data.build_grid(property_x, property_y, 3, 3, "property_3");
+                        }
+                        _ => {}
+                    }
+                }
+                VisualInstanceData::Empty => {}
+            }
+*/            
 
             for visual in self.visuals.iter_mut() {
                 let position = visual.position;

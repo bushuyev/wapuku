@@ -14,7 +14,8 @@ use winit::dpi::PhysicalSize;
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
 use wapuku_model::model::*;
-use wapuku_model::visualization::*;
+
+use crate::visualization::{V_LEFT_TOP, V_RIGHT_BOTTOM, VisualDataController, VisualInstance};
 
 
 pub struct State {
@@ -25,7 +26,7 @@ pub struct State {
     pub(crate)  size: winit::dpi::PhysicalSize<u32>,
     pub(crate)  window: Window,
 
-    vis_ctrl:VisualDataController,//TODO rename
+    // vis_ctrl:VisualDataController,//TODO rename
     mesh_model: MeshModel,
     instance_buffer: wgpu::Buffer,
     color:Color,
@@ -54,7 +55,7 @@ pub const SAMPLE_COUNT: u32 = 1; //4;
 
 impl State {
 
-    pub async fn new(window: Window, model:VisualDataController) -> Self {
+    pub async fn new(window: Window/*, model:VisualDataController*/) -> Self {
         let size = window.inner_size();
         
         debug!("wapuku: State::new: size={:?}", size);
@@ -249,7 +250,7 @@ impl State {
             camera_controller: CameraController::new(0.2),
             camera,
 
-            vis_ctrl: model,
+            // vis_ctrl: model,
             mesh_model: resources::load_model(
                 "data/wapuku.obj",
                 &device,
@@ -417,19 +418,19 @@ impl State {
     }
 
     pub fn pointer_moved(&mut self, x:f32, y:f32) {
-        self.vis_ctrl.on_pointer_moved(x, y);
+        // self.vis_ctrl.on_pointer_moved(x, y);
     }
 
     pub fn pointer_input(&mut self, x:f32, y:f32) {
-        self.vis_ctrl.on_pointer_input(x, y);
+        // self.vis_ctrl.on_pointer_input(x, y);
     }
 
-    pub fn update(&mut self/*, visuals:HashMap<String, Vec<VisualInstance>>*/) {
+    pub fn update(&mut self, visuals:&mut Vec<VisualInstance>) {
         self.camera_controller.update_camera(&mut self.camera);
         self.projection = self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
-        if let Some(visuals) = self.vis_ctrl.visuals_updates() {
+        // if let Some(visuals) = self.vis_ctrl.visuals_updates() {
 
             for visual_instance in visuals.iter_mut() {
 
@@ -447,7 +448,7 @@ impl State {
             let instance_data = Self::visuals_to_raw(visuals, &mut self.mesh_model);
 
             self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instance_data));
-        }
+        // }
       
         self.light_uniform.position = self.camera.eye.into(); //[self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
         self.queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
@@ -503,7 +504,7 @@ impl State {
             m.into_iter()
         }).map(|i| (*i).into()).collect::<Vec<InstanceRaw>>();
 
-        debug!("wapuku: State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
+        // debug!("wapuku: State::visuals_to_raw: visuals={:?} instance_data.len()={}", visuals, instance_data.len());
 
         instance_data
         

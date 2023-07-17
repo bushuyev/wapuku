@@ -1,9 +1,11 @@
+
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -27,7 +29,7 @@ impl From<PolarsError> for WapukuError {
 }
 
 
-
+#[derive(Debug)]
 pub struct PolarsData {
     df:DataFrame,
     property_sets: Vec<SimplePropertiesSet>,
@@ -116,7 +118,7 @@ impl Data for PolarsData {
 
        
         
-        debug!("wapuku: df={:?}", df);
+        debug!("1. wapuku: df={:?}", df);
 
         // // https://stackoverflow.com/questions/72440403/iterate-over-rows-polars-rust df is small here, should be ok
         // df.as_single_chunk_par();
@@ -193,9 +195,9 @@ pub fn fake_df() -> DataFrame {
     // ).unwrap() 
     
     df!(
-       "property_1" => &(0..10000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-       "property_2" => &(0..10000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
-       "property_3" => &(0..10000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+       "property_1" => &(0..10_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+       "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+       "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
     ).unwrap()
 }
 
@@ -226,9 +228,12 @@ pub fn parquet_scan() -> DataFrame {
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {
 
+    let mut df = df.sort([group_by_field], false)?;
+
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
+            col(group_by_field.into()),
             [],
             DynamicGroupOptions {
                 index_column: group_by_field.into(),
@@ -239,6 +244,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
+                check_sorted: true
             }
         )
         .agg(aggregations)
@@ -269,7 +275,9 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
             col(primary_group_by_field).alias(primary_field_group)
         ])
         .sort(primary_field_group, Default::default())
-        .groupby_dynamic([], 
+        .groupby_dynamic(
+            col(primary_field_group.into()),
+            [], 
  DynamicGroupOptions {
             index_column: primary_field_group.into(),
             every: Duration::new(primary_step),
@@ -279,6 +287,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
             include_boundaries: true,
             closed_window: ClosedWindow::Left,
             start_by: WindowBound,
+            check_sorted: true
         }
     ).agg([
         col(primary_field_group).alias(primary_field_value)
@@ -303,11 +312,12 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
     
-    debug!("wapuku: df={:?}", df);
+    debug!("2. wapuku: df={:?}", df);
     
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
+            col(secondary_group_by_field.into()),
             [col(primary_field_group)],
             DynamicGroupOptions {
                 index_column: secondary_group_by_field.into(),
@@ -318,6 +328,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
+                check_sorted: true
          }
         )
         .agg(aggregations)
@@ -378,11 +389,11 @@ mod tests {
 
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
-        let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
+        let grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
         debug!("wapuku: grid: {:?}", grid);
         
-        let data = grid.data();
+        // let data = grid.data();
 
         
         assert_eq!(grid.group_at(0, 0).unwrap().volume(), 1);
@@ -421,12 +432,12 @@ mod tests {
         debug!("wapuku: df: {:?}", df);
 
 
-        let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1_i64), Some(1_i64)), (Some(10i64), Some(31i64)));
+        let grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1_i64), Some(1_i64)), (Some(10i64), Some(31i64)));
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
         debug!("wapuku: grid: {:?}", grid);
 
-        let data = grid.data();
+        // let data = grid.data();
 
 
         assert_eq!(grid.group_at(0, 0).unwrap().volume(), 1);
@@ -468,7 +479,7 @@ mod tests {
 
         debug!("wapuku: grid: {:?}", grid);
 
-        let data = grid.data();
+        // let data = grid.data();
 
 
         // assert_eq!(grid.group_at(0, 0).is_none(), true);
@@ -508,11 +519,11 @@ mod tests {
         debug!("wapuku: df: {:?}", df);
 
         // let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (Some(1i64), Some(4i64)), (Some(10i64), Some(31i64)));
-        let mut grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
+        let grid = x_property_1_y_property_2_to_3_x_3_data(df, (None, None), (None, None));
 
         debug!("wapuku: grid: {:?}", grid);
 
-        let data = grid.data();
+        // let data = grid.data();
 
         assert_eq!(grid.group_at(0, 0).unwrap().volume(), 2);
         assert_eq!(grid.group_at(0, 1).unwrap().volume(), 2);
@@ -770,7 +781,7 @@ mod tests {
             0i64, 0i64
         ).expect("df");
         
-        debug!("wapuku: df={:?}", df);
+        debug!("3. wapuku: df={:?}", df);
        
         assert_eq!(
             *df.column("field_3_value").expect("field_3_value"),
