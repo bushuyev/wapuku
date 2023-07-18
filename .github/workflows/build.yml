@@ -20,3 +20,11 @@ jobs:
         with:
           repository: bushuyev/polars
           path: polars
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: build-wapuku
+        run: |
+          cd wapuku/wapuku-ui/www
+          npm i
+          npm build:all
