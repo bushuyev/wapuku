@@ -77,7 +77,7 @@ jobs:
           cd wapuku/wapuku-ui/www
           npm i
           npm run build:all
-          cd dist && tar -cvf ${GITHUB_WORKSPACE}/github-pages.tar *
+          cd dist && tar --dereference --hard-dereference -cvf ${GITHUB_WORKSPACE}/github-pages.tar *
           pwd
           echo ${GITHUB_WORKSPACE}
           echo ${{ github.workspace }}
