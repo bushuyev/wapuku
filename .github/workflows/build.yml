@@ -80,13 +80,14 @@ jobs:
           cd dist && tar -zcvf ${GITHUB_WORKSPACE}/github-pages.tar.gz *
           pwd
           echo ${GITHUB_WORKSPACE}
+          echo ${{ github.workspace }}
           realpath   ${GITHUB_WORKSPACE}/github-pages.tar.gz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: github-pages
-          path: ${GITHUB_WORKSPACE}/github-pages.tar.gz
+          path:  ${{ github.workspace }}/github-pages.tar.gz
           retention-days: 1
 
       - name: Deploy to GitHub Pages
