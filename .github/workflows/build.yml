@@ -59,9 +59,10 @@ jobs:
         with:
           toolchain: nightly
 
-      - name: test-toolchain
+      - name: install wasm-pack
         run: |
           rustup toolchain list
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: build-wapuku
         run: |
