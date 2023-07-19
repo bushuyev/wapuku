@@ -77,12 +77,12 @@ jobs:
           cd wapuku/wapuku-ui/www
           npm i
           npm run build:all
-          cd dist && tar -zcvf ../../target/github-pages.tar.gz *
+          cd dist && tar -zcvf ../../../../github-pages.tar.gz *
+          pwd
+          ls ../../../../
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
-        with:
-          path: 'wapuku/wapuku-ui/target'
 
       - name: Deploy to GitHub Pages
         id: deployment
