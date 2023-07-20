@@ -3,9 +3,87 @@ name: build
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build-all:
     runs-on: ubuntu-latest
     steps:
       - run: |
           echo "Ok"
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: wapuku
+
+      - name: Checkout my crossbeam
+        uses: actions/checkout@v3
+        with:
+          repository: bushuyev/crossbeam
+          path: crossbeam
+          ref: my_master
+
+      - name: Checkout my rayon
+        uses: actions/checkout@v3
+        with:
+          repository: bushuyev/rayon
+          path: rayon
+          ref: master_my
+
+      - name: Checkout my arrow2
+        uses: actions/checkout@v3
+        with:
+          repository: bushuyev/arrow2
+          path: arrow2
+          ref: my_polars_2023-05-25
+
+      - name: Checkout my polars
+        uses: actions/checkout@v3
+        with:
+          repository: bushuyev/polars
+          path: polars
+          ref: my_main_2
+
+      - name: Checkout wasm-bindgen
+        uses: actions/checkout@v3
+        with:
+          repository: bushuyev/wasm-bindgen
+          path: wasm-bindgen
+          ref: main
+
+#      - uses: actions-rust-lang/setup-rust-toolchain@v1
+#        with:
+#          toolchain: nightly
+
+      - name: install rust
+        run: |
+          curl -y --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          rustup toolchain install nightly
+          rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+
+
+      - name: install wasm-pack
+        run: |
+          ls -R /home/runner/work/
+          rustup toolchain list
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: build-wapuku
+        run: |
+          cd wapuku/wapuku-ui/www
+          npm i
+          npm run build:all
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './wapuku/wapuku-ui/www/dist'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
