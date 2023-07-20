@@ -80,4 +80,5 @@ mod tests {
 
         assert_eq!("wapuku_purple_1024.jpg", resource_filename(url));
     }
+
 }

@@ -6,5 +6,8 @@
         { "key": "Cache-Control", "value": "public, max-age=3" }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "wapuku/data/**", "destination": "/data" }
   ]
 }

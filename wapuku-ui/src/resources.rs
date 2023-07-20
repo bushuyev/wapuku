@@ -13,12 +13,16 @@ fn format_url(file_name: &str) -> reqwest::Url {
     let window = web_sys::window().unwrap();
     let location = window.location();
     let mut origin = location.origin().unwrap();
-    debug!("wapuku: format_url: location={:?}", location);
-    // if !origin.ends_with("learn-wgpu") {
-    //     origin = format!("{}/learn-wgpu", origin);
-    // }
-    let base = reqwest::Url::parse(&format!("{}/wapuku/", origin,)).unwrap();
-    base.join(file_name).unwrap()
+
+    debug!("wapuku: format_url: origin={:?}", origin);
+
+    let url = if origin.starts_with("https://localhost") {
+        format!("{}/", origin)
+    }  else {
+        format!("{}/wapuku/", origin)
+    };
+
+    reqwest::Url::parse(&url).unwrap().join(file_name).unwrap()
 }
 
 pub async fn load_string(file_name: &str) -> anyhow::Result<String> {
@@ -83,7 +87,10 @@ pub async fn load_model(
     let obj_materials = obj_materials_r?;
     let models_textures = models.iter()
         .map(
-            |m| m.mesh.material_id.and_then(|material_id| obj_materials.get(material_id)).expect(format!("no material for {:?}", m.mesh.material_id).as_str())
+            |m| m.mesh.material_id.and_then(|material_id| {
+                debug!("wapuku: material_id={}", material_id);
+                obj_materials.get(material_id)
+            } ).expect(format!("no material for {:?}", m.mesh.material_id).as_str())
         )
         .map(|m| format!("data/{}", resource_filename(m.diffuse_texture.as_str())) )
         .collect::<Vec<String>>();
