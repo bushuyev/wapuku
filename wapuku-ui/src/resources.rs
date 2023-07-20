@@ -13,10 +13,11 @@ fn format_url(file_name: &str) -> reqwest::Url {
     let window = web_sys::window().unwrap();
     let location = window.location();
     let mut origin = location.origin().unwrap();
+    debug!("wapuku: format_url: location={:?}", location);
     // if !origin.ends_with("learn-wgpu") {
     //     origin = format!("{}/learn-wgpu", origin);
     // }
-    let base = reqwest::Url::parse(&format!("{}/", origin,)).unwrap();
+    let base = reqwest::Url::parse(&format!("{}/wapuku/", origin,)).unwrap();
     base.join(file_name).unwrap()
 }
 
