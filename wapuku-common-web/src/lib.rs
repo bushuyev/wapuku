@@ -1,14 +1,14 @@
 use wasm_bindgen::prelude::*;
 use web_sys::*;
 use rayon::*;
-use log::{debug, trace, warn};
-use std::sync::{Arc, Mutex, TryLockResult};
+use log::{debug};
+use std::sync::{Arc, Mutex};
 pub mod workers;
-use workers::*;
+
 use workers::interval_future::IntervalFuture;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-fn worker_global_scope() -> Option<WorkerGlobalScope> {
+pub fn worker_global_scope() -> Option<WorkerGlobalScope> {
     js_sys::global().dyn_into::<WorkerGlobalScope>().ok()
 }
 
@@ -26,7 +26,7 @@ static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed, addr
 pub fn init_worker(ptr: u32) {
     // log(format!("wapuku: init_worker={}", ptr).as_str());
 
-    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
+    let closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 }
 
@@ -65,7 +65,7 @@ pub extern "C" fn get_pool()->ThreadPool {
 pub async fn init_pool(threads: usize) {
     log(format!("wapuku: init_pool,threads={}", threads).as_str());
 
-    let mut counter = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::new(AtomicUsize::new(0));
     let counter_clone_top = Arc::clone(&counter);
     let counter_clone_clear = Arc::clone(&counter);
 
@@ -89,7 +89,7 @@ pub async fn init_pool(threads: usize) {
                 thread.run()
             }) as Box<dyn FnOnce()>)) as u32));
 
-            let mut closure_on_worker = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
+            let closure_on_worker = Closure::wrap(Box::new(move |_: web_sys::MessageEvent| {
                 debug!("worker is ready: counter_clone={:?}", counter_clone);
                 counter_clone.fetch_add(1, Ordering::Relaxed);
             }) as Box<dyn FnMut(web_sys::MessageEvent)>);
@@ -123,6 +123,6 @@ pub async fn init_pool(threads: usize) {
 #[wasm_bindgen]
 pub fn run_in_pool(ptr: u32) {
     log("wapuku: run_in_pool");
-    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
+    let closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
 }

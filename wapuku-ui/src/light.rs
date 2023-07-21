@@ -69,7 +69,7 @@ impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
     fn draw_light_model_instanced(
         &mut self,
         model: &'b MeshModel,
-        instances: Range<u32>,
+        _instances: Range<u32>,
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'b wgpu::BindGroup,
     ) {

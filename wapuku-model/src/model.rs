@@ -1,11 +1,7 @@
-#![feature(async_fn_in_trait)]
-
-use std::collections::{HashMap, HashSet};
+use std::collections::{ HashSet};
 use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
-use polars::error::PolarsError;
 
 use crate::data_type::*;
 
@@ -105,7 +101,9 @@ impl PropertyRange {
 
 #[derive(Debug)]
 pub struct PropertyInGroup {
+    #[allow(dead_code)]
     property_name: String,
+    #[allow(dead_code)]
     volume: u8,
 }
 
@@ -163,23 +161,6 @@ impl DataGroup for SimpleDataGroup {
     }
 }
 
-pub struct GroupsVec {
-    property:Box<dyn Property>,
-    data: Vec<Box<dyn DataGroup>>,
-}
-
-impl GroupsVec {
-
-    pub fn new(property:Box<dyn Property>, data: Vec<Box<dyn DataGroup>>) -> Self {
-        
-        Self {
-            property,
-            data,
-        }
-    }
-
-}
-
 pub type VecX<T> = Vec<Option<Box<T>>>;
 pub type VecY<T> = Vec<VecX<T>>;
 
@@ -193,13 +174,13 @@ pub struct GroupsGrid {
 impl Debug for GroupsGrid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 
-        write!(f, "GroupsGrid:");
-        write!(f, "property_x: {:?}\r\n", self.property_x);
-        write!(f, "property_y: {:?}\r\n", self.property_y);
-        /*.field(&self.data)*/;
+        write!(f, "GroupsGrid:").expect("write");
+        write!(f, "property_x: {:?}\r\n", self.property_x).expect("write");
+        write!(f, "property_y: {:?}\r\n", self.property_y).expect("write");
+        /*.field(&self.data);*/
         
-        self.data.iter().enumerate().for_each(|(i, r)|{
-            write!(f, "data: row={:?}\r\n", r);
+        self.data.iter().enumerate().for_each(|(_i, r)|{
+            write!(f, "data: row={:?}\r\n", r).expect("write");
         });
        
         Ok(())

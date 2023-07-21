@@ -43,7 +43,7 @@ impl CameraUniform {
     }
 
     pub(crate) fn update_view_proj(&mut self, camera: &Camera) -> Matrix4<f32> {
-        let proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix());
+        let proj = OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix();
         self.view_proj = proj.into();
         
         proj

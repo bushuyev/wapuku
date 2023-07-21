@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use wgpu::util::DeviceExt;
+
 
 use crate::texture;
 use crate::visualization::VisualInstance;
@@ -149,7 +149,7 @@ pub struct MeshModel {
 
 impl MeshModel {
     
-    pub fn new(meshes: Vec<Mesh>, device: &wgpu::Device) -> Self {
+    pub fn new(meshes: Vec<Mesh>, _device: &wgpu::Device) -> Self {
         Self { meshes }
     }
 

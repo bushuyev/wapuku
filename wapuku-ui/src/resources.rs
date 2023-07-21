@@ -12,7 +12,7 @@ use futures::future::join_all;
 fn format_url(file_name: &str) -> reqwest::Url {
     let window = web_sys::window().unwrap();
     let location = window.location();
-    let mut origin = location.origin().unwrap();
+    let origin = location.origin().unwrap();
 
     debug!("wapuku: format_url: origin={:?}", origin);
 

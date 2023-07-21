@@ -1,21 +1,21 @@
 use std::{f32, iter};
 use std::collections::HashMap;
-use std::ops::{Mul, Range};
-use log::{debug, trace};
-use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, ShaderModule, SurfaceConfiguration, Texture, TextureFormat, VertexBufferLayout};
+use std::ops::{Mul};
+use log::{debug};
+use wgpu::{BindGroupLayout, Color, Device, PipelineLayout, RenderPipeline, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
 use winit::window::Window;
-use crate::mesh_model::{DrawModel, InstanceRaw, Mesh, MeshInstances, MeshModel, Vertex};
+use crate::mesh_model::{DrawModel, InstanceRaw, MeshModel, Vertex};
 use crate::{mesh_model, resources, texture};
-use cgmath::prelude::*;
-use cgmath::{Matrix4, Point3, Vector2, Vector3, Vector4};
+
+use cgmath::{Matrix4, Vector3, Vector4};
 use winit::dpi::PhysicalSize;
 use crate::camera::{Camera, CameraController, CameraUniform};
 use crate::light::{DrawLight, LightUniform};
-use wapuku_model::model::*;
 
-use crate::visualization::{V_LEFT_TOP, V_RIGHT_BOTTOM, VisualDataController, VisualInstance};
+
+use crate::visualization::{V_LEFT_TOP, V_RIGHT_BOTTOM, VisualInstance};
 
 
 pub struct State {
@@ -419,14 +419,6 @@ impl State {
         self.camera_controller.process_events(event)
     }
 
-    pub fn pointer_moved(&mut self, x:f32, y:f32) {
-        // self.vis_ctrl.on_pointer_moved(x, y);
-    }
-
-    pub fn pointer_input(&mut self, x:f32, y:f32) {
-        // self.vis_ctrl.on_pointer_input(x, y);
-    }
-
     pub fn update(&mut self, visuals:&mut Vec<VisualInstance>) {
         self.camera_controller.update_camera(&mut self.camera);
         self.projection = self.camera_uniform.update_view_proj(&self.camera);
@@ -498,7 +490,7 @@ impl State {
             if let Some(mesh) = mesh_op {
                 let mesh_range = prev_mesh_range + m.len() as u32;
 
-                mesh.set_instances_range((prev_mesh_range..mesh_range));
+                mesh.set_instances_range(prev_mesh_range..mesh_range);
 
                 prev_mesh_range = mesh_range;
             }

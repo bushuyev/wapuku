@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use log::debug;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::closure::*;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -25,7 +25,7 @@ impl WorkerFuture {
         }
     }
     
-    pub fn run_closure<F>(&mut self, closure:F) where F:FnMut(){
+    pub fn run_closure<F>(&mut self, _closure:F) where F:FnMut(){
         
     }
 }
@@ -33,13 +33,13 @@ impl WorkerFuture {
 impl Future for WorkerFuture {
     type Output = Result<String, ()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.result.take() {
             None => {
                 let waker = cx.waker().clone();
                 let result = Rc::clone(&self.result);
                 
-                let mut closure_on_worker = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
+                let closure_on_worker = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
                     debug!("pool is ready: e={:?}", e);
                     result.borrow_mut().replace(String::from("done"));
                     waker.wake_by_ref();

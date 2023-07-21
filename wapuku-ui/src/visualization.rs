@@ -2,13 +2,13 @@
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use std::fmt::Debug;
-use std::ops::{Add, AddAssign, Div, Mul, Sub};
+use std::ops::{Add, AddAssign, Div, Sub};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use cgmath::{ElementWise, InnerSpace, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
+use cgmath::{InnerSpace, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
 use log::debug;
 
-use wapuku_model::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
+use wapuku_model::model::{Data, DataGroup, GroupsGrid, Named, Property};
 
 #[derive(Debug)]
 pub struct VisualBounds {
@@ -81,7 +81,7 @@ impl <V> Animation for ConsecutiveAnimations<V> {
     fn tick(&mut self, visual_instance: &mut V) -> AnimationState {
         debug!("wapuku: Animation for ConsecutiveAnimations:tick self.animations.len()={:?}", self.animations.len());
         
-        if let Some(mut animation) = self.animations.last_mut() {
+        if let Some(animation) = self.animations.last_mut() {
 
             match animation.tick(visual_instance) {
                 AnimationState::Running => {
@@ -215,7 +215,7 @@ impl Lerpable for f32 {
         self/ (steps as f32)
     }
     
-    fn is_done(&self, to:f32, d:f32,  e:f32) -> bool {
+    fn is_done(&self, to:f32, d:f32,  _e:f32) -> bool {
         if d > 0. {
             self >= &to
         } else {
@@ -461,7 +461,7 @@ impl ChildrenLayout {
 
             ChildrenLayout::Line => {
                 let mut x = bounds.x_left_top;
-                let mut y = bounds.y_left_top - (bounds.y_left_top - bounds.y_right_bottom)/2.;
+                let     y = bounds.y_left_top - (bounds.y_left_top - bounds.y_right_bottom)/2.;
                 
                 let step = (bounds.x_right_bottom - bounds.x_left_top) / (positions.len() as f32);
 
@@ -510,7 +510,7 @@ impl VisualInstance {
 
 
     pub fn new_with_children<S: Into<String>>(position: Vector3<f32>, rotation: Quaternion<f32>, name: S, data: VisualInstanceData, children:Vec<Box<VisualInstance>>, children_layout:ChildrenLayout, bounds:(f32, f32)) -> Self {
-        let mut bounds = VisualBounds::from_width_heigh(bounds.0, bounds.1);
+        let bounds = VisualBounds::from_width_heigh(bounds.0, bounds.1);
         // bounds.move_to(&position);
 
         Self::_new_with_children(position, rotation, name, data, Some(children), Some(children_layout), bounds)
@@ -629,11 +629,11 @@ pub struct VisualDataController {
 impl VisualDataController {
     
 
-    pub fn new(data: &dyn Data, width:i32, height:i32) -> Self {
+    pub fn new(data: &dyn Data, _width:i32, _height:i32) -> Self {
         let all_properties:HashSet<&dyn Property> = data.all_properties();
 
 
-        let (property_1, property_2, property_3) = {
+        let (property_1, property_2, _property_3) = {
             let mut all_properties_iter = all_properties.into_iter().collect::<Vec<&dyn Property>>();
             all_properties_iter.sort_by(|p1, p2| p1.name().cmp(p2.name()));
 
@@ -681,7 +681,7 @@ impl VisualDataController {
         let min_x = ((self.groups_nr_x as f32 - 1.0) / -2.) * step;
         let min_y = ((self.groups_nr_y as f32 - 1.0) / 2.) * step;
         let plate_z = 1.0;
-        let properties_z = 0.0;
+        let _properties_z = 0.0;
 
         debug!("wapuku: VisualDataController::new: data_grid={:?}", data_grid);
 
@@ -839,7 +839,7 @@ impl VisualDataController {
     }
 
     #[allow(dead_code)]
-    fn find_group_by_xy(x: f32, y: f32, visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>, on_each: impl FnMut(&mut VisualInstance) -> &mut VisualInstance) -> Option<&mut VisualInstance> {
+    fn find_group_by_xy(x: f32, y: f32, visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>, _on_each: impl FnMut(&mut VisualInstance) -> &mut VisualInstance) -> Option<&mut VisualInstance> {
 
         Self::flat_visuals(visuals).and_then(|mut visuals_iter|visuals_iter.find(|v| v.bounds().contain(x, y)))
     }
@@ -867,7 +867,7 @@ impl VisualDataController {
     pub fn on_pointer_input(&mut self, x: f32, y: f32) {
         debug!("wapuku: on_pointer_input:  x={}, y={}", x, y);
         
-        if let Some(visual_under_pointer) = self.visuals.iter().find(|v|v.bounds().contain(x, y)) {
+        if let Some(_visual_under_pointer) = self.visuals.iter().find(|v|v.bounds().contain(x, y)) {
             
 /*            match &visual_under_pointer.data {
                 VisualInstanceData::DataGroup(data_group) => {

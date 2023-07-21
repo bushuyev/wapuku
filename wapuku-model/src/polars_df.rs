@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::collections::HashSet;
 use std::io::Cursor;
 
@@ -6,7 +5,6 @@ use log::debug;
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::StartBy::WindowBound;
-use polars::time::*;
 use polars::time::Duration;
 
 use crate::data_type::WapukuDataType;
@@ -63,11 +61,11 @@ impl Data for PolarsData {
         let min_df = properties_df.min();
         let max_df = properties_df.max();
 
-        let mut min_x =  property_x.min().unwrap_or(min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
+        let min_x =  property_x.min().unwrap_or(min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
         let max_x = property_x.max().unwrap_or(max_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
 
 
-        let mut min_y =  property_y.min().unwrap_or(min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
+        let min_y =  property_y.min().unwrap_or(min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
         let max_y = property_y.max().unwrap_or(max_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
 
         let property_x_step = (( (max_x - min_x) / x_n as f32).ceil()) as i64;
@@ -77,7 +75,7 @@ impl Data for PolarsData {
         // debug!("wapuku: min_df={:?} max_df={:?}", min_df, max_df);
         debug!("wapuku: min/max_x={:?}, min/max_y={:?} property_x_step={:?}, property_y_step={:?}", (min_x, max_x), (min_y, max_y), property_x_step, property_y_step);
         
-        let mut df = if max_x == min_x {
+        let df = if max_x == min_x {
             
             group_by_1(&self.df,
                property_y_name, property_y_step,
@@ -117,9 +115,9 @@ impl Data for PolarsData {
         // 
 
 
-        let mut data_vec : Vec<Vec<Option<Box<dyn DataGroup>>>> = (0..y_n).map(|y| (0..x_n).map(|x| None).collect()).collect();
+        let mut data_vec : Vec<Vec<Option<Box<dyn DataGroup>>>> = (0..y_n).map(|_y| (0..x_n).map(|_x| None).collect()).collect();
 
-        let d2 = false;
+
       
         (0..y_n as usize).for_each(|y|{
             (0..x_n as usize).for_each(|x| {
@@ -196,9 +194,9 @@ pub fn parquet_scan() -> DataFrame {
     // let parquet_bytes = include_bytes!("../../wapuku-model/data/s1_transactions_pi_message.par");
     let parquet_bytes = include_bytes!("../../wapuku-model/data/d2_transactions_pi_message.par");
     
-    let mut buff = Cursor::new(parquet_bytes);
+    let buff = Cursor::new(parquet_bytes);
     
-    let mut df = ParquetReader::new(buff)
+    let df = ParquetReader::new(buff)
         .finish().unwrap()
         .lazy()
         .groupby([col("PAYMENTSTATUS")])
@@ -218,9 +216,9 @@ pub fn parquet_scan() -> DataFrame {
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {
 
-    let mut df = df.sort([group_by_field], false)?;
+    let df = df.sort([group_by_field], false)?;
 
-    let mut df = df.clone()
+    let df = df.clone()
         .lazy()
         .groupby_dynamic(
             col(group_by_field.into()),
@@ -245,7 +243,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
 
     let mut df = df.sort([group_by_field], false)?;
 
-    df.rename(group_by_field, "group_by_field");
+    df.rename(group_by_field, "group_by_field").expect("rename group_by_field");
     // let df = df.clone().lazy().with_column(lit(1).alias("primary_field_group")).collect()?;
     // df.rename(group_by_field, "secondary_group_field");
     
@@ -297,7 +295,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         //     series
         // })?
     ;
-    let mut df = df.sort([secondary_group_by_field], false)?;
+    let df = df.sort([secondary_group_by_field], false)?;
     
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
@@ -327,7 +325,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         // ])
         .collect()?;
     
-    df.rename(secondary_group_by_field, "secondary_group_field");
+    df.rename(secondary_group_by_field, "secondary_group_field").expect("rename secondary_group_field");
     
     debug!("wapuku: df grouped={:?}", df);
 

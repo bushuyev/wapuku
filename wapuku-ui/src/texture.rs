@@ -1,6 +1,6 @@
 use anyhow::*;
 use image::GenericImageView;
-use std::num::NonZeroU32;
+
 use crate::state::SAMPLE_COUNT;
 
 #[derive(Debug)]
