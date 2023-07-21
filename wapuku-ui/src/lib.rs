@@ -1,4 +1,5 @@
 #![feature(async_fn_in_trait)]
+#[allow(mixed_script_confusables)]
 
 mod state;
 mod resources;
@@ -11,39 +12,36 @@ pub mod visualization;
 
 
 use std::cell::RefCell;
-use std::collections::HashSet;
-use std::mem;
-use std::ops::Add;
+
+
+
 use std::rc::Rc;
-use log::{debug, trace, warn};
-use winit::{event::*, event, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
-use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use log::{debug};
+use winit::{event::*, event, event_loop::{ControlFlow}, window::WindowBuilder};
+use winit::dpi::{PhysicalSize};
 use winit::event_loop::EventLoopBuilder;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::closure::*;
+
 use winit::platform::web::WindowExtWebSys;
-use winit::window::Fullscreen;
+
 use crate::state::State;
 use wapuku_model::polars_df::*;
 use wapuku_model::model::*;
-use wapuku_model::test_data::*;
 
-use futures::future::BoxFuture;
-use lazy_static::lazy_static;
-use std::sync::{Arc, Mutex, TryLockResult};
+
+
+
 use rayon::*;
-use rayon::iter::*;
-use web_sys::*;
 
-use std::alloc::System;
-use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{Receiver, Sender};
-use std::time::Duration;
+
+
+
+
+
+
 use wapuku_common_web::workers::*;
 use crate::visualization::VisualDataController;
-use std::{hint};
-use std::future::Future;
+
 
 
 pub use wapuku_common_web::init_worker;
@@ -66,8 +64,6 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     debug!("wapuku: running");
   
 
-    let workder_rc = Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()));
-    
     let pool_worker = PoolWorker::new();
     pool_worker.init().await.expect("pool_worker init");
     
@@ -77,10 +73,10 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     let winit_window = WindowBuilder::new().with_resizable(true).build(&event_loop).unwrap();
 
     //winit sends client xy  in WindowEvent::CursorMoved, we need offset
-    let mut mouse_xy:Rc<RefCell<Option<(f32, f32)>>> = Rc::new(RefCell::new(None));
+    let mouse_xy:Rc<RefCell<Option<(f32, f32)>>> = Rc::new(RefCell::new(None));
 
-    let mut pointer_xy_for_on_mousemove = Rc::clone(&mouse_xy);
-    let mut pointer_xy_for_state_update = Rc::clone(&mouse_xy);
+    let pointer_xy_for_on_mousemove = Rc::clone(&mouse_xy);
+    let pointer_xy_for_state_update = Rc::clone(&mouse_xy);
 
     let win = web_sys::window().expect("window");
     let doc = win.document().expect("document");
@@ -98,14 +94,14 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     winit_window.set_inner_size(PhysicalSize::new(width, height));
 
     let data = PolarsData::new(fake_df());
-    let mut visual_data_controller_rc = Rc::new(RefCell::new(VisualDataController::new(&data, width, height)));
+    let visual_data_controller_rc = Rc::new(RefCell::new(VisualDataController::new(&data, width, height)));
     let data_rc = Rc::new(data);
 
 
     let data_in_init = Rc::clone(&data_rc);
     let data_in_on_pointer = Rc::clone(&data_rc);
     let visual_data_controller_rc_worker_1 = Rc::clone(&visual_data_controller_rc);
-    let visual_data_controller_rc_worker_2 = Rc::clone(&visual_data_controller_rc);
+
 
     pool_worker.run_in_pool(move || {
 
@@ -127,7 +123,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     debug!("wapuku: web_sys::window: size: width={}, height={}", width, height);
 
-    let mut closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
+    let closure_on_mousemove = Closure::wrap(Box::new( move |e: web_sys::MouseEvent| {
         // debug!("wapuku: canvas.mousemove e.client_x()={:?}, e.client_y()={:?}", e.client_x(), e.client_y());
 
         if let Ok(mut mouse_yx_for_on_mousemove_borrowed) = pointer_xy_for_on_mousemove.try_borrow_mut() {
@@ -144,7 +140,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     event_loop.run(move |event, _, control_flow| {
         let mut visual_data_controller_borrowed_mut_op = visual_data_controller_in_loop.try_borrow_mut().ok();
         
-        if let Some(mut visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
+        if let Some(visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
             if let Ok(msg) = from_worker.try_recv() {
                 debug!("wapuku: event_loop got data_grid={:?}", msg);
                 visual_data_controller_borrowed_mut.update_visuals(msg);
@@ -154,7 +150,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
         match event {
             event::Event::RedrawRequested(window_id) if window_id == gpu_state.window().id() => {
-                if let Some(visual_updates) = visual_data_controller_borrowed_mut_op.as_mut().and_then(|mut v|v.visuals_updates()) {
+                if let Some(visual_updates) = visual_data_controller_borrowed_mut_op.as_mut().and_then(|v|v.visuals_updates()) {
                     gpu_state.update(visual_updates);
                 }
 
@@ -177,7 +173,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     
             event::Event::DeviceEvent {
                 event: ref device_event,
-                device_id,
+                device_id: _,
             } => {
                 match device_event {
                     DeviceEvent::MouseMotion { delta } => {
@@ -202,9 +198,9 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                             match state {
                                 ElementState::Pressed => {}
                                 ElementState::Released => {
-                                    if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
+                                    if let Ok(xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
                                         debug!("wapuku: event_loop::WindowEvent::MouseInput got pointer_xy_for_state_update xy_ref={:?}", xy_ref);
-                                        if let Some(mut visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
+                                        if let Some(visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
                                             if let Some(xy) = xy_ref.as_ref() {
                                                 // visual_data_controller_borrowed_mut.on_pointer_input(xy.0, xy.1);
                                                 let nr_x = visual_data_controller_borrowed_mut.groups_nr_x;
@@ -251,9 +247,9 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
                         WindowEvent::CursorMoved {..} => {
                             debug!("wapuku: event_loop::WindowEvent::CursorMoved pointer_xy_for_state_update={:?}", pointer_xy_for_state_update);
                             
-                            if let Ok(mut xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
+                            if let Ok(xy_ref) = pointer_xy_for_state_update.try_borrow_mut() {
                                 debug!("wapuku: event_loop::WindowEvent::CursorMoved xy_ref={:?}", xy_ref);
-                                if let Some(mut visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
+                                if let Some(visual_data_controller_borrowed_mut) = visual_data_controller_borrowed_mut_op.as_mut() {
                                     if let Some(xy) = xy_ref.as_ref() {
                                         visual_data_controller_borrowed_mut.on_pointer_moved(xy.0, xy.1);
                                     }
