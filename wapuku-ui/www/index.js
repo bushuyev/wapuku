@@ -15,5 +15,4 @@ import init, {run} from '../pkg/wapuku_ui';
 
     console.log('init done');
 
-    
 })();

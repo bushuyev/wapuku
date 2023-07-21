@@ -6,7 +6,7 @@ mod mesh_model;
 mod texture;
 mod camera;
 mod light;
-mod workers;
+
 pub mod visualization;
 
 
@@ -40,131 +40,18 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
-use workers::*;
+use wapuku_common_web::workers::*;
 use crate::visualization::VisualDataController;
 use std::{hint};
 use std::future::Future;
-use crate::workers::interval_future::IntervalFuture;
-
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-
-static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed, addr
 
 
-fn worker_global_scope() -> Option<WorkerGlobalScope> {
-    js_sys::global().dyn_into::<WorkerGlobalScope>().ok()
-}
+pub use wapuku_common_web::init_worker;
+pub use wapuku_common_web::get_pool;
+pub use wapuku_common_web::init_pool;
+pub use wapuku_common_web::run_in_pool;
+use wapuku_common_web::log;
 
-#[no_mangle]
-pub extern "C" fn get_pool()->ThreadPool {
-
-    let pool_addr_op:Option<u32> = if let Ok(pool_locked) = POOL_PR.try_lock() {
-        log("wapuku: get_pool: got pool");
-        if pool_locked.is_some() {
-            log("get_pool: got pool is_some");
-            let pool_addr = pool_locked.unwrap();
-            
-            Some(pool_addr)
-        } else {
-            log("wapuku: get_pool: no pool_addr");
-            None
-        }
-    } else {
-        log("wapuku: get_pool: pool_locked");
-        None
-    };
-
-    log(format!("wapuku: get_pool: pool_addr_op={:?}", pool_addr_op).as_str());
-    
-    if let Some(pool_addr) = pool_addr_op {
-        //invalidates
-        **unsafe { Box::from_raw(pool_addr as *mut Box<rayon::ThreadPool>) }
-    } else {
-        panic!("get_pool: no pool");
-    }
-}
-
-#[wasm_bindgen]
-pub async fn init_pool(threads: usize) {
-    log(format!("wapuku: init_pool,threads={}", threads).as_str());
-
-    let mut counter = Arc::new(AtomicUsize::new(0));
-    let counter_clone_top = Arc::clone(&counter);
-    let counter_clone_clear = Arc::clone(&counter);
-
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .panic_handler(|_| {
-            debug!("wapuku: Panick!!!!!!!!!!!!!!")
-        }).exit_handler(|n| {
-        debug!("Exit {}", n);
-    })
-    .spawn_handler(move |thread| {
-        log(format!("wapuku: wbg_rayon_PoolBuilder::build: send {:?}", thread.name()).as_str());
-        let counter_clone = Arc::clone(&counter);
-
-        let worker = web_sys::Worker::new("./wasm-worker.js").unwrap();
-        // worker.post_message(&JsValue::from(&wasm_bindgen::memory())).expect("failed to post");
-        // self.sender.send(thread).unwrap_throw();
-        let msg = js_sys::Array::new();
-        msg.push(&JsValue::from("init_worker"));
-        msg.push(&JsValue::from(&wasm_bindgen::memory()));
-        msg.push(&JsValue::from(Box::into_raw(Box::new(Box::new(|| {
-            log(format!("wapuku: running thread in pool").as_str());
-            thread.run()
-        }) as Box<dyn FnOnce()>)) as u32));
-
-        let mut closure_on_worker = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
-            debug!("worker is ready: counter_clone={:?}", counter_clone);
-            counter_clone.fetch_add(1, Ordering::Relaxed);
-        }) as Box<dyn FnMut(web_sys::MessageEvent)>);
-
-        worker.set_onmessage(Some(&closure_on_worker.as_ref().unchecked_ref()));
-        closure_on_worker.forget();
-
-        worker.post_message(&msg).expect("failed to post");
-
-        log(format!("wapuku: wbg_rayon_PoolBuilder::build: done").as_str());
-
-        Ok(())
-    })
-    .build().unwrap();
-
-    debug!("wapuku: init_pool: 1. counter={:?}", counter_clone_top);
-    let pool_addr = Box::into_raw(Box::new(Box::new(pool) as Box<rayon::ThreadPool>)) as u32;
-
-    if let Ok(mut pool_locked) = POOL_PR.try_lock() {
-        pool_locked.replace(pool_addr);
-        debug!("wapuku: init_pool: pool_addr={}", pool_addr);
-    }
-
-    IntervalFuture::new(move || {
-        debug!("wapuku: init_pool: 3. counter={:?}", counter_clone_clear);
-        counter_clone_clear.load(Ordering::Acquire) >= threads
-    }).await
-}
-
-#[wasm_bindgen]
-pub fn init_worker(ptr: u32) {
-    log(format!("wapuku: init_worker={}", ptr).as_str());
-
-    // console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
-    
-    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
-    (*closure)();
-
-}
-
-#[wasm_bindgen]
-pub fn run_in_pool(ptr: u32) {
-    log("wapuku: run_in_pool");
-    let mut closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
-    (*closure)();
-}
 
 #[wasm_bindgen]
 pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindgen/issues/1904 
@@ -182,7 +69,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
     let workder_rc = Rc::new(web_sys::Worker::new("./wasm-worker.js").expect(format!("can't make worker for {}", "./wasm-worker.js").as_str()));
     
     let pool_worker = PoolWorker::new();
-    pool_worker.init().await;
+    pool_worker.init().await.expect("pool_worker init");
     
     debug!("wapuku: workers started");
 
@@ -233,7 +120,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
         log(format!("wapuku: got data_grid={:?}", data_grid).as_str());
 
-        to_main_rc_1.send(data_grid);
+        to_main_rc_1.send(data_grid).expect("send");
 
     });
     
@@ -248,7 +135,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
         }
 
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
-    div.add_event_listener_with_callback("mousemove", &closure_on_mousemove.as_ref().unchecked_ref());
+    div.add_event_listener_with_callback("mousemove", &closure_on_mousemove.as_ref().unchecked_ref()).expect("mousemove");
     closure_on_mousemove.forget();
 
 
@@ -343,7 +230,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
                                                                  log(format!("wapuku: got data_grid={:?}", data_grid).as_str());
 
-                                                                 to_main_rc_2_moved.send(data_grid);
+                                                                 to_main_rc_2_moved.send(data_grid).expect("send to main");
 
                                                              });
                                                          }

@@ -2,12 +2,12 @@
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Div, Mul, Sub};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use cgmath::{ElementWise, InnerSpace, MetricSpace, Quaternion, Vector2, Vector3, Vector4, Zero};
-use log::{debug, trace};
+use log::debug;
+
 use wapuku_model::model::{Data, DataBounds, DataGroup, GroupsGrid, Named, Property, PropertyRange};
 
 #[derive(Debug)]
@@ -110,8 +110,10 @@ impl <V> Animation for ConsecutiveAnimations<V> {
 #[cfg(test)]
 mod animation_tests {
     use cgmath::{Quaternion, Vector3, Zero};
-    use log::trace;
+
     use wapuku_ui::visualization::{Animation, AnimationState, ConsecutiveAnimations, Lerp, VisualInstance, VisualInstanceData};
+
+    use crate::visualization::{Animation, AnimationState, Lerp, VisualInstance, VisualInstanceData};
 
     #[test]
     fn test_scale_xy() {
@@ -276,7 +278,10 @@ impl <T:Add<Output=T> + AddAssign + Sub<Output=T>  + Copy + Debug + Lerpable<T=T
 #[cfg(test)]
 mod test_lerpables {
     use cgmath::Vector3;
+
     use wapuku_ui::visualization::Lerpable;
+
+    use crate::visualization::Lerpable;
 
     #[test]
     fn test_f32(){
@@ -483,6 +488,7 @@ pub struct VisualInstance {
     visual_bounds: VisualBounds,
     data: VisualInstanceData,
     children: Option<Vec<Box<VisualInstance>>>,
+    #[allow(dead_code)]
     children_layout:Option<ChildrenLayout>
 }
 
@@ -617,8 +623,7 @@ pub struct VisualDataController {
     visuals: Vec<VisualInstance>,
     visual_id_under_pointer_op: Option<u32>,
     has_updates: bool,
-    animations: HashMap<u32, Box<dyn Animation<V=VisualInstance>>>,
-    width:i32, height:i32
+    animations: HashMap<u32, Box<dyn Animation<V=VisualInstance>>>
 }
 
 impl VisualDataController {
@@ -654,7 +659,6 @@ impl VisualDataController {
             has_updates: true,
             animations: HashMap::new(),
             visual_id_under_pointer_op: None,
-            width, height
         }
     }
 
@@ -825,6 +829,7 @@ impl VisualDataController {
         self.visual_id_under_pointer_op = current_visual_id_under_pointer_op;
     }
 
+    #[allow(dead_code)]
     fn flat_visuals(visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>) -> Option<impl Iterator<Item = &mut VisualInstance>> {
         visuals.map(|visuals|
             visuals
@@ -833,6 +838,7 @@ impl VisualDataController {
         )
     }
 
+    #[allow(dead_code)]
     fn find_group_by_xy(x: f32, y: f32, visuals: Option<&mut HashMap<String, Vec<VisualInstance>>>, on_each: impl FnMut(&mut VisualInstance) -> &mut VisualInstance) -> Option<&mut VisualInstance> {
 
         Self::flat_visuals(visuals).and_then(|mut visuals_iter|visuals_iter.find(|v| v.bounds().contain(x, y)))
@@ -972,6 +978,7 @@ mod tests {
     // use crate::visualization::MeshModel;
 
     use std::ops::Mul;
+
     use cgmath::{SquareMatrix, Vector4};
 
     #[test]

@@ -1,26 +1,16 @@
-
 use std::any::Any;
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{BufReader, Cursor};
-use std::marker::PhantomData;
-use std::mem;
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::io::Cursor;
 
-use bytes::Bytes;
-use log::{debug, trace};
+use log::debug;
 use polars::io::parquet::*;
-use polars::lazy::*;
 use polars::prelude::*;
-use polars::prelude::Expr::Columns;
 use polars::prelude::StartBy::WindowBound;
 use polars::time::*;
 use polars::time::Duration;
-use smartstring::alias::String as SmartString;
 
-use crate::model::*;
 use crate::data_type::WapukuDataType;
+use crate::model::*;
 
 impl From<PolarsError> for WapukuError {
     fn from(value: PolarsError) -> Self {
@@ -347,16 +337,15 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use std::time::Instant;
+
     use log::debug;
     use polars::datatypes::AnyValue::List;
     use polars::df;
     use polars::prelude::*;
-    use crate::data_type::WapukuDataType;
-    use crate::model::{Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, VecY};
 
+    use crate::data_type::WapukuDataType;
+    use crate::model::{Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange};
     use crate::polars_df::{group_by_2, PolarsData};
-    use crate::tests::init_log;
 
     #[ctor::ctor]
     fn init() {

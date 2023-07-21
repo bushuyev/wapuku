@@ -49,7 +49,7 @@ impl CameraUniform {
         proj
     }
 
-
+    #[allow(dead_code)]
     pub fn view_proj(&self) -> &[[f32; 4]; 4] {
         &self.view_proj
     }

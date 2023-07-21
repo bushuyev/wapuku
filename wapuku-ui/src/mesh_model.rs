@@ -1,8 +1,9 @@
 use std::ops::Range;
-use log::debug;
+
 use wgpu::util::DeviceExt;
 
-
+use crate::texture;
+use crate::visualization::VisualInstance;
 
 impl From<&VisualInstance> for InstanceRaw {
     fn from(value: &VisualInstance) -> Self {
@@ -64,9 +65,6 @@ impl InstanceRaw {
         }
     }
 }
-
-use crate::texture;
-use crate::visualization::VisualInstance;
 
 pub trait Vertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;

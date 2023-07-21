@@ -10,21 +10,11 @@ path = "src/lib.rs"
 [dependencies]
 
 
-#arrow = { version = "37.0.0", features = ["prettyprint"] }
-#arrow-schema = { version = "37.0.0", default-features = false }
-#parquet = { version = "37.0.0", default-features = false, features= ["arrow", "snap", "brotli", "flate2", "base64"] }
-
 polars = {path = "../../polars/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window"]} # "fmt"
-#polars = {version="0.28.0", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "temporal", "rolling_window", "fmt"]} # "fmt"
 
 smartstring = "1.0.1"
 bytes = "1.4"
 log = "0.4.17"
-#comfy-table = {version = "6.1.4", default-features = false}
-#object_store =  {version = "0.5.6", default-features = false}
-#crossterm = { version = "0.24.0", default-features = false}
-#tokio = { version = "1.27.0", default-features = false}
-#parquet2 = { version = "0.17.2", default-features = false, features=[ "snappy", "gzip", "brotli", "bloom_filter"]}
 cgmath = "0.18"
 
 [dev-dependencies]

@@ -46,6 +46,7 @@ web-sys = { version = "0.3.63", features = [
 ]}
 js-sys = "0.3.63"
 
+wapuku-common-web = {path = "../wapuku-common-web" }
 wapuku-model = {path = "../wapuku-model" }
 wapuku-resources = {path = "../wapuku-resources" }
 

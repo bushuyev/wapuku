@@ -7,7 +7,7 @@
     "build:js-worker": "webpack build ./wasm-worker.js --mode production --target webworker -o dist --output-filename wasm-worker.js",
     "build:worker": "npm run build:js-worker",
     "build:wasm": "rustup run nightly wasm-pack build .. --target web --out-dir pkg -- -Z build-std=panic_abort,std",
-    "build:main": "webpack build ./index.js --mode production -o dist --output-filename index.js && cp index.html dist/ && cp service-worker.js dist/",
+    "build:main": "webpack build ./index.js --mode production -o dist --output-filename index.js && cp index.html dist/ && cp ../../wapuku-common-web/www/service-worker.js dist/",
     "build:clean": "rm -rf dist/*",
     "build:all": "npm run build:clean && npm run build:wasm && npm run build:main && npm run build:worker"
   },

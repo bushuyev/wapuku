@@ -29,6 +29,7 @@ pub struct State {
     // vis_ctrl:VisualDataController,//TODO rename
     mesh_model: MeshModel,
     instance_buffer: wgpu::Buffer,
+    #[allow(dead_code)]
     color:Color,
     light_render_pipeline: wgpu::RenderPipeline,
     render_pipeline: wgpu::RenderPipeline,
@@ -45,6 +46,7 @@ pub struct State {
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
 
+    #[allow(dead_code)]
     multisampled_framebuffer: wgpu::TextureView,
 
     projection: Matrix4<f32>
