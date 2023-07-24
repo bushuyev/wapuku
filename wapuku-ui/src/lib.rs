@@ -20,29 +20,17 @@ use log::{debug};
 use winit::{event::*, event, event_loop::{ControlFlow}, window::WindowBuilder};
 use winit::dpi::{PhysicalSize};
 use winit::event_loop::EventLoopBuilder;
-use wasm_bindgen::prelude::*;
+use rayon::*;
 
+use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
 
 use crate::state::State;
 use wapuku_model::polars_df::*;
 use wapuku_model::model::*;
 
-
-
-
-use rayon::*;
-
-
-
-
-
-
-
-use wapuku_common_web::workers::*;
 use crate::visualization::VisualDataController;
-
-
+use wapuku_common_web::workers::*;
 
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::get_pool;

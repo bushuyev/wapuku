@@ -1,37 +1,22 @@
-#cargo-features = ["per-package-target"]
 [package]
-name = "wapuku-ui"
+name = "wapuku-egui"
 version = "0.1.0"
 edition = "2021"
-#forced-target = "wasm32-unknown-unknown"
-#forced-runner = 'wasm-bindgen-test-runner'
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-#getrandom = { version = "0.2.9", features = ["js"] }
-winit = "0.28.3"
 env_logger = "0.10.0"
 log = "0.4.17"
 
 cfg-if = "1"
 anyhow = "1.0"
-bytemuck = { version = "1.13", features = [ "derive" ] }
-cgmath = "0.18"
-# the other regular dependencies...
 reqwest = { version = "0.11" }
-tobj = { version = "3.2", features = ["async"]}
-[dependencies.image]
-version = "0.24"
-default-features = false
-features = ["png", "jpeg"]
-
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
-wgpu = { version = "0.16.0", features = ["webgl"]}
 
 wasm-bindgen = {path = "../../wasm-bindgen/"}
 
@@ -53,21 +38,11 @@ wapuku-resources = {path = "../wapuku-resources" }
 rayon = {path= "../../rayon"}
 
 lazy_static = "1.4.0"
-wasm-tracing-allocator = "0.1.0"
-proc-macro2 = "1.0.66"
-
-#[patch.crates-io]
-#wasm-bindgen = {path= "../../wasm-bindgen"}
-#https://github.com/rust-lang/rust/issues/113152
-
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
 
 
-#[env]
-#WASM_BINDGEN_THREADS_STACK_SIZE = 2097152
-#WASM_BINDGEN_THREADS = true
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
@@ -75,4 +50,3 @@ wasm-opt = false
 
 [unstable]
 async-fn-in-trait = true
-#[workspace]

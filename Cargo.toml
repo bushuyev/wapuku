@@ -5,6 +5,7 @@ members = [
     "wapuku-resources",
     "wapuku-common-web",
     "wapuku-ui",
+    "wapuku-egui",
 ]
 
 resolver = "2"

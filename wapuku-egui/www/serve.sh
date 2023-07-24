@@ -1,0 +1,1 @@
+serve -p 7777 -c ../serve.json --ssl-cert /home/bu/dvl/localhost-dev-certs/localhost.crt --ssl-key /home/bu/dvl/localhost-dev-certs/localhost.key dist
