@@ -1,5 +1,7 @@
 **/target
 /.idea/
 **/pkg/
+/wapuku-egui/www/node_modules/
 /wapuku-ui/www/node_modules/
+/wapuku-egui/www/dist/
 /wapuku-ui/www/dist/
