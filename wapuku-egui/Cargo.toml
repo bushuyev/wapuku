@@ -28,7 +28,7 @@ serde = { version = "1", features = ["derive"] }
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 
-wasm-bindgen = {path = "../../wasm-bindgen/"}
+wasm-bindgen = {version = "0.2.87", path = "../../wasm-bindgen/"}
 
 futures = "0.3.28"
 wasm-bindgen-futures = "0.4.36"
@@ -41,9 +41,9 @@ web-sys = { version = "0.3.63", features = [
 ]}
 js-sys = "0.3.63"
 
-wapuku-common-web = {path = "../wapuku-common-web" }
-wapuku-model = {path = "../wapuku-model" }
-wapuku-resources = {path = "../wapuku-resources" }
+wapuku-common-web = {version = "0.1.0", path = "../wapuku-common-web" }
+wapuku-model = {version = "0.1.0", path = "../wapuku-model" }
+wapuku-resources = {version = "0.1.0", path = "../wapuku-resources" }
 
 rayon = {path= "../../rayon"}
 
