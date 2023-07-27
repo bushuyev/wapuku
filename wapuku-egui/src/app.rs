@@ -1,4 +1,6 @@
 use eframe::*;
+use egui::Direction;
+use egui_extras::{Column, TableBuilder};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -65,53 +67,60 @@ impl eframe::App for WapukuApp {
             });
         });
 
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Dataframe Panel");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
+            let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
+
+            let mut table = TableBuilder::new(ui)
+                .striped(true)
+                .resizable(true)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::auto())
+                .column(Column::initial(100.0).range(40.0..=300.0))
+                .column(Column::initial(100.0).at_least(40.0).clip(true))
+                .column(Column::remainder())
+                .min_scrolled_height(0.0);
+
+            table.header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("Row");
+                });
+                header.col(|ui| {
+                    ui.strong("Expanding content");
+                });
+                header.col(|ui| {
+                    ui.strong("Clipped text");
+                });
+                header.col(|ui| {
+                    ui.strong("Content");
+                });
+            }).body(|mut body| {
+                body.rows(text_height, 3, |row_index, mut row| {
+                    row.col(|ui| {
+                        ui.label(row_index.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label("c1");
+                    });
+                    row.col(|ui| {
+                        ui.label("c2");
+                    });
+                    row.col(|ui| {
+                        ui.add(
+                            egui::Label::new("Thousands of rows of even height").wrap(false),
+                        );
+                    });
+                })
             });
 
-            ui.add(egui::Slider::new(value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                *value += 1.0;
-            }
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.label("powered by ");
-                    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-                    ui.label(" and ");
-                    ui.hyperlink_to(
-                        "eframe",
-                        "https://github.com/emilk/egui/tree/master/crates/eframe",
-                    );
-                    ui.label(".");
+            ui.with_layout(egui::Layout::centered_and_justified(Direction::TopDown), |ui| {
+                ui.vertical(|ui| {
+                    ui.label("label1");
+                    ui.label("label2");
                 });
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-
-            ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
-            egui::warn_if_debug_build(ui);
-        });
-
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally choose either panels OR windows.");
-            });
-        }
     }
 }

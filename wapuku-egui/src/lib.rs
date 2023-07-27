@@ -1,16 +1,12 @@
-mod app;
-
-use wasm_bindgen::prelude::*;
-
-use wapuku_common_web::workers::*;
-
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
-use wapuku_common_web::log;
 pub use wapuku_common_web::run_in_pool;
+use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
+
+mod app;
 
 #[wasm_bindgen]
 pub async fn run() {

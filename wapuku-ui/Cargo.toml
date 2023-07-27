@@ -78,4 +78,4 @@ wasm-opt = false
 
 [unstable]
 async-fn-in-trait = true
-#[workspace]
+[workspace]
