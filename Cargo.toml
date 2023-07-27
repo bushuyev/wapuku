@@ -10,6 +10,12 @@ members = [
 
 resolver = "2"
 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Yevgen Bushuyev"]
+description = "A short description of my package"
+documentation = "https://example.com/bar"
 
 
 [patch.crates-io]
