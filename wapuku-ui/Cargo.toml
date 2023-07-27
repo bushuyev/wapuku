@@ -1,11 +1,13 @@
 #cargo-features = ["per-package-target"]
 [package]
 name = "wapuku-ui"
-version.workspace = true
-authors.workspace = true
-description.workspace = true
-documentation.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2021"
+#version.workspace = true
+#authors.workspace = true
+#description.workspace = true
+#documentation.workspace = true
+#edition.workspace = true
 #forced-target = "wasm32-unknown-unknown"
 #forced-runner = 'wasm-bindgen-test-runner'
 
@@ -59,8 +61,8 @@ lazy_static = "1.4.0"
 wasm-tracing-allocator = "0.1.0"
 proc-macro2 = "1.0.66"
 
-#[patch.crates-io]
-#wasm-bindgen = {path= "../../wasm-bindgen"}
+[patch.crates-io]
+wasm-bindgen = {path= "../../wasm-bindgen"}
 #https://github.com/rust-lang/rust/issues/113152
 
 

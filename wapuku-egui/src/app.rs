@@ -1,23 +1,46 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::mpsc::Receiver;
 use eframe::*;
 use egui::Direction;
 use egui_extras::{Column, TableBuilder};
+use log::debug;
+use crate::DataMsg;
+
+pub struct WapukuAppModel {
+    label:String
+}
+
+impl WapukuAppModel {
+    pub fn new() -> Self {
+        Self { label:  String::from("nope")}
+    }
+
+    pub fn set_label<P>(&mut self, label: P) where P:Into<String> {
+        self.label = label.into();
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+}
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct WapukuApp {
-    // Example stuff:
-    label: String,
+    #[serde(skip)]
+    model:Rc<RefCell<Box<WapukuAppModel>>>,
 
-    // this how you opt-out of serialization of a member
     #[serde(skip)]
     value: f32,
 }
 
 impl Default for WapukuApp {
     fn default() -> Self {
+        debug!("Default for WapukuApp::default");
         Self {
             // Example stuff:
-            label: "Hello World!".to_owned(),
+            model: Rc::new(RefCell::new(Box::new(WapukuAppModel {label: String::from("nope")}))),
             value: 2.7,
         }
     }
@@ -25,17 +48,22 @@ impl Default for WapukuApp {
 
 impl WapukuApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Box<WapukuAppModel>>>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        // if let Some(storage) = cc.storage {
+        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        // }
+
+        Self {
+            // Example stuff:
+            model,
+            value: 2.7,
         }
 
-        Default::default()
     }
 }
 
@@ -48,7 +76,6 @@ impl eframe::App for WapukuApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { label, value } = self;
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
@@ -68,7 +95,8 @@ impl eframe::App for WapukuApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Dataframe Panel");
+            debug!("WapukuApp::update: self.model.borrow().label()={}", self.model.borrow().label());
+            ui.heading(format!("Dataframe Panel {}", self.model.borrow().label()).as_str());
 
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
