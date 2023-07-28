@@ -1,23 +1,23 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::sync::mpsc::Receiver;
 use eframe::*;
 use egui::Direction;
 use egui_extras::{Column, TableBuilder};
 use log::debug;
-use wapuku_model::model::Data;
-use wapuku_model::polars_df::PolarsData;
-use crate::DataMsg;
+use wapuku_model::model::{Data, Summary};
 
 #[derive(Debug)]
 pub enum Action {
     LoadFile,
-    Test1
+    Summary
 }
 
+
+
 pub struct WapukuAppModel {
-    label:String,
+    data_name:String,
+    summary:Option<Summary>,
     pending_actions:VecDeque<Action>,
     data:Option<Box<dyn Data>>
 }
@@ -25,22 +25,31 @@ pub struct WapukuAppModel {
 impl WapukuAppModel {
     pub fn new() -> Self {
         Self {
-            label:  String::from("nope"),
+            data_name:  String::from("nope"),
             pending_actions: VecDeque::new(),
-            data: None
+            data: None,
+            summary: None
         }
     }
 
-    pub fn set_label<P>(&mut self, label: P) where P:Into<String> {
-        self.label = label.into();
+    pub fn set_data_name<P>(&mut self, label: P) where P:Into<String> {
+        self.data_name = label.into();
     }
 
-    pub fn label(&self) -> &str {
-        &self.label
+    pub fn data_name(&self) -> &str {
+        &self.data_name
     }
 
     pub fn get_next_action(&mut self) -> Option<Action> {
         self.pending_actions.pop_front()
+    }
+
+    pub fn set_data(&mut self, data: Box<dyn Data>) {
+        self.data.replace(data);
+    }
+
+    pub fn set_summary(&mut self, summary: Summary) {
+        self.summary.replace(summary);
     }
 }
 
@@ -87,19 +96,11 @@ impl WapukuApp {
 }
 
 impl eframe::App for WapukuApp {
-    /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
 
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -114,67 +115,74 @@ impl eframe::App for WapukuApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            debug!("WapukuApp::update: self.model.borrow().label()={}", self.model.borrow().label());
-            ui.heading(format!("Dataframe Panel {}", self.model.borrow().label()).as_str());
 
-            if ui.button("Load").clicked() {
-                debug!("LoadLoadLoadLoad");
-                if let Ok(mut model_borrowed) = self.model.try_borrow_mut() {
-                    model_borrowed.pending_actions.push_back(Action::LoadFile)
+            if let Ok(mut model_borrowed) = self.model.try_borrow_mut() {
+                debug!("WapukuApp::update: self.model.borrow().label()={}", model_borrowed.data_name());
+                ui.heading(format!("Dataframe Panel {}", model_borrowed.data_name()).as_str());
+
+                if model_borrowed.data.is_none() {
+                    if ui.button("Load").clicked() {
+                        model_borrowed.pending_actions.push_back(Action::LoadFile)
+
+                    }
+                } else {
+                    if ui.button("Show summary").clicked() {
+                        model_borrowed.pending_actions.push_back(Action::Summary)
+                    }
                 }
+
+                ui.separator();
+
+                let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
+
+                let mut table = TableBuilder::new(ui)
+                    .striped(true)
+                    .resizable(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::auto())
+                    .column(Column::initial(100.0).range(40.0..=300.0))
+                    .column(Column::initial(100.0).at_least(40.0).clip(true))
+                    .column(Column::remainder())
+                    .min_scrolled_height(0.0);
+
+                table.header(20.0, |mut header| {
+                    header.col(|ui| {
+                        ui.strong("Column");
+                    });
+                    header.col(|ui| {
+                        ui.strong("min");
+                    });
+                    header.col(|ui| {
+                        ui.strong("max");
+                    });
+                    header.col(|ui| {
+                        ui.strong("avg");
+                    });
+                }).body(|mut body| {
+
+                    if let Some(summary) = &model_borrowed.summary {
+                        body.rows(text_height, summary.columns().len(), |row_index, mut row| {
+
+                            row.col(|ui| {
+                                ui.label(summary.columns()[row_index].name().clone());
+                            });
+                            row.col(|ui| {
+                                ui.label("c1");
+                            });
+                            row.col(|ui| {
+                                ui.label("c2");
+                            });
+                            row.col(|ui| {
+                                ui.label("c2");
+                            });
+                        })
+
+                    }
+
+                });
+
             }
-            ui.separator();
 
-            let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-
-            let mut table = TableBuilder::new(ui)
-                .striped(true)
-                .resizable(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::auto())
-                .column(Column::initial(100.0).range(40.0..=300.0))
-                .column(Column::initial(100.0).at_least(40.0).clip(true))
-                .column(Column::remainder())
-                .min_scrolled_height(0.0);
-
-            table.header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.strong("Row");
-                });
-                header.col(|ui| {
-                    ui.strong("Expanding content");
-                });
-                header.col(|ui| {
-                    ui.strong("Clipped text");
-                });
-                header.col(|ui| {
-                    ui.strong("Content");
-                });
-            }).body(|mut body| {
-                body.rows(text_height, 3, |row_index, mut row| {
-                    row.col(|ui| {
-                        ui.label(row_index.to_string());
-                    });
-                    row.col(|ui| {
-                        ui.label("c1");
-                    });
-                    row.col(|ui| {
-                        ui.label("c2");
-                    });
-                    row.col(|ui| {
-                        ui.add(
-                            egui::Label::new("Thousands of rows of even height").wrap(false),
-                        );
-                    });
-                })
-            });
-
-            ui.with_layout(egui::Layout::centered_and_justified(Direction::TopDown), |ui| {
-                ui.vertical(|ui| {
-                    ui.label("label1");
-                    ui.label("label2");
-                });
-            });
         });
 
     }

@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use eframe::web::request_animation_frame;
 use log::debug;
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
@@ -18,8 +17,8 @@ mod app;
 
 #[derive(Debug)]
 pub enum DataMsg {
-    FrameLoaded{data: Box<dyn Data>},
-    Test
+    FrameLoaded{name:String, data: Box<dyn Data>},
+    Summary
 }
 
 #[wasm_bindgen]
@@ -59,24 +58,35 @@ pub async fn run() {
                     Action::LoadFile => {
                         pool_worker.run_in_pool( || {
                             debug!("wapuku: running in pool");
-                            // let all_props = data_in_init.all_properties();
-                            // debug!("wapuku: all_props={:?}", all_props);
-                            to_main_rc_1.send(DataMsg::FrameLoaded {data: Box::new(PolarsData::new(fake_df()))}).expect("send");
+
+                            to_main_rc_1.send(DataMsg::FrameLoaded {name: String::from("Fake data"), data: Box::new(PolarsData::new(fake_df()))}).expect("send");
 
                         });
                     }
-                    Action::Test1 => {}
+                    Action::Summary => {
+                        pool_worker.run_in_pool( || {
+                            debug!("wapuku: running in pool");
+
+                            to_main_rc_1.send(DataMsg::Summary).expect("send");
+
+                        });
+                    }
                 }
             }
 
             if let Ok(data_msg) = from_worker_rc1.try_recv() {
 
                 match data_msg {
-                    DataMsg::FrameLoaded { data } => {
-                        model_borrowed.set_label("aaaaaaaaaaaaaaaaa");
+                    DataMsg::FrameLoaded { name, data } => {
+                        model_borrowed.set_data_name(name);
                         debug!("wapuku: event_loop got data={:?}", data);
+
+                        model_borrowed.set_data(data);
+
                     }
-                    DataMsg::Test => {}
+                    DataMsg::Summary => {
+
+                    }
                 }
             }
         }
@@ -99,7 +109,7 @@ pub async fn run() {
         web_options,
         Box::new(|cc| {
             debug!("eframe::WebRunner WapukuApp::new");
-            Box::new(app::WapukuApp::new(cc, wapuku_app_model_rc2))
+            Box::new(WapukuApp::new(cc, wapuku_app_model_rc2))
         }),
     )
     .await

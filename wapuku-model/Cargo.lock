@@ -984,6 +984,7 @@ dependencies = [
  "regex",
  "smartstring",
  "thiserror",
+ "wasm-bindgen",
  "wasm-timer",
  "xxhash-rust",
 ]

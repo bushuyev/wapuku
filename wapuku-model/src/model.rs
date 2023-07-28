@@ -5,6 +5,40 @@ use std::hash::{Hash, Hasher};
 
 use crate::data_type::*;
 
+///////////////Data management model////////////////
+pub struct ColumnSummary {
+    name:String,
+    min:f32,
+    avg:f32,
+    max:f32
+}
+
+impl ColumnSummary {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn min(&self) -> f32 {
+        self.min
+    }
+    pub fn avg(&self) -> f32 {
+        self.avg
+    }
+    pub fn max(&self) -> f32 {
+        self.max
+    }
+}
+
+pub struct Summary {
+    columns:Vec<ColumnSummary>
+}
+
+impl Summary {
+    pub fn columns(&self) -> &Vec<ColumnSummary> {
+        &self.columns
+    }
+}
+///////////////Data view model////////////////
+
 #[derive(Debug)]
 pub enum WapukuError {
     DataFrame { msg: String }
@@ -33,7 +67,6 @@ pub trait Property: Named + Debug  {
     fn clone_to_box(&self) -> Box<dyn Property>;
     fn name(&self)->&String;
 }
-
 
 impl Hash for &dyn Property {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
@@ -210,18 +243,11 @@ impl  GroupsGrid {
     }
 }
 
-pub trait X {
-    async fn test();
-}
-
 pub trait Data:Debug {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
- 
 }
-
-
 
 #[derive(Debug)]
 pub struct DataProperty {
