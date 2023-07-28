@@ -1,19 +1,34 @@
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use eframe::*;
 use egui::Direction;
 use egui_extras::{Column, TableBuilder};
 use log::debug;
+use wapuku_model::model::Data;
+use wapuku_model::polars_df::PolarsData;
 use crate::DataMsg;
 
+#[derive(Debug)]
+pub enum Action {
+    LoadFile,
+    Test1
+}
+
 pub struct WapukuAppModel {
-    label:String
+    label:String,
+    pending_actions:VecDeque<Action>,
+    data:Option<Box<dyn Data>>
 }
 
 impl WapukuAppModel {
     pub fn new() -> Self {
-        Self { label:  String::from("nope")}
+        Self {
+            label:  String::from("nope"),
+            pending_actions: VecDeque::new(),
+            data: None
+        }
     }
 
     pub fn set_label<P>(&mut self, label: P) where P:Into<String> {
@@ -22,6 +37,10 @@ impl WapukuAppModel {
 
     pub fn label(&self) -> &str {
         &self.label
+    }
+
+    pub fn get_next_action(&mut self) -> Option<Action> {
+        self.pending_actions.pop_front()
     }
 }
 
@@ -40,7 +59,7 @@ impl Default for WapukuApp {
         debug!("Default for WapukuApp::default");
         Self {
             // Example stuff:
-            model: Rc::new(RefCell::new(Box::new(WapukuAppModel {label: String::from("nope")}))),
+            model: Rc::new(RefCell::new(Box::new(WapukuAppModel::new()))),
             value: 2.7,
         }
     }
@@ -97,6 +116,14 @@ impl eframe::App for WapukuApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             debug!("WapukuApp::update: self.model.borrow().label()={}", self.model.borrow().label());
             ui.heading(format!("Dataframe Panel {}", self.model.borrow().label()).as_str());
+
+            if ui.button("Load").clicked() {
+                debug!("LoadLoadLoadLoad");
+                if let Ok(mut model_borrowed) = self.model.try_borrow_mut() {
+                    model_borrowed.pending_actions.push_back(Action::LoadFile)
+                }
+            }
+            ui.separator();
 
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 

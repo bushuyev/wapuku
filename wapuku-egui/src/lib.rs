@@ -12,13 +12,14 @@ use wapuku_model::polars_df::{fake_df, PolarsData};
 use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
-use crate::app::WapukuAppModel;
+use crate::app::{Action, WapukuAppModel};
 
 mod app;
 
 #[derive(Debug)]
-pub struct DataMsg {
-
+pub enum DataMsg {
+    FrameLoaded{data: Box<dyn Data>},
+    Test
 }
 
 #[wasm_bindgen]
@@ -44,27 +45,40 @@ pub async fn run() {
 
     pool_worker.init().await.expect("pool_worker init");
 
-    let data = PolarsData::new(fake_df());
-    let data_rc = Rc::new(data);
-    let data_in_init = Rc::clone(&data_rc);
-
-    pool_worker.run_in_pool(move || {
-        debug!("wapuku: running in pool");
-        let all_props = data_in_init.all_properties();
-        debug!("wapuku: all_props={:?}", all_props);
-
-        to_main_rc_1.send(DataMsg{}).expect("send");
-
-    });
-
     let mut wapuku_app_model = Rc::new(RefCell::new(Box::new(WapukuAppModel::new())));
     let mut wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
+    let mut wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
 
     let timer_closure = Closure::wrap(Box::new(move || {
-        if let Ok(msg) = from_worker_rc1.try_recv() {
-            wapuku_app_model.borrow_mut().set_label("aaaaaaaaaaaaaaaaa");
-            debug!("wapuku: event_loop got data_grid={:?}", msg);
-            // runner_rc_2.
+
+        if let Ok(mut model_borrowed) = wapuku_app_model_rc1.try_borrow_mut() {
+
+            if let Some(action) = model_borrowed.get_next_action(){
+                debug!("wapuku: got action {:?}", action);
+                match action {
+                    Action::LoadFile => {
+                        pool_worker.run_in_pool( || {
+                            debug!("wapuku: running in pool");
+                            // let all_props = data_in_init.all_properties();
+                            // debug!("wapuku: all_props={:?}", all_props);
+                            to_main_rc_1.send(DataMsg::FrameLoaded {data: Box::new(PolarsData::new(fake_df()))}).expect("send");
+
+                        });
+                    }
+                    Action::Test1 => {}
+                }
+            }
+
+            if let Ok(data_msg) = from_worker_rc1.try_recv() {
+
+                match data_msg {
+                    DataMsg::FrameLoaded { data } => {
+                        model_borrowed.set_label("aaaaaaaaaaaaaaaaa");
+                        debug!("wapuku: event_loop got data={:?}", data);
+                    }
+                    DataMsg::Test => {}
+                }
+            }
         }
 
     }) as Box<dyn FnMut()>);
@@ -80,17 +94,14 @@ pub async fn run() {
     let web_options = eframe::WebOptions::default();
 
 
-
-
-
     wasm_bindgen_futures::spawn_local(async move {runner_rc_1.start(
         "the_canvas_id", // hardcode it
         web_options,
         Box::new(|cc| {
             debug!("eframe::WebRunner WapukuApp::new");
-            Box::new(app::WapukuApp::new(cc, wapuku_app_model_rc1))
+            Box::new(app::WapukuApp::new(cc, wapuku_app_model_rc2))
         }),
     )
-        .await
-        .expect("failed to start eframe")});
+    .await
+    .expect("failed to start eframe")});
 }
