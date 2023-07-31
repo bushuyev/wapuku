@@ -1,4 +1,4 @@
-import init, {init_pool, init_worker, run_in_pool} from "../../wapuku-ui/pkg";
+
 
 export function setupWorker(worker, init, run_in_pool, init_worker, init_pool){
 

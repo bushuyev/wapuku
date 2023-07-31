@@ -14,6 +14,7 @@ pub struct ColumnSummary {
 }
 
 impl ColumnSummary {
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -26,6 +27,9 @@ impl ColumnSummary {
     pub fn max(&self) -> f32 {
         self.max
     }
+    pub fn new(name: String, min: f32, avg: f32, max: f32) -> Self {
+        Self { name, min, avg, max }
+    }
 }
 
 pub struct Summary {
@@ -33,8 +37,12 @@ pub struct Summary {
 }
 
 impl Summary {
+
     pub fn columns(&self) -> &Vec<ColumnSummary> {
         &self.columns
+    }
+    pub fn new(columns: Vec<ColumnSummary>) -> Self {
+        Self { columns }
     }
 }
 ///////////////Data view model////////////////
@@ -247,6 +255,9 @@ pub trait Data:Debug {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
+    fn build_summary(&self) -> Summary {
+        Summary::new (vec![])
+    }
 }
 
 #[derive(Debug)]

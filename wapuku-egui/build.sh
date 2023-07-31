@@ -18,15 +18,11 @@ rm -rf www/dist
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
 cargo +nightly build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 
-(cd ../../wasm-bindgen && cargo +nightly run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir ../../wapuku/wapuku-ui/pkg/  --target web   ../../wapuku/wapuku-ui/target/wasm32-unknown-unknown/release/wapuku_ui.wasm)
+(cd ../../wasm-bindgen && cargo +nightly run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir ../wapuku/wapuku-egui/pkg/  --target web   ../wapuku/wapuku-egui/target/wasm32-unknown-unknown/release/wapuku_egui.wasm)
 (cd www && npm run build:main && npm run build:worker)
-#wasm2wat --enable-threads ./target/wasm32-unknown-unknown/release/wasm_threads_template.wasm > ./pkg/wasm_threads_template.wat
+#wasm2wat --enable-threads ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm > ./pkg/wapuku_egui.wat
 ## Note the usage of `--target no-modules` here which is required for passing
 ## the memory import to each wasm module.
-#cargo run -p wasm-bindgen-cli -- \
-#  ./target/wasm32-unknown-unknown/release/wasm_threads_template.wasm \
-#  --out-dir pkg \
-#  --target web \
-#  --keep-lld-exports
-#  
-#wasm2wat --enable-threads ./pkg/wasm_threads_template_bg.wasm > ./pkg/wasm_threads_template_bg.wat
+
+  
+#wasm2wat --enable-threads ./pkg/wapuku_egui_bg.wasm > ./pkg/wapuku_egui_bg.wat

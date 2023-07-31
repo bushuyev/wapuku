@@ -12,13 +12,14 @@ use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
 use crate::app::{Action, WapukuAppModel};
+use crate::DataMsg::Summary;
 
 mod app;
 
 #[derive(Debug)]
 pub enum DataMsg {
     FrameLoaded{name:String, data: Box<dyn Data>},
-    Summary
+    Summary {min:f32, avg:f32, max:f32}
 }
 
 #[wasm_bindgen]
@@ -66,8 +67,9 @@ pub async fn run() {
                     Action::Summary => {
                         pool_worker.run_in_pool( || {
                             debug!("wapuku: running in pool");
+                            model_borrowed.update_summary();
 
-                            to_main_rc_1.send(DataMsg::Summary).expect("send");
+                            to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");
 
                         });
                     }
@@ -84,8 +86,8 @@ pub async fn run() {
                         model_borrowed.set_data(data);
 
                     }
-                    DataMsg::Summary => {
-
+                    DataMsg::Summary{min, avg, max} => {
+                        // model_borrowed.set_summary(wapuku_model::model::Summary::new (vec![]))
                     }
                 }
             }

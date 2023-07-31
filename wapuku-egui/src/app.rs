@@ -51,6 +51,10 @@ impl WapukuAppModel {
     pub fn set_summary(&mut self, summary: Summary) {
         self.summary.replace(summary);
     }
+
+    pub fn update_summary(&mut self) {
+        self.summary = self.data.as_ref().map(|d|d.build_summary());
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]

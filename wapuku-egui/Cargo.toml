@@ -7,6 +7,7 @@ name = "wapuku-egui"
 #description.workspace = true
 #documentation.workspace = true
 #edition.workspace = true
+#forced-runner = 'wasm-bindgen-test-runner'
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -36,6 +37,7 @@ console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 
 wasm-bindgen = {path = "../../wasm-bindgen/"}
+#wasm-bindgen-cli = {path = "../../wasm-bindgen/crates/cli"}
 
 futures = "0.3.28"
 wasm-bindgen-futures = "0.4.36"
@@ -68,8 +70,14 @@ wasm-opt = false
 [unstable]
 async-fn-in-trait = true
 
+[env]
+WASM_BINDGEN_THREADS_STACK_SIZE = 2097152
+WASM_BINDGEN_THREADS = true
+
 [patch.crates-io]
+rayon-core = {path = "../../rayon/rayon-core"}
 wasm-bindgen = {path = "../../wasm-bindgen"}
+#wasm-bindgen-cli = {path = "../../wasm-bindgen/crates/cli"}
 wasm-bindgen-macro-support = { path = "../../wasm-bindgen/crates/macro-support"}
 
 [workspace]
