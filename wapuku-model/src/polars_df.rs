@@ -171,7 +171,34 @@ impl Data for PolarsData {
     }
 
     fn build_summary(&self) -> Summary {
-        Summary::new (self.df.get_column_names().into_iter().map(|c|ColumnSummary::new(String::from(c), 0., 1., 2.)).collect())
+
+        let desc = self.df.describe(None).unwrap();
+        // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
+        println!("head={:?}", desc.head(None));
+        println!("get={:?}", desc.get(0));
+
+        Summary::new (desc.get_column_names().into_iter().enumerate().skip(1).map(|(i, c)|{
+            println!("column={:?} mean={:?}", c, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+
+            ColumnSummary::new(
+                String::from(c),
+                desc.get(4).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
+                desc.get(2).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
+                desc.get(8).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
+            )
+        }).collect())
+        // desc.iter().for_each((|column|{
+        //     // println!("name={} column={:?}", name, column);
+        //     // let c_v = column.iter().map(|v|String::from(v.get_str().unwrap_or("zzz"))).collect::<Vec<String>>();
+        //     column.iter().for_each(|v|{
+        //         println!("{:?}", v);
+        //     });
+        //     // println!("column={:?} min={:?}",  column.name(), c_v[2]);
+        //     println!("column={:?}",  column.name());
+        // }));
+        // println!("head={}", desc.unwrap().head(None));
+        // println!("desc={:?}", desc);
+        // Summary::new (self.df.get_column_names().into_iter().map(|c|ColumnSummary::new(String::from(c), 0., 1., 2.)).collect())
     }
 }
 
@@ -340,6 +367,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use crate::tests::init_log;
 
     use log::debug;
     use polars::datatypes::AnyValue::List;
@@ -356,6 +384,22 @@ mod tests {
         std::env::set_var("FMT_MAX_COLS", "1000");
         
         init_log();
+    }
+
+    #[test]
+    fn test_build_summary(){
+        let mut df = df!(
+            "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
+            "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
+            "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
+        ).unwrap();
+        let mut data = PolarsData::new(df);
+
+        let summary = data.build_summary();
+
+        assert_eq!(summary.columns()[0].min(), "1.0");
+        assert_eq!(summary.columns()[1].min(), "10.0");
+        assert_eq!(summary.columns()[2].min(), "11.0");
     }
 
     #[test]

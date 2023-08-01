@@ -8,9 +8,9 @@ use crate::data_type::*;
 ///////////////Data management model////////////////
 pub struct ColumnSummary {
     name:String,
-    min:f32,
-    avg:f32,
-    max:f32
+    min:String,
+    avg:String,
+    max:String
 }
 
 impl ColumnSummary {
@@ -18,16 +18,16 @@ impl ColumnSummary {
     pub fn name(&self) -> &str {
         &self.name
     }
-    pub fn min(&self) -> f32 {
-        self.min
+    pub fn min(&self) -> &str {
+        &self.min
     }
-    pub fn avg(&self) -> f32 {
-        self.avg
+    pub fn avg(&self) -> &str {
+        &self.avg
     }
-    pub fn max(&self) -> f32 {
-        self.max
+    pub fn max(&self) -> &str {
+        &self.max
     }
-    pub fn new(name: String, min: f32, avg: f32, max: f32) -> Self {
+    pub fn new(name: String, min: String, avg: String, max: String) -> Self {
         Self { name, min, avg, max }
     }
 }

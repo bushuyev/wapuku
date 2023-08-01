@@ -166,18 +166,19 @@ impl eframe::App for WapukuApp {
 
                     if let Some(summary) = &model_borrowed.summary {
                         body.rows(text_height, summary.columns().len(), |row_index, mut row| {
+                            let column_summary = &summary.columns()[row_index];
 
                             row.col(|ui| {
-                                ui.label(summary.columns()[row_index].name().clone());
+                                ui.label(column_summary.name().clone());
                             });
                             row.col(|ui| {
-                                ui.label("c1");
+                                ui.label(column_summary.min().to_string());
                             });
                             row.col(|ui| {
-                                ui.label("c2");
+                                ui.label(column_summary.avg().to_string());
                             });
                             row.col(|ui| {
-                                ui.label("c2");
+                                ui.label(column_summary.max().to_string());
                             });
                         })
 
