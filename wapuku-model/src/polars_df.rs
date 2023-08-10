@@ -174,11 +174,11 @@ impl Data for PolarsData {
 
         let desc = self.df.describe(None).unwrap();
         // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
-        println!("head={:?}", desc.head(None));
-        println!("get={:?}", desc.get(0));
+        debug!("head={:?}", desc.head(None));
+        debug!("get={:?}", desc.get(0));
 
         Summary::new (desc.get_column_names().into_iter().enumerate().skip(1).map(|(i, c)|{
-            println!("column={:?} mean={:?}", c, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+            debug!("column={:?} mean={:?}", c, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
 
             ColumnSummary::new(
                 String::from(c),
@@ -219,6 +219,12 @@ pub fn fake_df() -> DataFrame {
        "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
        "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
     ).unwrap()
+}
+
+pub fn from_csv(csv_bytes:Box<Vec<u8>>) -> DataFrame {
+    debug!("from_csv: len={}", csv_bytes.len());
+    let buff = Cursor::new(*csv_bytes);
+    CsvReader::new(buff).finish().unwrap()
 }
 
 //TODO move to resources?

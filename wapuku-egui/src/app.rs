@@ -1,15 +1,18 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::future::Future;
+use std::mem;
 use std::rc::Rc;
 use eframe::*;
-use egui::Direction;
+use egui::{Direction, Ui};
 use egui_extras::{Column, TableBuilder};
 use log::debug;
 use wapuku_model::model::{Data, Summary};
+use rfd;
 
 #[derive(Debug)]
 pub enum Action {
-    LoadFile,
+    LoadFile{data_ptr:u32},
     Summary
 }
 
@@ -67,6 +70,21 @@ pub struct WapukuApp {
     value: f32,
 }
 
+impl WapukuApp {
+    fn bar_contents(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        egui::widgets::global_dark_light_mode_switch(ui);
+
+        ui.separator();
+
+
+
+
+        ui.separator();
+
+
+    }
+}
+
 impl Default for WapukuApp {
     fn default() -> Self {
         debug!("Default for WapukuApp::default");
@@ -104,7 +122,7 @@ impl eframe::App for WapukuApp {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
 
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -118,7 +136,42 @@ impl eframe::App for WapukuApp {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        if let Ok(mut model_borrowed) = self.model.try_borrow_mut() {
+            egui::TopBottomPanel::top("wrap_app_top_bar").show(ctx, |ui| {
+                egui::trace!(ui);
+                ui.horizontal_wrapped(|ui| {
+                    ui.visuals_mut().button_frame = false;
+
+                    if ui.button("Load").clicked() {
+                        // model_borrowed.pending_actions.push_back(Action::LoadFile)
+
+
+                        let task = rfd::AsyncFileDialog::new()
+                            .add_filter("CSV files", &["csv"])
+                            .set_directory("/")
+                            .pick_file();
+
+                        let model_for_file_callback = Rc::clone(&self.model);
+                        wasm_bindgen_futures::spawn_local(async move {
+                            let file_op = task.await;
+                            if let Some(file) = file_op{
+                                // debug!("file={:?}", file.file_name());
+                                // debug!("content: {:?}", file.read().await);
+                                // debug!("vec: {} {:?}", data.len(), data);
+
+                                let mut data_box = Box::new(Box::new(file.read().await) as Box<Vec<u8>>);
+                                model_for_file_callback.borrow_mut().pending_actions.push_back(Action::LoadFile{data_ptr: Box::into_raw(data_box) as u32});
+                                // mem::forget(data_box)
+                            }
+
+                        });
+                    }
+                });
+            });
+
+        }
+
+/*        egui::CentralPanel::default().show(ctx, |ui| {
 
             if let Ok(mut model_borrowed) = self.model.try_borrow_mut() {
                 debug!("WapukuApp::update: self.model.borrow().label()={}", model_borrowed.data_name());
@@ -188,7 +241,7 @@ impl eframe::App for WapukuApp {
 
             }
 
-        });
+        })*/;
 
     }
 }

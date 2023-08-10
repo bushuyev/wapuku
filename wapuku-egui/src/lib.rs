@@ -7,7 +7,7 @@ pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
 use wapuku_model::model::Data;
-use wapuku_model::polars_df::{fake_df, PolarsData};
+use wapuku_model::polars_df::{fake_df, from_csv, PolarsData};
 use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
@@ -56,11 +56,22 @@ pub async fn run() {
             if let Some(action) = model_borrowed.get_next_action(){
                 debug!("wapuku: got action {:?}", action);
                 match action {
-                    Action::LoadFile => {
+                    Action::LoadFile{data_ptr} => {
+                        // let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+                        // let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
+                        // debug!("wapuku: running in pool, load file (*data).len()={:?} data={:?}", (*data).len(), data);
+                        debug!("wapuku: 1. data_ptr={}", data_ptr);
                         pool_worker.run_in_pool( || {
-                            debug!("wapuku: running in pool");
+                            debug!("wapuku: 2. data_ptr={}", data_ptr);
+                            let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
+                            debug!("wapuku: running in pool, load file (*data).len()={:?} data={:?}", (*data).len(), String::from_utf8(**data));
 
-                            to_main_rc_1.send(DataMsg::FrameLoaded {name: String::from("Fake data"), data: Box::new(PolarsData::new(fake_df()))}).expect("send");
+                            // debug!("wapuku: running in pool, load file data={:?}", data_ptr);
+                            //
+                            // // let data = *unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
+                            // let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
+                            //
+                            // to_main_rc_1.send(DataMsg::FrameLoaded {name: String::from("Fake data"), data: Box::new(PolarsData::new(from_csv(*data)))}).expect("send");
 
                         });
                     }
@@ -81,9 +92,11 @@ pub async fn run() {
                 match data_msg {
                     DataMsg::FrameLoaded { name, data } => {
                         model_borrowed.set_data_name(name);
-                        debug!("wapuku: event_loop got data={:?}", data);
+                        // debug!("wapuku: event_loop got data={:?}", data);
 
                         model_borrowed.set_data(data);
+
+                        model_borrowed.update_summary();
 
                     }
                     DataMsg::Summary{min, avg, max} => {
