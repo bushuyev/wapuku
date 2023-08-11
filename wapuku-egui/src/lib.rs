@@ -14,6 +14,7 @@ pub use app::WapukuApp;
 use crate::app::{Action, WapukuAppModel};
 
 mod app;
+mod model_views;
 
 #[derive(Debug)]
 pub enum DataMsg {

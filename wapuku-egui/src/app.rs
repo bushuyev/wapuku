@@ -7,6 +7,7 @@ use egui_extras::{Column, TableBuilder};
 use log::debug;
 use rfd;
 use wapuku_model::model::{Data, FrameView};
+use crate::model_views::View;
 
 #[derive(Debug)]
 pub enum Action {
@@ -171,54 +172,7 @@ impl eframe::App for WapukuApp {
                     .collapsible(true)
                     .default_pos([0., 0.])
                     .show(ctx, |ui| {
-                        let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-
-                        let mut table = TableBuilder::new(ui)
-                            .striped(true)
-                            .resizable(true)
-                            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                            .column(Column::auto())
-                            .column(Column::initial(100.0).range(40.0..=300.0))
-                            .column(Column::initial(100.0).at_least(40.0).clip(true))
-                            .column(Column::remainder())
-                            .min_scrolled_height(0.0);
-
-                        table.header(20.0, |mut header| {
-                            header.col(|ui| {
-                                ui.strong("Column");
-                            });
-                            header.col(|ui| {
-                                ui.strong("min");
-                            });
-                            header.col(|ui| {
-                                ui.strong("max");
-                            });
-                            header.col(|ui| {
-                                ui.strong("avg");
-                            });
-                        }).body(|mut body| {
-
-
-                            body.rows(text_height, frame.summary().columns().len(), |row_index, mut row| {
-                                let column_summary = &frame.summary().columns()[row_index];
-
-                                row.col(|ui| {
-                                    ui.label(column_summary.name().clone());
-                                });
-                                row.col(|ui| {
-                                    ui.label(column_summary.min().to_string());
-                                });
-                                row.col(|ui| {
-                                    ui.label(column_summary.avg().to_string());
-                                });
-                                row.col(|ui| {
-                                    ui.label(column_summary.max().to_string());
-                                });
-                            })
-
-
-
-                        });
+                        frame.summary().ui(ui)
                     });
             }
         }
