@@ -6,6 +6,33 @@ use std::hash::{Hash, Hasher};
 use crate::data_type::*;
 
 ///////////////Data management model////////////////
+
+#[derive(Debug)]
+pub struct FrameView {
+    name:String,
+    summary:Summary,
+    data:Box<dyn Data>
+}
+
+impl FrameView {
+    pub fn new(name: String, data: Box<dyn Data>) -> Self {
+        Self {
+            name,
+            summary:data.build_summary(),
+            data
+        }
+    }
+
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn summary(&self) -> &Summary {
+        &self.summary
+    }
+}
+
+#[derive(Debug)]
 pub struct ColumnSummary {
     name:String,
     min:String,
@@ -31,7 +58,7 @@ impl ColumnSummary {
         Self { name, min, avg, max }
     }
 }
-
+#[derive(Debug)]
 pub struct Summary {
     columns:Vec<ColumnSummary>
 }

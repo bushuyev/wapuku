@@ -228,28 +228,29 @@ pub fn from_csv(csv_bytes:Box<Vec<u8>>) -> DataFrame {
 }
 
 //TODO move to resources?
-pub fn parquet_scan() -> DataFrame {
+pub fn parquet_scan(parquet_bytes:Box<Vec<u8>>) -> DataFrame {
     // let parquet_bytes = include_bytes!("../../wapuku-model/data/s1_transactions_pi_message.par");
-    let parquet_bytes = include_bytes!("../../wapuku-model/data/d2_transactions_pi_message.par");
+    // let parquet_bytes = include_bytes!("../../wapuku-model/data/d2_transactions_pi_message.par");
     
-    let buff = Cursor::new(parquet_bytes);
+    let buff = Cursor::new(parquet_bytes.as_slice());
     
-    let df = ParquetReader::new(buff)
-        .finish().unwrap()
-        .lazy()
-        .groupby([col("PAYMENTSTATUS")])
-        .agg([count()])
-        .sort("count", SortOptions {
-            descending: true,
-            nulls_last: true,
-            multithreaded: true,
-        },)
-        .collect()
-        .unwrap();
-  
-    debug!("wapuku: parquet_scan: height={:?}", df.height());
+    // let df = ParquetReader::new(buff)
+    //     .finish().unwrap()
+    //     .lazy()
+    //     .groupby([col("PAYMENTSTATUS")])
+    //     .agg([count()])
+    //     .sort("count", SortOptions {
+    //         descending: true,
+    //         nulls_last: true,
+    //         multithreaded: true,
+    //     },)
+    //     .collect()
+    //     .unwrap();
+    //
+    // debug!("wapuku: parquet_scan: height={:?}", df.height());
 
-    df
+    // df
+    ParquetReader::new(buff).finish().unwrap()
 }
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {

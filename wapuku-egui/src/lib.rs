@@ -6,20 +6,18 @@ pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::Data;
-use wapuku_model::polars_df::{fake_df, from_csv, PolarsData};
+use wapuku_model::model::{Data, FrameView};
+use wapuku_model::polars_df::{fake_df, from_csv, parquet_scan, PolarsData};
 use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
 use crate::app::{Action, WapukuAppModel};
-use crate::DataMsg::Summary;
 
 mod app;
 
 #[derive(Debug)]
 pub enum DataMsg {
     FrameLoaded{name:String, data: Box<dyn Data>},
-    Summary {min:f32, avg:f32, max:f32}
 }
 
 #[wasm_bindgen]
@@ -56,31 +54,22 @@ pub async fn run() {
             if let Some(action) = model_borrowed.get_next_action(){
                 debug!("wapuku: got action {:?}", action);
                 match action {
-                    Action::LoadFile{data_ptr} => {
-                        // let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
-                        // let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
-                        // debug!("wapuku: running in pool, load file (*data).len()={:?} data={:?}", (*data).len(), data);
-                        debug!("wapuku: 1. data_ptr={}", data_ptr);
-                        pool_worker.run_in_pool( || {
-                            debug!("wapuku: 2. data_ptr={}", data_ptr);
-                            let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
-                            debug!("wapuku: running in pool, load file (*data).len()={:?} data={:?}", (*data).len(), String::from_utf8(**data));
+                    Action::LoadFile{name_ptr, data_ptr} => {
 
-                            // debug!("wapuku: running in pool, load file data={:?}", data_ptr);
-                            //
-                            // // let data = *unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
-                            // let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
-                            //
-                            // to_main_rc_1.send(DataMsg::FrameLoaded {name: String::from("Fake data"), data: Box::new(PolarsData::new(from_csv(*data)))}).expect("send");
+                        pool_worker.run_in_pool( || {
+                            let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
+                            let name =  unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
+                            debug!("wapuku: running in pool, load file name={:?}", name);
+                            model_borrowed.add_frame(**name, Box::new(PolarsData::new(parquet_scan(*data))));
 
                         });
                     }
                     Action::Summary => {
                         pool_worker.run_in_pool( || {
                             debug!("wapuku: running in pool");
-                            model_borrowed.update_summary();
+                            // model_borrowed.update_summary();
 
-                            to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");
+                            // to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");
 
                         });
                     }
@@ -91,16 +80,6 @@ pub async fn run() {
 
                 match data_msg {
                     DataMsg::FrameLoaded { name, data } => {
-                        model_borrowed.set_data_name(name);
-                        // debug!("wapuku: event_loop got data={:?}", data);
-
-                        model_borrowed.set_data(data);
-
-                        model_borrowed.update_summary();
-
-                    }
-                    DataMsg::Summary{min, avg, max} => {
-                        // model_borrowed.set_summary(wapuku_model::model::Summary::new (vec![]))
                     }
                 }
             }
