@@ -74,7 +74,7 @@ jobs:
 
       - name: build-wapuku
         run: |
-          cd wapuku/wapuku-ui/www
+          cd wapuku/wapuku-egui/www
           npm i
           cd ..
           ./build.sh
@@ -84,7 +84,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: './wapuku/wapuku-ui/www/dist'
+          path: './wapuku/wapuku-egui/www/dist'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v1
