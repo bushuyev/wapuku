@@ -2717,7 +2717,7 @@ dependencies = [
  "polars-utils",
  "rand",
  "rand_distr",
- "rayon 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon",
  "regex",
  "smartstring",
  "thiserror",
@@ -2756,7 +2756,7 @@ dependencies = [
  "polars-error",
  "polars-time",
  "polars-utils",
- "rayon 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon",
  "regex",
  "simdutf8",
 ]
@@ -2777,7 +2777,7 @@ dependencies = [
  "polars-plan",
  "polars-time",
  "polars-utils",
- "rayon 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon",
  "smartstring",
  "version_check",
 ]
@@ -2812,7 +2812,7 @@ dependencies = [
  "polars-plan",
  "polars-row",
  "polars-utils",
- "rayon 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon",
  "smartstring",
  "version_check",
 ]
@@ -2830,7 +2830,7 @@ dependencies = [
  "polars-ops",
  "polars-time",
  "polars-utils",
- "rayon 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon",
  "smartstring",
  "strum_macros",
  "version_check",
@@ -2871,7 +2871,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "polars-error",
- "rayon 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon",
  "smartstring",
  "sysinfo",
  "version_check",
@@ -2976,16 +2976,6 @@ checksum = "f2ff9a1f06a88b01621b7ae906ef0211290d1c8a168a15542486a8f61c0833b9"
 [[package]]
 name = "rayon"
 version = "1.7.0"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d2df5196e37bcc87abebc0053e20787d73847bb33134a69841207dd0a47f03b"
 dependencies = [
  "either",
  "rayon-core",
@@ -3883,7 +3873,7 @@ version = "0.1.0"
 dependencies = [
  "js-sys",
  "log",
- "rayon 1.7.0",
+ "rayon",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3905,7 +3895,7 @@ dependencies = [
  "js-sys",
  "lazy_static",
  "log",
- "rayon 1.7.0",
+ "rayon",
  "reqwest",
  "rfd",
  "serde",

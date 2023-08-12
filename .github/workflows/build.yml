@@ -32,7 +32,7 @@ jobs:
         with:
           repository: bushuyev/rayon
           path: rayon
-          ref: master_my
+          ref: my_master_polars_0_31_1
 
       - name: Checkout my arrow2
         uses: actions/checkout@v3
