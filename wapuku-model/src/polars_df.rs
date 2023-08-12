@@ -255,7 +255,7 @@ pub fn parquet_scan(parquet_bytes:Box<Vec<u8>>) -> DataFrame {
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {
 
-    let df = df.sort([group_by_field], false)?;
+    let df = df.sort([group_by_field], vec![true], false)?;
 
     let df = df.clone()
         .lazy()
@@ -280,7 +280,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
         // ])
         .collect()?;
 
-    let mut df = df.sort([group_by_field], false)?;
+    let mut df = df.sort([group_by_field], vec![true], false)?;
 
     df.rename(group_by_field, "group_by_field").expect("rename group_by_field");
     // let df = df.clone().lazy().with_column(lit(1).alias("primary_field_group")).collect()?;
@@ -323,7 +323,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
 
 
     debug!("wapuku: primary_field_grouped_and_expanded={:?}", primary_field_grouped_and_expanded);
-    let mut df = df.sort([primary_group_by_field], false)?;
+    let mut df = df.sort([primary_group_by_field], vec![true], false)?;
     
     let df = df
         .with_column(primary_field_grouped_and_expanded.column(primary_field_group).unwrap().clone())?
@@ -334,7 +334,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         //     series
         // })?
     ;
-    let df = df.sort([secondary_group_by_field], false)?;
+    let df = df.sort([secondary_group_by_field], vec![true], false)?;
     
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
