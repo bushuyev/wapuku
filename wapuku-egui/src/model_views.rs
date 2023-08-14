@@ -1,6 +1,7 @@
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
-use wapuku_model::model::Summary;
+use wapuku_model::data_type::WapukuDataType;
+use wapuku_model::model::{ColumnSummary, Summary};
 
 pub trait View {
     fn ui(&self, ui: &mut egui::Ui);
@@ -42,19 +43,40 @@ impl View for Summary {
                 row.col(|ui| {
                     ui.label(column_summary.name().clone());
                 });
-                row.col(|ui| {
-                    ui.label(column_summary.min().to_string());
-                });
-                row.col(|ui| {
-                    ui.label(column_summary.avg().to_string());
-                });
-                row.col(|ui| {
-                    ui.label(column_summary.max().to_string());
-                });
+
+                match column_summary.dtype() {
+                    WapukuDataType::Numeric => {
+                        row.col(|ui| {
+                            ui.label(column_summary.min().to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(column_summary.avg().to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(column_summary.max().to_string());
+                        });
+                    }
+                    WapukuDataType::String => {
+                        row.col(|ui| {
+                            ui.label(String::from("lalalal"));
+                        });
+                    }
+                    WapukuDataType::Boolean => {}
+                }
             })
 
-
-
         });
+    }
+}
+
+
+impl View for ColumnSummary {
+    fn ui(&self, ui: &mut Ui) {
+
+        match self.dtype() {
+            WapukuDataType::Numeric => {}
+            WapukuDataType::String => {}
+            WapukuDataType::Boolean => {}
+        }
     }
 }

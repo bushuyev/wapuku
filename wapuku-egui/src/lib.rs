@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use log::debug;
+use log::{debug, trace};
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::{Data, FrameView};
-use wapuku_model::polars_df::{fake_df, from_csv, parquet_scan, PolarsData};
+use wapuku_model::model::{Data, FrameView, WapukuError};
+use wapuku_model::polars_df::{fake_df, load_csv, load_parquet, PolarsData};
 use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
@@ -18,7 +18,8 @@ mod model_views;
 
 #[derive(Debug)]
 pub enum DataMsg {
-    FrameLoaded{name:String, data: Box<dyn Data>},
+    Ok {},
+    Err { msg:String}
 }
 
 #[wasm_bindgen]
@@ -58,10 +59,20 @@ pub async fn run() {
                     Action::LoadFile{name_ptr, data_ptr} => {
 
                         pool_worker.run_in_pool( || {
+
                             let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
-                            let name =  unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
+                            let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, load file name={:?} size={}", name, data.len());
-                            model_borrowed.add_frame(**name, Box::new(PolarsData::new(parquet_scan(*data))));
+                            let result = load_parquet(*data);
+
+                            match result {
+                                Ok(df)=>{
+                                    model_borrowed.add_frame(**name, Box::new(PolarsData::new(df)));
+                                }
+                                Err(e)=>{
+                                    to_main_rc_1.send(DataMsg::Err{msg: String::from(e.to_string())}).expect("send");
+                                }
+                            }
 
                         });
                     }
@@ -80,7 +91,11 @@ pub async fn run() {
             if let Ok(data_msg) = from_worker_rc1.try_recv() {
 
                 match data_msg {
-                    DataMsg::FrameLoaded { name, data } => {
+                    DataMsg::Ok {  } => {
+                    }
+                    DataMsg::Err { msg } => {
+                        trace!("wapuku: error={:?}", msg);
+                        model_borrowed.set_error(msg);
                     }
                 }
             }

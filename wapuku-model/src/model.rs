@@ -35,6 +35,7 @@ impl FrameView {
 #[derive(Debug)]
 pub struct ColumnSummary {
     name:String,
+    dtype:WapukuDataType,
     min:String,
     avg:String,
     max:String
@@ -54,8 +55,14 @@ impl ColumnSummary {
     pub fn max(&self) -> &str {
         &self.max
     }
-    pub fn new(name: String, min: String, avg: String, max: String) -> Self {
-        Self { name, min, avg, max }
+
+    pub fn new(name: String, dtype:WapukuDataType, min: String, avg: String, max: String) -> Self {
+        Self { name, dtype, min, avg, max }
+    }
+
+
+    pub fn dtype(&self) -> &WapukuDataType {
+        &self.dtype
     }
 }
 #[derive(Debug)]

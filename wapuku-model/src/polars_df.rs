@@ -76,28 +76,28 @@ impl Data for PolarsData {
 
         // debug!("wapuku: min_df={:?} max_df={:?}", min_df, max_df);
         debug!("wapuku: min/max_x={:?}, min/max_y={:?} property_x_step={:?}, property_y_step={:?}", (min_x, max_x), (min_y, max_y), property_x_step, property_y_step);
-        
+
         let df = if max_x == min_x {
-            
+
             group_by_1(&self.df,
                property_y_name, property_y_step,
                [
                    col(group_volume_property).count().alias("volume"),
                ], min_y as i64 - property_y_step
             ).unwrap()
-            
+
         } else if max_y == min_y {
-            
-            group_by_1(&self.df, 
+
+            group_by_1(&self.df,
                property_x_name, property_x_step,
                [
                    col(group_volume_property).count().alias("volume"),
                ], min_x as i64 - property_x_step
             ).unwrap()
-            
+
         } else {
 
-            group_by_2(&self.df, 
+            group_by_2(&self.df,
                 property_x_name, property_x_step,
                 property_y_name, property_y_step,
                 [
@@ -106,21 +106,21 @@ impl Data for PolarsData {
             ).unwrap()
         };
 
-       
-        
+
+
         debug!("1. wapuku: df={:?}", df);
 
         // // https://stackoverflow.com/questions/72440403/iterate-over-rows-polars-rust df is small here, should be ok
         // df.as_single_chunk_par();
         // let mut iters = df.columns(["primary_field_group", "secondary_group_field", "volume"]).expect("grouping columns")
         //     .iter().map(|s| s.iter()).collect::<Vec<_>>();
-        // 
+        //
 
 
         let mut data_vec : Vec<Vec<Option<Box<dyn DataGroup>>>> = (0..y_n).map(|_y| (0..x_n).map(|_x| None).collect()).collect();
 
 
-      
+
         (0..y_n as usize).for_each(|y|{
             (0..x_n as usize).for_each(|x| {
                 let x_0 = min_x as i64 + x as i64 * property_x_step ;
@@ -140,15 +140,15 @@ impl Data for PolarsData {
                                  col("secondary_group_field").gt_eq(y_0).and(col("secondary_group_field").lt(y_1))
                              ))
                          }
-                         
+
                      )
                      .select([col("volume")]).collect().unwrap();
-                
+
                 let v = count.get(0).and_then(|v| v.get(0).map(|v| v.try_extract::<u32>().unwrap())).unwrap_or(0) as usize;
-                
-                
+
+
                 debug!("wapuku: data_vec: (x, y)={:?}, (x_0, x_1)={:?}, (y_0, y_1)={:?}, v={:?}", (x, y), (x_0, x_1), (y_0, y_1), v);
-                
+
                 if v > 0 {
                     let group_box = Box::<dyn DataGroup>::from(Box::new(SimpleDataGroup::new(
                         v,
@@ -158,7 +158,7 @@ impl Data for PolarsData {
 
                     data_vec[y][x].replace(group_box);
                 }
-                
+
             });
         });
 
@@ -176,12 +176,14 @@ impl Data for PolarsData {
         // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
         debug!("head={:?}", desc.head(None));
         debug!("get={:?}", desc.get(0));
+        // desc.get_columns().iter().map(|c|c.)
 
-        Summary::new (desc.get_column_names().into_iter().enumerate().skip(1).map(|(i, c)|{
-            debug!("column={:?} mean={:?}", c, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+        Summary::new (desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)|{
+            debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
 
             ColumnSummary::new(
-                String::from(c),
+                String::from(c.name()),
+                        map_to_wapuku(c.dtype()),
                 desc.get(4).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
                 desc.get(2).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
                 desc.get(8).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
@@ -202,55 +204,47 @@ impl Data for PolarsData {
     }
 }
 
+fn map_to_wapuku(d_type: &DataType) -> WapukuDataType {
+    //TODO
+    match d_type {
+        DataType::Utf8=> WapukuDataType::String,
+        DataType::Float64 => WapukuDataType::Numeric,
+        DataType::Boolean => WapukuDataType::Boolean,
+        _ => WapukuDataType::String
+    }
+}
+
 pub fn fake_df() -> DataFrame {
     // df!(
     //     "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-    //     "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+    //     "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), //
     //     "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
     // ).unwrap()
     // df!(
-    //     "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,], 
+    //     "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
     //     "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
-    //     "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
-    // ).unwrap() 
-    
+    //     "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
+    // ).unwrap()
+
     df!(
        "property_1" => &(0..10_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-       "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+       "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), //
        "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
     ).unwrap()
 }
 
-pub fn from_csv(csv_bytes:Box<Vec<u8>>) -> DataFrame {
+//TODO - doesn't work
+pub fn load_csv(csv_bytes:Box<Vec<u8>>) -> DataFrame {
     debug!("from_csv: len={}", csv_bytes.len());
     let buff = Cursor::new(*csv_bytes);
     CsvReader::new(buff).finish().unwrap()
 }
 
 //TODO move to resources?
-pub fn parquet_scan(parquet_bytes:Box<Vec<u8>>) -> DataFrame {
-    // let parquet_bytes = include_bytes!("../../wapuku-model/data/s1_transactions_pi_message.par");
-    // let parquet_bytes = include_bytes!("../../wapuku-model/data/d2_transactions_pi_message.par");
-    
+pub fn load_parquet(parquet_bytes:Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
     let buff = Cursor::new(parquet_bytes.as_slice());
-    
-    // let df = ParquetReader::new(buff)
-    //     .finish().unwrap()
-    //     .lazy()
-    //     .groupby([col("PAYMENTSTATUS")])
-    //     .agg([count()])
-    //     .sort("count", SortOptions {
-    //         descending: true,
-    //         nulls_last: true,
-    //         multithreaded: true,
-    //     },)
-    //     .collect()
-    //     .unwrap();
-    //
-    // debug!("wapuku: parquet_scan: height={:?}", df.height());
 
-    // df
-    ParquetReader::new(buff).finish().unwrap()
+    Ok(ParquetReader::new(buff).finish()?)
 }
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {
@@ -285,7 +279,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
     df.rename(group_by_field, "group_by_field").expect("rename group_by_field");
     // let df = df.clone().lazy().with_column(lit(1).alias("primary_field_group")).collect()?;
     // df.rename(group_by_field, "secondary_group_field");
-    
+
     debug!("wapuku: df grouped={:?}", df);
 
     Ok(df)
@@ -293,7 +287,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str, 
 
 
 pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field: &str, primary_step: i64, secondary_group_by_field: &str, secondary_step: i64, aggregations: E, primary_offset: i64, secondary_offset: i64) -> WapukuResult<DataFrame> {
-    let primary_field_value = "primary_field_value"; 
+    let primary_field_value = "primary_field_value";
     let primary_field_group = "primary_field_group"; //expanded value of the field in the second column group, to be joined back to main frame
 
     let primary_field_grouped_and_expanded = df.clone()
@@ -304,7 +298,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         .sort(primary_field_group, Default::default())
         .groupby_dynamic(
             col(primary_field_group.into()),
-            [], 
+            [],
  DynamicGroupOptions {
             index_column: primary_field_group.into(),
             every: Duration::new(primary_step),
@@ -324,7 +318,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
 
     debug!("wapuku: primary_field_grouped_and_expanded={:?}", primary_field_grouped_and_expanded);
     let mut df = df.sort([primary_group_by_field], vec![true], false)?;
-    
+
     let df = df
         .with_column(primary_field_grouped_and_expanded.column(primary_field_group).unwrap().clone())?
         // .with_column(primary_field_grouped_and_expanded.column("primary_index").unwrap().clone())?
@@ -335,12 +329,12 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         // })?
     ;
     let df = df.sort([secondary_group_by_field], vec![true], false)?;
-    
+
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
-    
+
     debug!("2. wapuku: df={:?}", df);
-    
+
     let mut df = df.clone()
         .lazy()
         .groupby_dynamic(
@@ -363,9 +357,9 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
         //     col("property_3").count().alias("volume")
         // ])
         .collect()?;
-    
+
     df.rename(secondary_group_by_field, "secondary_group_field").expect("rename secondary_group_field");
-    
+
     debug!("wapuku: df grouped={:?}", df);
 
     Ok(df)
@@ -373,6 +367,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df:&DataFrame, primary_group_by_field
 
 #[cfg(test)]
 mod tests {
+    use std::any::{Any, TypeId};
     use std::collections::HashSet;
     use crate::tests::init_log;
 
@@ -389,12 +384,12 @@ mod tests {
     fn init() {
         std::env::set_var("POLARS_FMT_MAX_ROWS", "100");
         std::env::set_var("FMT_MAX_COLS", "1000");
-        
+
         init_log();
     }
 
     #[test]
-    fn test_build_summary(){
+    fn test_build_summary_ints(){
         let mut df = df!(
             "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
             "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
@@ -407,6 +402,31 @@ mod tests {
         assert_eq!(summary.columns()[0].min(), "1.0");
         assert_eq!(summary.columns()[1].min(), "10.0");
         assert_eq!(summary.columns()[2].min(), "11.0");
+    }
+
+    #[test]
+    fn test_build_summary_str(){
+        let mut df = df!(
+            "property_1" => &[1i32,   2i32,    3i32,    1i32,       2i32,    3i32,    1i32,    2i32,   3i32],
+            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,    3f32,    1f32,    2f32,   3f32],
+            "property_3" => &["A",  "B",  "C",  "D",  "E",  "F",  "G",  "H", "I"]
+        ).unwrap();
+        let mut data = PolarsData::new(df);
+
+        let summary = data.build_summary();
+
+        for c in summary.columns() {
+            println!("type=1={:?}",  TypeId::of::<u8>() == c.type_id());
+            println!("type=1={:?}",  TypeId::of::<f32>() == c.type_id());
+            println!("type=1={:?}",  TypeId::of::<String>() == c.type_id());
+        }
+
+
+
+
+        // assert_eq!(summary.columns()[0].min(), "1.0");
+        // assert_eq!(summary.columns()[1].min(), "10.0");
+        // assert_eq!(summary.columns()[2].min(), "11.0");
     }
 
     #[test]

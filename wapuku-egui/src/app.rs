@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use eframe::*;
+use egui::Color32;
 use egui_extras::{Column, TableBuilder};
 use log::debug;
 use rfd;
@@ -21,7 +22,7 @@ pub struct WapukuAppModel {
     data_name:String,
     frames:Vec<FrameView>,
     pending_actions:VecDeque<Action>,
-
+    messages:Vec<String>
 }
 
 impl WapukuAppModel {
@@ -29,7 +30,8 @@ impl WapukuAppModel {
         Self {
             data_name:  String::from("nope"),
             pending_actions: VecDeque::new(),
-            frames: vec![]
+            frames: vec![],
+            messages: vec![]
         }
     }
 
@@ -55,6 +57,19 @@ impl WapukuAppModel {
     pub fn purge_frame(&mut self, frame_id:usize) {
         debug!("wapuku: purge_frame frame_id={:?}", frame_id);
         self.frames.remove(frame_id);
+    }
+
+    pub fn set_error(&mut self, msg:String){
+        self.messages.push(msg);
+    }
+
+    pub fn clear_messages(&mut self) {
+        self.messages.clear();
+    }
+
+
+    pub fn messages(&self) -> &Vec<String> {
+        &self.messages
     }
 }
 
@@ -193,6 +208,20 @@ impl eframe::App for WapukuApp {
                             );
 
                         });
+                    }
+                    ui.separator();
+                    let messages = model_borrowed.messages();
+                    for message in messages {
+
+                        let mut style: egui::Style = (*ctx.style()).clone();
+                        style.visuals.override_text_color = Some(Color32::RED);
+                        ui.set_style(style);
+                        ui.label(message.clone());
+                    }
+                    if !messages.is_empty() {
+                        if ui.button("Clear messages").clicked() {
+                            model_borrowed.clear_messages();
+                        }
                     }
                 });
             });
