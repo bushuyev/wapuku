@@ -51,6 +51,11 @@ impl WapukuAppModel {
             data
         ));
     }
+
+    pub fn purge_frame(&mut self, frame_id:usize) {
+        debug!("wapuku: purge_frame frame_id={:?}", frame_id);
+        self.frames.remove(frame_id);
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -141,7 +146,7 @@ impl eframe::App for WapukuApp {
 
                         let task = rfd::AsyncFileDialog::new()
                             // .add_filter("CSV files", &["csv"])
-                            .set_directory("/home/bu/dvl/rust/polars-rayon-wasm/wapuku/wapuku-egui/www/data")
+                            // .set_directory("/home/bu/dvl/rust/polars-rayon-wasm/wapuku/wapuku-egui/www/data")
                             .pick_file();
 
                         let model_for_file_callback = Rc::clone(&self.model);
@@ -150,19 +155,50 @@ impl eframe::App for WapukuApp {
                             if let Some(file) = file_op{
                                 debug!("file=>{:?}<", file.file_name());
 
+                                // debug!("wapuku: load size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
+
                                 model_for_file_callback.borrow_mut().pending_actions.push_back(
                                     Action::LoadFile{
                                         name_ptr: Box::into_raw(Box::new(Box::new(file.file_name()))) as u32,
-                                        data_ptr: Box::into_raw(Box::new(Box::new(file.read().await) as Box<Vec<u8>>)) as u32}
+                                        data_ptr: Box::into_raw(Box::new(Box::new(file.read().await))) as u32}
                                 );
                             }
 
                         });
                     }
+
+                    ui.separator();
+                    ui.label("Load sample:");
+                    if ui.button("Sample 1").clicked() {
+                        let model_for_file_callback = Rc::clone(&self.model);
+                        wasm_bindgen_futures::spawn_local(async move {
+                            // debug!("wapuku: sample1 size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
+
+                            model_for_file_callback.borrow_mut().pending_actions.push_back(
+                                    Action::LoadFile{
+                                        name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1")))) as u32,
+                                        data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32}
+                                );
+
+                        });
+                    }
+                    if ui.button("Sample 2").clicked() {
+                        let model_for_file_callback = Rc::clone(&self.model);
+                        wasm_bindgen_futures::spawn_local(async move {
+
+                            model_for_file_callback.borrow_mut().pending_actions.push_back(
+                                Action::LoadFile{
+                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2")))) as u32,
+                                    data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32}
+                            );
+
+                        });
+                    }
                 });
             });
-
-            for frame in &model_borrowed.frames {
+            let mut frame_to_close:Option<usize> = None;
+            for (frame_i, frame) in model_borrowed.frames.iter().enumerate() {
+                let mut is_open = true;
 
                 egui::Window::new(frame.name())
                     .default_width(300.)
@@ -171,9 +207,19 @@ impl eframe::App for WapukuApp {
                     .resizable(true)
                     .collapsible(true)
                     .default_pos([0., 0.])
+                    .open(&mut is_open)
                     .show(ctx, |ui| {
                         frame.summary().ui(ui)
                     });
+
+                if !is_open {
+                    frame_to_close.replace(frame_i);
+                }
+
+            }
+
+            if frame_to_close.is_some() {
+                model_borrowed.purge_frame(frame_to_close.unwrap());
             }
         }
     }

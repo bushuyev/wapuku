@@ -60,7 +60,7 @@ pub async fn run() {
                         pool_worker.run_in_pool( || {
                             let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
                             let name =  unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
-                            debug!("wapuku: running in pool, load file name={:?}", name);
+                            debug!("wapuku: running in pool, load file name={:?} size={}", name, data.len());
                             model_borrowed.add_frame(**name, Box::new(PolarsData::new(parquet_scan(*data))));
 
                         });
