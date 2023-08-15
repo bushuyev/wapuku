@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
 use log::debug;
 use polars::io::parquet::*;
@@ -9,6 +9,8 @@ use polars::time::Duration;
 
 use crate::data_type::WapukuDataType;
 use crate::model::*;
+use ::zip::*;
+use ::zip::result::*;
 
 impl From<PolarsError> for WapukuError {
     fn from(value: PolarsError) -> Self {
@@ -21,11 +23,18 @@ impl From<PolarsError> for WapukuError {
 pub struct PolarsData {
     df:DataFrame,
     property_sets: Vec<SimplePropertiesSet>,
+    name:String
+}
+
+impl From<ZipError> for WapukuError {
+    fn from(value: ZipError) -> Self {
+        WapukuError::DataLoad{msg: value.to_string()}
+    }
 }
 
 impl PolarsData {
 
-    pub fn new(df:DataFrame) -> Self {//TODO move to add df
+    pub fn new(df:DataFrame, name:String) -> Self {//TODO move to add df
         // parquet_scan();
 
         let properties = df.schema().iter_fields().map(|f| DataProperty::new(WapukuDataType::Numeric, f.name)).collect();
@@ -34,12 +43,36 @@ impl PolarsData {
             property_sets: vec![SimplePropertiesSet::new(
                 properties,
                 "item_1",
-            )], 
+            )],
+            name
         }
     }
 }
 
 impl Data for PolarsData {
+
+
+
+    fn load(data:Box<Vec<u8>>, name: Box<String>) -> Result<Vec<Self>, WapukuError> {
+        if name.ends_with("csv") {
+            load_csv(data).map(|d|vec![PolarsData::new(d, *name)])
+
+        } else if name.ends_with("parquet") {
+            load_parquet(data).map(|d|vec![PolarsData::new(d, *name)])
+
+        } else if name.ends_with("zip") {
+            load_zip(data).map(|d_vec|d_vec.into_iter().map(|(df, entry_name)|PolarsData::new(df, format!("{}/{}", name, entry_name))).collect())
+
+        } else {
+            Err(WapukuError::General{ msg: String::from("I can load only csv or parquet files")})
+        }
+
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
 
     fn all_sets(&self) -> Vec<&dyn PropertiesSet> {
         self.property_sets.iter().fold(vec![], |mut props, p| {
@@ -175,11 +208,14 @@ impl Data for PolarsData {
         let desc = self.df.describe(None).unwrap();
         // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
         debug!("head={:?}", desc.head(None));
-        debug!("get={:?}", desc.get(0));
+        debug!("get={:?} desc.get_columns().len()={}", desc.get(0), desc.get_columns().len());
         // desc.get_columns().iter().map(|c|c.)
 
         Summary::new (desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)|{
-            debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+
+            if i%1000 == 0 {
+                debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+            }
 
             ColumnSummary::new(
                 String::from(c.name()),
@@ -233,18 +269,28 @@ pub fn fake_df() -> DataFrame {
     ).unwrap()
 }
 
-//TODO - doesn't work
-pub fn load_csv(csv_bytes:Box<Vec<u8>>) -> DataFrame {
-    debug!("from_csv: len={}", csv_bytes.len());
-    let buff = Cursor::new(*csv_bytes);
-    CsvReader::new(buff).finish().unwrap()
+pub fn load_zip(data: Box<Vec<u8>>) -> Result<Vec<(DataFrame, String)>, WapukuError> {
+    let mut archive = ZipArchive::new(Cursor::new(data.as_slice()))?;
+    archive.file_names().map(|s| String::from(s)).collect::<Vec<String>>().into_iter().map(|file| {
+        let mut bytes = Vec::new();
+        archive.by_name(file.as_str())?.read_to_end(&mut bytes);
+        if file.ends_with("csv") {
+            load_csv(Box::new(bytes)).map(|df|(df, file))
+        } else if file.ends_with("parquet") {
+            load_parquet(Box::new(bytes)).map(|df|(df, file))
+        } else {
+            Err(WapukuError::DataLoad {msg: format!("Unexepcted file ending {}", file)})
+        }
+    }).collect::<Result<Vec<(DataFrame, String)>, WapukuError>>()
 }
 
-//TODO move to resources?
-pub fn load_parquet(parquet_bytes:Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
-    let buff = Cursor::new(parquet_bytes.as_slice());
 
-    Ok(ParquetReader::new(buff).finish()?)
+pub fn load_csv(csv_bytes:Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
+    CsvReader::new(Cursor::new(csv_bytes.as_slice())).finish().map_err(|e|e.into())
+}
+
+pub fn load_parquet(parquet_bytes:Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
+    ParquetReader::new(Cursor::new(parquet_bytes.as_slice())).finish().map_err(|e|e.into())
 }
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df:&DataFrame, group_by_field: &str,  step: i64, aggregations: E, offset: i64) -> WapukuResult<DataFrame> {
@@ -395,7 +441,7 @@ mod tests {
             "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
             "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
         ).unwrap();
-        let mut data = PolarsData::new(df);
+        let mut data = PolarsData::new(df, String::from("test"));
 
         let summary = data.build_summary();
 
@@ -411,7 +457,7 @@ mod tests {
             "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,    3f32,    1f32,    2f32,   3f32],
             "property_3" => &["A",  "B",  "C",  "D",  "E",  "F",  "G",  "H", "I"]
         ).unwrap();
-        let mut data = PolarsData::new(df);
+        let mut data = PolarsData::new(df, String::from("test"));
 
         let summary = data.build_summary();
 
@@ -724,7 +770,7 @@ mod tests {
 
 
     fn x_property_1_y_property_2_to_3_x_3_data(mut df: DataFrame, min_max_x: (Option<i64>, Option<i64>), min_max_y: (Option<i64>, Option<i64>)) -> GroupsGrid {
-        let mut data = PolarsData::new(df);
+        let mut data = PolarsData::new(df, String::from("test"));
 
 
         let all_properties: HashSet<&dyn Property> = data.all_properties();
@@ -795,7 +841,7 @@ mod tests {
         
         debug!("wapuku: {:?}", df);
         
-        let mut polars_data = PolarsData::new(df);
+        let mut polars_data = PolarsData::new(df, String::from("test"));
 
         let all_sets = polars_data.all_sets();
         
@@ -878,7 +924,7 @@ mod tests {
         ).unwrap();
 
         
-        println!("df={:?}", PolarsData::new(df).build_grid(
+        println!("df={:?}", PolarsData::new(df, String::from("test")).build_grid(
             PropertyRange::new (&DataProperty::new(WapukuDataType::Numeric, "property_1"),  Some(-1), Some(100) ),
             PropertyRange::new (&DataProperty::new(WapukuDataType::Numeric, "property_2"),  Some(-1), Some(100) ),
             3, 3, "property_3"

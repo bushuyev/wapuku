@@ -1,20 +1,23 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+
 use log::{debug, trace};
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::{Data, FrameView, WapukuError};
-use wapuku_model::polars_df::{fake_df, load_csv, load_parquet, PolarsData};
+use wapuku_model::model::Data;
+use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
 
 pub use app::WapukuApp;
+
 use crate::app::{Action, WapukuAppModel};
 
 mod app;
 mod model_views;
+
 
 #[derive(Debug)]
 pub enum DataMsg {
@@ -63,16 +66,19 @@ pub async fn run() {
                             let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
                             let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, load file name={:?} size={}", name, data.len());
-                            let result = load_parquet(*data);
 
-                            match result {
-                                Ok(df)=>{
-                                    model_borrowed.add_frame(**name, Box::new(PolarsData::new(df)));
+
+                            match PolarsData::load(*data, *name.clone()) {
+                                Ok(frames) => {
+                                    for df in frames {
+                                        model_borrowed.add_frame(df.name().clone(), Box::new(df));
+                                    }
                                 }
-                                Err(e)=>{
-                                    to_main_rc_1.send(DataMsg::Err{msg: String::from(e.to_string())}).expect("send");
+                                Err(e) => {
+                                    to_main_rc_1.send(DataMsg::Err { msg: String::from(e.to_string()) }).expect("send");
                                 }
                             }
+
 
                         });
                     }
@@ -109,7 +115,7 @@ pub async fn run() {
 
     timer_closure.forget();
 
-    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+    eframe::WebLogger::init(log::LevelFilter::Warn).ok();
 
     let web_options = eframe::WebOptions::default();
 
@@ -125,3 +131,4 @@ pub async fn run() {
     .await
     .expect("failed to start eframe")});
 }
+

@@ -15,12 +15,13 @@ path = "src/lib.rs"
 [dependencies]
 
 
-polars = {path = "../../polars/crates/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "describe"]} # "fmt" // "dtype-categorical" - for transpose
+polars = {path = "../../polars/crates/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "describe", "dtype-u8", "dtype-u16", "dtype-array", "dtype-i8", "dtype-i16", "dtype-date", "dtype-datetime", "dtype-datetime", "dtype-duration", "dtype-time"]} # "fmt" // "dtype-categorical" - for transpose
 
 smartstring = "1.0.1"
 bytes = "1.4"
 log = "0.4.17"
 cgmath = "0.18"
+zip ={ version = "0.6.6", default-features = false, features = ["deflate", "time"]}
 
 [dev-dependencies]
 polars = {path = "../../polars/crates/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "describe", "fmt"]}

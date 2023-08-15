@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::data_type::WapukuDataType;
-use crate::model::{Data, DataBounds, DataGroup, DataProperty, GroupsGrid, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet};
+use crate::model::{Data, DataBounds, DataGroup, DataProperty, GroupsGrid, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, WapukuError};
 
 #[derive(Debug)]
 pub struct TestData {
@@ -40,7 +40,16 @@ impl  TestData {
 }
 
 impl  Data for TestData {
-    
+
+
+    fn load(data: Box<Vec<u8>>, name: Box<String>) -> Result<Vec<Self>, WapukuError> where Self: Sized {
+        todo!()
+    }
+
+    fn name(&self) -> String {
+        todo!()
+    }
+
     fn all_sets(&self) -> Vec<&dyn PropertiesSet> {
         self.property_sets.iter().fold(vec![], |mut props, p| {
             props.push(p);

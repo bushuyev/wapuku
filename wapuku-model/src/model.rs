@@ -83,7 +83,9 @@ impl Summary {
 
 #[derive(Debug)]
 pub enum WapukuError {
-    DataFrame { msg: String }
+    DataLoad { msg: String },
+    DataFrame { msg: String },
+    General {msg: String}
 }
 
 impl Display for WapukuError {
@@ -285,7 +287,11 @@ impl  GroupsGrid {
     }
 }
 
+
+
 pub trait Data:Debug {
+    fn load(data:Box<Vec<u8>>, name: Box<String>) -> Result<Vec<Self>, WapukuError> where Self: Sized;
+    fn name(&self) -> String;
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
