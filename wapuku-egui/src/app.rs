@@ -3,12 +3,13 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use eframe::*;
-use egui::Color32;
+use eframe::emath::Align2;
 use egui_extras::{Column, TableBuilder};
 use log::debug;
 use rfd;
 use wapuku_model::model::{Data, FrameView};
 use crate::model_views::View;
+use egui::{Align, Color32, emath, epaint, Frame, pos2, Pos2, Rect, Stroke, Ui, vec2, Vec2};
 
 #[derive(Debug)]
 pub enum Action {
@@ -137,6 +138,7 @@ impl eframe::App for WapukuApp {
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
 
+
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -191,7 +193,7 @@ impl eframe::App for WapukuApp {
 
                             model_for_file_callback.borrow_mut().pending_actions.push_back(
                                     Action::LoadFile{
-                                        name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1")))) as u32,
+                                        name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1.parquet")))) as u32,
                                         data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32}
                                 );
 
@@ -203,7 +205,7 @@ impl eframe::App for WapukuApp {
 
                             model_for_file_callback.borrow_mut().pending_actions.push_back(
                                 Action::LoadFile{
-                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2")))) as u32,
+                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2.parquet")))) as u32,
                                     data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32}
                             );
 
@@ -226,10 +228,11 @@ impl eframe::App for WapukuApp {
                 });
             });
             let mut frame_to_close:Option<usize> = None;
+            let mut connections = vec![];
             for (frame_i, frame) in model_borrowed.frames.iter().enumerate() {
                 let mut is_open = true;
 
-                egui::Window::new(frame.name())
+                let frame  = egui::Window::new(frame.name())
                     .default_width(300.)
                     .default_height(300.)
                     .vscroll(true)
@@ -241,11 +244,46 @@ impl eframe::App for WapukuApp {
                         frame.summary().ui(ui)
                     });
 
+
+                connections.push(frame.unwrap().response.rect.min);
+
                 if !is_open {
                     frame_to_close.replace(frame_i);
                 }
 
             }
+
+
+
+
+             egui::Area::new("connections")
+                .anchor(Align2::LEFT_TOP, Vec2::new(0., 0.))
+                // .default_size(Vec2::new(ctx.available_rect().width(), ctx.available_rect().height()))
+                .movable(false)
+                .interactable(false)
+                .show(ctx, |ui| {
+
+                    Frame::canvas(ui.style()).show(ui, |ui| {
+                        // ui.with_layout(egui::Layout::top_down(Align::Min));
+                        ui.ctx().request_repaint();
+
+                        let (_id, rect) = ui.allocate_space(Vec2::new(ui.available_width(), ui.available_height()));
+
+                        let to_screen = emath::RectTransform::from_to(Rect::from_x_y_ranges(0.0..=1.0, -1.0..=1.0), rect);
+
+                        // let connections_in_screen = connections.iter().map(|p| to_screen * *p).collect::<Vec<Pos2>>();
+
+                        // debug!("connections={:?} connections_in_screen={:?}", connections.clone(), connections_in_screen);
+
+
+                        ui.painter().extend(vec![epaint::Shape::line(connections, Stroke::new(2.0, Color32::GREEN))]);
+                        // ui.painter().extend(vec![epaint::Shape::line(vec![Pos2::new(0., 0., ), Pos2::new(100., 100. )], Stroke::new(2.0, Color32::GREEN))]);
+                    });
+            });
+
+
+
+
 
             if frame_to_close.is_some() {
                 model_borrowed.purge_frame(frame_to_close.unwrap());

@@ -1,4 +1,4 @@
-use egui::Ui;
+use egui::{Color32, emath, epaint, Frame, pos2, Rect, Stroke, Ui, vec2};
 use egui_extras::{Column, TableBuilder};
 use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::model::{ColumnSummary, Summary};
@@ -66,6 +66,8 @@ impl View for Summary {
             })
 
         });
+
+
     }
 }
 

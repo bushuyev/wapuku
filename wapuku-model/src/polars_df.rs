@@ -272,8 +272,10 @@ pub fn fake_df() -> DataFrame {
 pub fn load_zip(data: Box<Vec<u8>>) -> Result<Vec<(DataFrame, String)>, WapukuError> {
     let mut archive = ZipArchive::new(Cursor::new(data.as_slice()))?;
     archive.file_names().map(|s| String::from(s)).collect::<Vec<String>>().into_iter().map(|file| {
+
         let mut bytes = Vec::new();
         archive.by_name(file.as_str())?.read_to_end(&mut bytes);
+
         if file.ends_with("csv") {
             load_csv(Box::new(bytes)).map(|df|(df, file))
         } else if file.ends_with("parquet") {

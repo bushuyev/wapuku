@@ -30,7 +30,7 @@ pub async fn run() {
     let window = web_sys::window().unwrap();
 
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
+    console_log::init_with_level(log::Level::Trace).expect("Couldn't initialize logger");
 
 
     let runner_rc = Rc::new(eframe::WebRunner::new());
@@ -115,7 +115,7 @@ pub async fn run() {
 
     timer_closure.forget();
 
-    eframe::WebLogger::init(log::LevelFilter::Warn).ok();
+    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
 
