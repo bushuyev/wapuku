@@ -1,7 +1,11 @@
+use std::fmt::Debug;
 
-#[derive(Clone, Debug)]
+
+
+#[derive(Debug, Clone)]
 pub enum WapukuDataType {
     Numeric,
     String,
     Boolean
 }
+

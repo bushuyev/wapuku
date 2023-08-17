@@ -33,12 +33,32 @@ impl FrameView {
 }
 
 #[derive(Debug)]
+pub enum ColumnSummaryType {
+    Numeric{data:NumericColumnSummary},
+    String{data:StringColumnSummary},
+    Boolean
+}
+
+impl From<ColumnSummaryType> for WapukuDataType {
+    fn from(value: ColumnSummaryType) -> Self {
+        match value {
+            ColumnSummaryType::Numeric { .. } => {
+                WapukuDataType::Numeric
+            }
+            ColumnSummaryType::String { .. } => {
+                WapukuDataType::String
+            }
+            ColumnSummaryType::Boolean => {
+                WapukuDataType::Boolean
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct ColumnSummary {
     name:String,
-    dtype:WapukuDataType,
-    min:String,
-    avg:String,
-    max:String
+    dtype:ColumnSummaryType
 }
 
 impl ColumnSummary {
@@ -46,6 +66,27 @@ impl ColumnSummary {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    pub fn new(name: String, dtype:ColumnSummaryType) -> Self {
+        Self { name, dtype }
+    }
+
+    pub fn dtype(&self) -> &ColumnSummaryType {
+        &self.dtype
+    }
+}
+
+
+#[derive(Debug)]
+pub struct NumericColumnSummary {
+    min:String,
+    avg:String,
+    max:String
+}
+
+impl NumericColumnSummary {
+
+
     pub fn min(&self) -> &str {
         &self.min
     }
@@ -56,15 +97,24 @@ impl ColumnSummary {
         &self.max
     }
 
-    pub fn new(name: String, dtype:WapukuDataType, min: String, avg: String, max: String) -> Self {
-        Self { name, dtype, min, avg, max }
-    }
-
-
-    pub fn dtype(&self) -> &WapukuDataType {
-        &self.dtype
+    pub fn new(min: String, avg: String, max: String) -> Self {
+        Self { min, avg, max }
     }
 }
+
+#[derive(Debug)]
+pub struct  StringColumnSummary {
+    unique_values:String
+}
+
+impl StringColumnSummary {
+    pub fn new(unique_values: String) -> Self {
+        Self { unique_values }
+    }
+}
+
+
+
 #[derive(Debug)]
 pub struct Summary {
     columns:Vec<ColumnSummary>
@@ -75,6 +125,7 @@ impl Summary {
     pub fn columns(&self) -> &Vec<ColumnSummary> {
         &self.columns
     }
+
     pub fn new(columns: Vec<ColumnSummary>) -> Self {
         Self { columns }
     }
@@ -295,9 +346,7 @@ pub trait Data:Debug {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
-    fn build_summary(&self) -> Summary {
-        Summary::new (vec![])
-    }
+    fn build_summary(&self) -> Summary;
 }
 
 #[derive(Debug)]

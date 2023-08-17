@@ -15,7 +15,7 @@ path = "src/lib.rs"
 [dependencies]
 
 
-polars = {path = "../../polars/crates/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "describe", "dtype-u8", "dtype-u16", "dtype-array", "dtype-i8", "dtype-i16", "dtype-date", "dtype-datetime", "dtype-datetime", "dtype-duration", "dtype-time"]} # "fmt" // "dtype-categorical" - for transpose
+polars = {path = "../../polars/crates/polars", default-features = false, features=["nightly", "lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "describe", "dtype-u8", "dtype-u16", "dtype-array", "dtype-i8", "dtype-i16", "dtype-date", "dtype-datetime", "dtype-datetime", "dtype-duration", "dtype-time"]} # "fmt" // "dtype-categorical" - for transpose
 
 smartstring = "1.0.1"
 bytes = "1.4"
