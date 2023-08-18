@@ -205,6 +205,9 @@ impl Data for PolarsData {
 
     fn build_summary(&self) -> Summary {
 
+        //TODO
+        // self.df.get_columns().len() < 20
+
         let desc = self.df.describe(None).unwrap();
         // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
         debug!("head={:?}", desc.head(None));
@@ -232,9 +235,22 @@ impl Data for PolarsData {
                 }
 
                 WapukuDataType::String => {
+
+                    let unique_values = self.df.column(c.name())
+                        .and_then(|v|v.unique())
+                        .map(|u|
+                            u.rechunk().iter()
+                            .take(3)
+                            .map(|v|ToString::to_string(&v))
+                            .collect()
+                        ).unwrap_or(String::from("N/A"));
+
+
+                    debug!("unique_values={:?}", unique_values);
+
                     ColumnSummary::new(
                         String::from(c.name()),
-                        ColumnSummaryType::String { data:StringColumnSummary::new(String::from("lalala"))},
+                        ColumnSummaryType::String { data:StringColumnSummary::new(unique_values)},
                     )
                 }
 
@@ -449,7 +465,7 @@ mod tests {
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType};
-    use crate::model::{Data, DataGroup, DataProperty, GroupsGrid, NumericColumnSummary, Property, PropertyRange};
+    use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, NumericColumnSummary, Property, PropertyRange, Summary};
     use crate::polars_df::{group_by_2, PolarsData};
 
     #[ctor::ctor]
@@ -471,9 +487,25 @@ mod tests {
 
         let summary = data.build_summary();
 
+        check_numeric_column(&summary, 0, "1.0");
+        check_numeric_column(&summary, 1, "10.0");
+        check_numeric_column(&summary, 2, "11.0");
         // assert_eq!(summary.numeric_columns(0).unwrap().min(), "1.0");
         // assert_eq!(summary.numeric_columns(1).unwrap().min(), "10.0");
         // assert_eq!(summary.numeric_columns(2).unwrap().min(), "11.0");
+    }
+
+
+    #[test]
+    fn test_real(){
+        let vec = PolarsData::load(
+            Box::new(include_bytes!("/home/bu/dvl/rust/polars-rayon-wasm/wapuku/wapuku-egui/www/data/userdata1.parquet").to_vec()),
+            Box::new(String::from("some.parquet"))
+        ).unwrap();
+        let df = vec.get(0).unwrap();
+
+        let s = df.build_summary();
+        println!("s={:?}", s);
     }
 
     #[test]
@@ -487,18 +519,28 @@ mod tests {
 
         let summary = data.build_summary();
 
-        for c in summary.columns() {
-            println!("type=1={:?}",  TypeId::of::<u8>() == c.type_id());
-            println!("type=1={:?}",  TypeId::of::<f32>() == c.type_id());
-            println!("type=1={:?}",  TypeId::of::<String>() == c.type_id());
-        }
+        // for c in summary.columns() {
+        //     println!("type=1={:?}",  TypeId::of::<u8>() == c.type_id());
+        //     println!("type=1={:?}",  TypeId::of::<f32>() == c.type_id());
+        //     println!("type=1={:?}",  TypeId::of::<String>() == c.type_id());
+        // }
+
+        check_numeric_column(&summary, 0, "1.0");
+        // check_numeric_column(&summary, 1, "1.0");
 
 
 
 
-        // assert_eq!(summary.columns()[0].min(), "1.0");
         // assert_eq!(summary.columns()[1].min(), "10.0");
         // assert_eq!(summary.columns()[2].min(), "11.0");
+    }
+
+    fn check_numeric_column(summary: &Summary, i: usize, value: &str) {
+        if let ColumnSummaryType::Numeric { data } = summary.columns()[i].dtype() {
+            assert_eq!(data.min(), value);
+        } else {
+            panic!("column {} is not numeric", i)
+        }
     }
 
     #[test]

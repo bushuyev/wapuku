@@ -1,7 +1,8 @@
-use egui::{Color32, emath, epaint, Frame, pos2, Rect, Stroke, Ui, vec2};
+use egui::Ui;
 use egui_extras::{Column, TableBuilder};
-use wapuku_model::data_type::WapukuDataType;
-use wapuku_model::model::{ColumnSummary, ColumnSummaryType, Summary};
+use log::debug;
+use wapuku_model::model::{ColumnSummaryType, Summary};
+use web_sys::console::debug;
 
 pub trait View {
     fn ui(&self, ui: &mut egui::Ui);
@@ -57,8 +58,10 @@ impl View for Summary {
                         });
                     }
                     ColumnSummaryType::String {data}=> {
+                        let unique_values = data.unique_values();
+                        debug!("wapuku: unique_values={:?}", unique_values);
                         row.col(|ui| {
-                            ui.label(String::from("lalalal"));
+                            ui.label(unique_values);
                         });
                     }
                     ColumnSummaryType::Boolean => {}

@@ -111,6 +111,11 @@ impl StringColumnSummary {
     pub fn new(unique_values: String) -> Self {
         Self { unique_values }
     }
+
+
+    pub fn unique_values(&self) -> &str {
+        &self.unique_values
+    }
 }
 
 
@@ -247,8 +252,6 @@ pub trait DataGroup: Debug {
     fn property_groups(&self) -> Vec<&PropertyInGroup>;
     fn bounds(&self)->&DataBounds;
 }
-
-
 
 pub struct SimpleDataGroup {
     volume: usize,
