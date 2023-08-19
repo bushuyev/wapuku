@@ -16,25 +16,21 @@ impl View for Summary {
             .striped(true)
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT))
-            .column(Column::auto())
-            .column(Column::initial(100.0).range(40.0..=300.0))
-            .column(Column::initial(100.0).at_least(40.0).clip(true))
-            .column(Column::remainder())
-            ;
+            .column(Column::auto().at_least(40.0).resizable(true).clip(true))
+            .column(Column::auto().at_least(40.0).resizable(true).clip(true))
+            .column(Column::remainder());
 
         table.header(20.0, |mut header| {
             header.col(|ui| {
                 ui.strong("Column");
             });
             header.col(|ui| {
-                ui.strong("min");
+                ui.strong("Data");
             });
             header.col(|ui| {
-                ui.strong("max");
+                ui.strong("Actions");
             });
-            header.col(|ui| {
-                ui.strong("avg");
-            });
+
         }).body(|mut body| {
 
 
@@ -47,27 +43,31 @@ impl View for Summary {
 
                 match column_summary.dtype() {
                     ColumnSummaryType::Numeric { data} => {
-                        row.col(|ui| {
-                            ui.label(data.min().to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(data.avg().to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(data.max().to_string());
-                        });
-                    }
-                    ColumnSummaryType::String {data}=> {
-                        let unique_values = data.unique_values();
-                        debug!("wapuku: unique_values={:?}", unique_values);
-                        row.col(|ui| {
 
+                        row.col(|ui| {
                             ui.horizontal(|ui|{
                                 ui.horizontal_wrapped(|ui| {
                                     ui.add(
                                         egui::Label::new(
-                                            unique_values,
+                                            format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max())
                                         ).wrap(true)
+                                    );
+
+                                });
+                                ui.button(">")
+                            });
+                            ;
+                        });
+
+                    }
+                    ColumnSummaryType::String {data}=> {
+                        row.col(|ui| {
+                            ui.horizontal(|ui|{
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.add(
+                                        egui::Label::new(
+                                            data.unique_values(),
+                                        )
                                     );
 
                                 });

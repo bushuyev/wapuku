@@ -18,6 +18,7 @@ impl From<PolarsError> for WapukuError {
     }
 }
 
+const NA:&str = "n/a";
 
 #[derive(Debug)]
 pub struct PolarsData {
@@ -224,12 +225,13 @@ impl Data for PolarsData {
             match data_type {
 
                 WapukuDataType::Numeric { .. } => {
+                    // let min = desc.get(4).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(String::from("n/a"));
                     ColumnSummary::new(
                         String::from(c.name()),
                         ColumnSummaryType::Numeric{data:NumericColumnSummary::new(
-                            desc.get(4).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
-                            desc.get(2).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
-                            desc.get(8).and_then(|row|row.get(i).map(|v|format!("{}", v))).unwrap_or(String::from("n/a")),
+                            desc.get(4).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(NA.into()),
+                            desc.get(2).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(NA.into()),
+                            desc.get(8).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(NA.into()),
                         )}
                     )
                 }
@@ -245,7 +247,7 @@ impl Data for PolarsData {
                                 ToString::to_string(&v)
                             })
                             .collect::<Vec<String>>().join(", ")
-                        ).unwrap_or(String::from("N/A"));
+                        ).unwrap_or(NA.into());
 
 
                     debug!("unique_values={:?}", unique_values);
