@@ -32,7 +32,6 @@ impl ModelCtx {
     pub fn queue_action(&mut self, action: Action) {
         self.pending_actions.push_back(action)
     }
-
 }
 
 pub struct WapukuAppModel {
@@ -65,6 +64,8 @@ impl WapukuAppModel {
     }
 
     pub fn add_frame(&mut self, name: String, data: Box<dyn Data>) {
+        debug!("wapuku: add_frame name={:?}", name);
+
         self.frames.push(FrameView::new(
             name,
             data,
@@ -93,9 +94,9 @@ impl WapukuAppModel {
         self.ctx.pending_actions.push_back(action)
     }
 
-    pub fn on_each_fram<F>(&mut self, f:F) where F:Fn(&mut ModelCtx, &FrameView)  {
-        self.frames.iter().for_each(|frame|{
-            (f)(&mut self.ctx, frame);
+    pub fn on_each_fram<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
+        self.frames.iter().enumerate().for_each(|(i, frame)| {
+            (f)(&mut self.ctx, i, frame);
         })
     }
 }
@@ -206,89 +207,78 @@ impl eframe::App for WapukuApp {
                     wasm_bindgen_futures::spawn_local(async move {
                         // debug!("wapuku: sample1 size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
 
-                        model_for_file_callback.borrow_mut().queue_action(
-                            Action::LoadFile {
-                                name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1.parquet")))) as u32,
-                                data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32,
-                            }
-                        );
+                        if let Ok(mut model_borrowed_mut) = model_for_file_callback.try_borrow_mut() {
+                            model_borrowed_mut.queue_action(
+                                Action::LoadFile {
+                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1.parquet")))) as u32,
+                                    data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32,
+                                });
+                        }
                     });
                 }
                 if ui.button("Sample 2").clicked() {
                     let model_for_file_callback = Rc::clone(&self.model);
                     wasm_bindgen_futures::spawn_local(async move {
-                        model_for_file_callback.borrow_mut().queue_action(
-                            Action::LoadFile {
-                                name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2.parquet")))) as u32,
-                                data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32,
-                            }
-                        );
+                        if let Ok(mut model_borrowed_mut) = model_for_file_callback.try_borrow_mut() {
+                            model_borrowed_mut.queue_action(
+                                Action::LoadFile {
+                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2.parquet")))) as u32,
+                                    data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32,
+                                }
+                            );
+                        }
                     });
                 }
                 ui.separator();
-                let model = self.model.borrow();
-                let messages = model.messages();
-                for message in messages {
-                    let mut style: egui::Style = (*ctx.style()).clone();
-                    style.visuals.override_text_color = Some(Color32::RED);
-                    ui.set_style(style);
-                    ui.label(message.clone());
-                }
-                if !messages.is_empty() {
-                    if ui.button("Clear messages").clicked() {
-                        self.model.borrow_mut().clear_messages();
+                if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
+                    let messages = model_borrowed_mut.messages();
+                    for message in messages {
+                        let mut style: egui::Style = (*ctx.style()).clone();
+                        style.visuals.override_text_color = Some(Color32::RED);
+                        ui.set_style(style);
+                        ui.label(message.clone());
+                    }
+                    if !messages.is_empty() {
+                        if ui.button("Clear messages").clicked() {
+                            model_borrowed_mut.clear_messages();
+                        }
                     }
                 }
             });
         });
-        let mut frame_to_close: Option<usize> = None;
+
         let mut connections = vec![];
-        // let frames = &self.model.borrow().frames;
-        // for (frame_i, frame) in frames.iter().enumerate() {
-        //     let mut is_open = true;
-        //
-        //     let frame = egui::Window::new(frame.name())
-        //         .default_width(300.)
-        //         .default_height(300.)
-        //         .vscroll(true)
-        //         .resizable(true)
-        //         .collapsible(true)
-        //         .default_pos([0., 0.])
-        //         .open(&mut is_open)
-        //         .show(ctx, |ui| {
-        //             frame.summary().ui(ui, Rc::clone(&self.model))
-        //         });
-        //
-        //
-        //     connections.push(frame.unwrap().response.rect.min);
-        //
-        //     if !is_open {
-        //         frame_to_close.replace(frame_i);
-        //     }
-        // }
 
-        self.model.borrow_mut().on_each_fram(|actions, frame_view|{
-            let mut is_open = true;
+        if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
+            let mut frame_to_close: Option<usize> = None;
 
-            let frame = egui::Window::new(frame_view.name())
-                .default_width(300.)
-                .default_height(300.)
-                .vscroll(true)
-                .resizable(true)
-                .collapsible(true)
-                .default_pos([0., 0.])
-                .open(&mut is_open)
-                .show(ctx, |ui| {
-                    frame_view.summary().ui(ui, actions)
-                });
+            model_borrowed_mut.on_each_fram( |actions, i, frame_view| {
+                let mut is_open = true;
+
+                let frame = egui::Window::new(frame_view.name())
+                    .default_width(300.)
+                    .default_height(300.)
+                    .vscroll(true)
+                    .resizable(true)
+                    .collapsible(true)
+                    .default_pos([0., 0.])
+                    .open(&mut is_open)
+                    .show(ctx, |ui| {
+                        frame_view.summary().ui(ui, actions)
+                    });
 
 
-            // connections.push(frame.unwrap().response.rect.min);
+                connections.push(frame.unwrap().response.rect.min);
 
-            // if !is_open {
-            //     frame_to_close.replace(frame_i);
-            // }
-        });
+                if !is_open {
+                    frame_to_close.replace(i);
+                }
+            });
+
+            if frame_to_close.is_some() {
+                model_borrowed_mut.purge_frame(frame_to_close.unwrap());
+            }
+        }
 
         egui::Area::new("connections")
             .anchor(Align2::LEFT_TOP, Vec2::new(0., 0.))
@@ -315,8 +305,6 @@ impl eframe::App for WapukuApp {
             });
 
 
-        if frame_to_close.is_some() {
-            self.model.borrow_mut().purge_frame(frame_to_close.unwrap());
-        }
+
     }
 }

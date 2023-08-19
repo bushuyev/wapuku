@@ -91,7 +91,6 @@ impl PoolWorker {
         msg.push(&JsValue::from("run_in_pool"));
         msg.push(&worker_param_ptr);
 
-
         self.workder_rc.post_message(&msg).expect("failed to post");
     }
 }

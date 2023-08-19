@@ -62,12 +62,11 @@ impl View for Summary {
 }
 
 fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, name: &str) {
+
     row.col(|ui| {
         ui.horizontal_centered(|ui| {
 
-            ui.add(
-                egui::Label::new(label).wrap(true)
-            );
+            ui.add(egui::Label::new(label).wrap(true));
 
             if ui.button(">").clicked() {
                 ctx.queue_action(Action::ListUnique{
