@@ -82,9 +82,10 @@ pub async fn run() {
 
                         });
                     }
-                    Action::Summary => {
+                    Action::ListUnique { name_ptr} => {
                         pool_worker.run_in_pool( || {
-                            debug!("wapuku: running in pool");
+                            let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
+                            debug!("wapuku: running in pool, ::ListUnique name={}", name);
                             // model_borrowed.update_summary();
 
                             // to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");

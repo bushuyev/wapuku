@@ -1,15 +1,16 @@
-use egui::Ui;
-use egui_extras::{Column, TableBuilder};
-use log::debug;
+use std::cell::{RefCell, RefMut};
+use std::rc::Rc;
+use egui::{Ui, WidgetText};
+use egui_extras::{Column, TableBuilder, TableRow};
 use wapuku_model::model::{ColumnSummaryType, Summary};
-use web_sys::console::debug;
+use crate::app::{Action, ModelCtx, WapukuAppModel};
 
 pub trait View {
-    fn ui(&self, ui: &mut egui::Ui);
+    fn ui(&self, ui: &mut egui::Ui, ctx: &mut ModelCtx);
 }
 
 impl View for Summary {
-    fn ui(&self, ui: &mut Ui) {
+    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx){
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
         let mut table = TableBuilder::new(ui)
@@ -43,45 +44,37 @@ impl View for Summary {
 
                 match column_summary.dtype() {
                     ColumnSummaryType::Numeric { data} => {
-
-                        row.col(|ui| {
-                            ui.horizontal(|ui|{
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.add(
-                                        egui::Label::new(
-                                            format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max())
-                                        ).wrap(true)
-                                    );
-
-                                });
-                                ui.button(">")
-                            });
-                            ;
-                        });
+                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), ctx, column_summary.name());
 
                     }
                     ColumnSummaryType::String {data}=> {
-                        row.col(|ui| {
-                            ui.horizontal(|ui|{
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.add(
-                                        egui::Label::new(
-                                            data.unique_values(),
-                                        )
-                                    );
-
-                                });
-                                ui.button(">")
-                            });
-                           ;
-                        });
+                        label_cell(&mut row, data.unique_values(), ctx, column_summary.name());
                     }
-                    ColumnSummaryType::Boolean => {}
+                    ColumnSummaryType::Boolean => {
+
+                    }
                 }
             })
 
         });
 
-
     }
+}
+
+fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, name: &str) {
+    row.col(|ui| {
+        ui.horizontal_centered(|ui| {
+
+            ui.add(
+                egui::Label::new(label).wrap(true)
+            );
+
+            if ui.button(">").clicked() {
+                ctx.queue_action(Action::ListUnique{
+                    name_ptr: Box::into_raw(Box::new(Box::new(String::from(name)))) as u32,
+                });
+
+            }
+        });
+    });
 }

@@ -13,30 +13,46 @@ use egui::{Align, Color32, emath, epaint, Frame, pos2, Pos2, Rect, Stroke, Ui, v
 
 #[derive(Debug)]
 pub enum Action {
-    LoadFile{name_ptr: u32, data_ptr:u32},
-    Summary
+    LoadFile { name_ptr: u32, data_ptr: u32 },
+    ListUnique { name_ptr: u32 },
 }
 
 
+pub struct ModelCtx {
+    pending_actions: VecDeque<Action>,
+}
+
+impl ModelCtx {
+    pub fn new() -> Self {
+        Self {
+            pending_actions: VecDeque::new()
+        }
+    }
+
+    pub fn queue_action(&mut self, action: Action) {
+        self.pending_actions.push_back(action)
+    }
+
+}
 
 pub struct WapukuAppModel {
-    data_name:String,
-    frames:Vec<FrameView>,
-    pending_actions:VecDeque<Action>,
-    messages:Vec<String>
+    data_name: String,
+    frames: Vec<FrameView>,
+    ctx: ModelCtx,
+    messages: Vec<String>,
 }
 
 impl WapukuAppModel {
     pub fn new() -> Self {
         Self {
-            data_name:  String::from("nope"),
-            pending_actions: VecDeque::new(),
+            data_name: String::from("nope"),
+            ctx: ModelCtx::new(),
             frames: vec![],
-            messages: vec![]
+            messages: vec![],
         }
     }
 
-    pub fn set_data_name<P>(&mut self, label: P) where P:Into<String> {
+    pub fn set_data_name<P>(&mut self, label: P) where P: Into<String> {
         self.data_name = label.into();
     }
 
@@ -45,22 +61,22 @@ impl WapukuAppModel {
     }
 
     pub fn get_next_action(&mut self) -> Option<Action> {
-        self.pending_actions.pop_front()
+        self.ctx.pending_actions.pop_front()
     }
 
-    pub fn add_frame(&mut self, name:String, data:Box<dyn Data>) {
+    pub fn add_frame(&mut self, name: String, data: Box<dyn Data>) {
         self.frames.push(FrameView::new(
             name,
-            data
+            data,
         ));
     }
 
-    pub fn purge_frame(&mut self, frame_id:usize) {
+    pub fn purge_frame(&mut self, frame_id: usize) {
         debug!("wapuku: purge_frame frame_id={:?}", frame_id);
         self.frames.remove(frame_id);
     }
 
-    pub fn set_error(&mut self, msg:String){
+    pub fn set_error(&mut self, msg: String) {
         self.messages.push(msg);
     }
 
@@ -72,13 +88,23 @@ impl WapukuAppModel {
     pub fn messages(&self) -> &Vec<String> {
         &self.messages
     }
+
+    pub fn queue_action(&mut self, action: Action) {
+        self.ctx.pending_actions.push_back(action)
+    }
+
+    pub fn on_each_fram<F>(&mut self, f:F) where F:Fn(&mut ModelCtx, &FrameView)  {
+        self.frames.iter().for_each(|frame|{
+            (f)(&mut self.ctx, frame);
+        })
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct WapukuApp {
     #[serde(skip)]
-    model:Rc<RefCell<Box<WapukuAppModel>>>,
+    model: Rc<RefCell<Box<WapukuAppModel>>>,
 
     #[serde(skip)]
     value: f32,
@@ -91,11 +117,7 @@ impl WapukuApp {
         ui.separator();
 
 
-
-
         ui.separator();
-
-
     }
 }
 
@@ -127,7 +149,6 @@ impl WapukuApp {
             model,
             value: 2.7,
         }
-
     }
 }
 
@@ -137,8 +158,6 @@ impl eframe::App for WapukuApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-
-
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -151,143 +170,153 @@ impl eframe::App for WapukuApp {
             });
         });
 
-        if let Ok(mut model_borrowed) = self.model.try_borrow_mut() {
-            egui::TopBottomPanel::top("wrap_app_top_bar").show(ctx, |ui| {
-                egui::trace!(ui);
-                ui.horizontal_wrapped(|ui| {
-                    ui.visuals_mut().button_frame = false;
 
-                    if ui.button("Load").clicked() {
-                        // model_borrowed.pending_actions.push_back(Action::LoadFile)
+        egui::TopBottomPanel::top("wrap_app_top_bar").show(ctx, |ui| {
+            egui::trace!(ui);
+            ui.horizontal_wrapped(|ui| {
+                ui.visuals_mut().button_frame = false;
 
+                if ui.button("Load").clicked() {
+                    let task = rfd::AsyncFileDialog::new()
+                        .add_filter("CSV, parquet files", &["csv", "parquet", "zip"])
+                        .pick_file();
 
-                        let task = rfd::AsyncFileDialog::new()
-                            // .add_filter("CSV files", &["csv"])
-                            // .set_directory("/home/bu/dvl/rust/polars-rayon-wasm/wapuku/wapuku-egui/www/data")
-                            .pick_file();
+                    let model_for_file_callback = Rc::clone(&self.model);
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let file_op = task.await;
+                        if let Some(file) = file_op {
+                            debug!("file=>{:?}<", file.file_name());
 
-                        let model_for_file_callback = Rc::clone(&self.model);
-                        wasm_bindgen_futures::spawn_local(async move {
-                            let file_op = task.await;
-                            if let Some(file) = file_op{
-                                debug!("file=>{:?}<", file.file_name());
+                            // debug!("wapuku: load size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
 
-                                // debug!("wapuku: load size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
-
-                                model_for_file_callback.borrow_mut().pending_actions.push_back(
-                                    Action::LoadFile{
-                                        name_ptr: Box::into_raw(Box::new(Box::new(file.file_name()))) as u32,
-                                        data_ptr: Box::into_raw(Box::new(Box::new(file.read().await))) as u32}
-                                );
-                            }
-
-                        });
-                    }
-
-                    ui.separator();
-                    ui.label("Load sample:");
-                    if ui.button("Sample 1").clicked() {
-                        let model_for_file_callback = Rc::clone(&self.model);
-                        wasm_bindgen_futures::spawn_local(async move {
-                            // debug!("wapuku: sample1 size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
-
-                            model_for_file_callback.borrow_mut().pending_actions.push_back(
-                                    Action::LoadFile{
-                                        name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1.parquet")))) as u32,
-                                        data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32}
-                                );
-
-                        });
-                    }
-                    if ui.button("Sample 2").clicked() {
-                        let model_for_file_callback = Rc::clone(&self.model);
-                        wasm_bindgen_futures::spawn_local(async move {
-
-                            model_for_file_callback.borrow_mut().pending_actions.push_back(
-                                Action::LoadFile{
-                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2.parquet")))) as u32,
-                                    data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32}
+                            model_for_file_callback.borrow_mut().queue_action(
+                                Action::LoadFile {
+                                    name_ptr: Box::into_raw(Box::new(Box::new(file.file_name()))) as u32,
+                                    data_ptr: Box::into_raw(Box::new(Box::new(file.read().await))) as u32,
+                                }
                             );
-
-                        });
-                    }
-                    ui.separator();
-                    let messages = model_borrowed.messages();
-                    for message in messages {
-
-                        let mut style: egui::Style = (*ctx.style()).clone();
-                        style.visuals.override_text_color = Some(Color32::RED);
-                        ui.set_style(style);
-                        ui.label(message.clone());
-                    }
-                    if !messages.is_empty() {
-                        if ui.button("Clear messages").clicked() {
-                            model_borrowed.clear_messages();
                         }
-                    }
-                });
-            });
-            let mut frame_to_close:Option<usize> = None;
-            let mut connections = vec![];
-            for (frame_i, frame) in model_borrowed.frames.iter().enumerate() {
-                let mut is_open = true;
-
-                let frame  = egui::Window::new(frame.name())
-                    .default_width(300.)
-                    .default_height(300.)
-                    .vscroll(true)
-                    .resizable(true)
-                    .collapsible(true)
-                    .default_pos([0., 0.])
-                    .open(&mut is_open)
-                    .show(ctx, |ui| {
-                        frame.summary().ui(ui)
                     });
-
-
-                connections.push(frame.unwrap().response.rect.min);
-
-                if !is_open {
-                    frame_to_close.replace(frame_i);
                 }
 
-            }
+                ui.separator();
+                ui.label("Load sample:");
+                if ui.button("Sample 1").clicked() {
+                    let model_for_file_callback = Rc::clone(&self.model);
+                    wasm_bindgen_futures::spawn_local(async move {
+                        // debug!("wapuku: sample1 size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
 
-
-
-
-             egui::Area::new("connections")
-                .anchor(Align2::LEFT_TOP, Vec2::new(0., 0.))
-                // .default_size(Vec2::new(ctx.available_rect().width(), ctx.available_rect().height()))
-                .movable(false)
-                .interactable(false)
-                .show(ctx, |ui| {
-
-                    Frame::canvas(ui.style()).show(ui, |ui| {
-                        // ui.with_layout(egui::Layout::top_down(Align::Min));
-                        ui.ctx().request_repaint();
-
-                        let (_id, rect) = ui.allocate_space(Vec2::new(ui.available_width(), ui.available_height()));
-
-                        let to_screen = emath::RectTransform::from_to(Rect::from_x_y_ranges(0.0..=1.0, -1.0..=1.0), rect);
-
-                        // let connections_in_screen = connections.iter().map(|p| to_screen * *p).collect::<Vec<Pos2>>();
-
-                        // debug!("connections={:?} connections_in_screen={:?}", connections.clone(), connections_in_screen);
-
-
-                        ui.painter().extend(vec![epaint::Shape::line(connections, Stroke::new(2.0, Color32::GREEN))]);
-                        // ui.painter().extend(vec![epaint::Shape::line(vec![Pos2::new(0., 0., ), Pos2::new(100., 100. )], Stroke::new(2.0, Color32::GREEN))]);
+                        model_for_file_callback.borrow_mut().queue_action(
+                            Action::LoadFile {
+                                name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1.parquet")))) as u32,
+                                data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32,
+                            }
+                        );
                     });
+                }
+                if ui.button("Sample 2").clicked() {
+                    let model_for_file_callback = Rc::clone(&self.model);
+                    wasm_bindgen_futures::spawn_local(async move {
+                        model_for_file_callback.borrow_mut().queue_action(
+                            Action::LoadFile {
+                                name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2.parquet")))) as u32,
+                                data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32,
+                            }
+                        );
+                    });
+                }
+                ui.separator();
+                let model = self.model.borrow();
+                let messages = model.messages();
+                for message in messages {
+                    let mut style: egui::Style = (*ctx.style()).clone();
+                    style.visuals.override_text_color = Some(Color32::RED);
+                    ui.set_style(style);
+                    ui.label(message.clone());
+                }
+                if !messages.is_empty() {
+                    if ui.button("Clear messages").clicked() {
+                        self.model.borrow_mut().clear_messages();
+                    }
+                }
+            });
+        });
+        let mut frame_to_close: Option<usize> = None;
+        let mut connections = vec![];
+        // let frames = &self.model.borrow().frames;
+        // for (frame_i, frame) in frames.iter().enumerate() {
+        //     let mut is_open = true;
+        //
+        //     let frame = egui::Window::new(frame.name())
+        //         .default_width(300.)
+        //         .default_height(300.)
+        //         .vscroll(true)
+        //         .resizable(true)
+        //         .collapsible(true)
+        //         .default_pos([0., 0.])
+        //         .open(&mut is_open)
+        //         .show(ctx, |ui| {
+        //             frame.summary().ui(ui, Rc::clone(&self.model))
+        //         });
+        //
+        //
+        //     connections.push(frame.unwrap().response.rect.min);
+        //
+        //     if !is_open {
+        //         frame_to_close.replace(frame_i);
+        //     }
+        // }
+
+        self.model.borrow_mut().on_each_fram(|actions, frame_view|{
+            let mut is_open = true;
+
+            let frame = egui::Window::new(frame_view.name())
+                .default_width(300.)
+                .default_height(300.)
+                .vscroll(true)
+                .resizable(true)
+                .collapsible(true)
+                .default_pos([0., 0.])
+                .open(&mut is_open)
+                .show(ctx, |ui| {
+                    frame_view.summary().ui(ui, actions)
+                });
+
+
+            // connections.push(frame.unwrap().response.rect.min);
+
+            // if !is_open {
+            //     frame_to_close.replace(frame_i);
+            // }
+        });
+
+        egui::Area::new("connections")
+            .anchor(Align2::LEFT_TOP, Vec2::new(0., 0.))
+            // .default_size(Vec2::new(ctx.available_rect().width(), ctx.available_rect().height()))
+            .movable(false)
+            .interactable(false)
+            .show(ctx, |ui| {
+                Frame::canvas(ui.style()).show(ui, |ui| {
+                    // ui.with_layout(egui::Layout::top_down(Align::Min));
+                    ui.ctx().request_repaint();
+
+                    let (_id, rect) = ui.allocate_space(Vec2::new(ui.available_width(), ui.available_height()));
+
+                    let to_screen = emath::RectTransform::from_to(Rect::from_x_y_ranges(0.0..=1.0, -1.0..=1.0), rect);
+
+                    // let connections_in_screen = connections.iter().map(|p| to_screen * *p).collect::<Vec<Pos2>>();
+
+                    // debug!("connections={:?} connections_in_screen={:?}", connections.clone(), connections_in_screen);
+
+
+                    ui.painter().extend(vec![epaint::Shape::line(connections, Stroke::new(2.0, Color32::GREEN))]);
+                    // ui.painter().extend(vec![epaint::Shape::line(vec![Pos2::new(0., 0., ), Pos2::new(100., 100. )], Stroke::new(2.0, Color32::GREEN))]);
+                });
             });
 
 
-
-
-
-            if frame_to_close.is_some() {
-                model_borrowed.purge_frame(frame_to_close.unwrap());
-            }
+        if frame_to_close.is_some() {
+            self.model.borrow_mut().purge_frame(frame_to_close.unwrap());
         }
     }
 }
