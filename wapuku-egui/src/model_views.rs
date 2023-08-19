@@ -15,12 +15,12 @@ impl View for Summary {
         let mut table = TableBuilder::new(ui)
             .striped(true)
             .resizable(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT))
             .column(Column::auto())
             .column(Column::initial(100.0).range(40.0..=300.0))
             .column(Column::initial(100.0).at_least(40.0).clip(true))
             .column(Column::remainder())
-            .min_scrolled_height(0.0);
+            ;
 
         table.header(20.0, |mut header| {
             header.col(|ui| {
@@ -38,7 +38,7 @@ impl View for Summary {
         }).body(|mut body| {
 
 
-            body.rows(text_height, self.columns().len(), |row_index, mut row| {
+            body.rows(2. * text_height, self.columns().len(), |row_index, mut row| {
                 let column_summary = &self.columns()[row_index];
 
                 row.col(|ui| {
@@ -61,7 +61,19 @@ impl View for Summary {
                         let unique_values = data.unique_values();
                         debug!("wapuku: unique_values={:?}", unique_values);
                         row.col(|ui| {
-                            ui.label(unique_values);
+
+                            ui.horizontal(|ui|{
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.add(
+                                        egui::Label::new(
+                                            unique_values,
+                                        ).wrap(true)
+                                    );
+
+                                });
+                                ui.button(">")
+                            });
+                           ;
                         });
                     }
                     ColumnSummaryType::Boolean => {}

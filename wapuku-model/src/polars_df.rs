@@ -241,8 +241,10 @@ impl Data for PolarsData {
                         .map(|u|
                             u.rechunk().iter()
                             .take(3)
-                            .map(|v|ToString::to_string(&v))
-                            .collect()
+                            .map(|v|{
+                                ToString::to_string(&v)
+                            })
+                            .collect::<Vec<String>>().join(", ")
                         ).unwrap_or(String::from("N/A"));
 
 
@@ -493,19 +495,6 @@ mod tests {
         // assert_eq!(summary.numeric_columns(0).unwrap().min(), "1.0");
         // assert_eq!(summary.numeric_columns(1).unwrap().min(), "10.0");
         // assert_eq!(summary.numeric_columns(2).unwrap().min(), "11.0");
-    }
-
-
-    #[test]
-    fn test_real(){
-        let vec = PolarsData::load(
-            Box::new(include_bytes!("/home/bu/dvl/rust/polars-rayon-wasm/wapuku/wapuku-egui/www/data/userdata1.parquet").to_vec()),
-            Box::new(String::from("some.parquet"))
-        ).unwrap();
-        let df = vec.get(0).unwrap();
-
-        let s = df.build_summary();
-        println!("s={:?}", s);
     }
 
     #[test]
