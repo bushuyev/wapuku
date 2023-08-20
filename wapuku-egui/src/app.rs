@@ -10,9 +10,8 @@ use log::debug;
 use rfd;
 use wapuku_model::model::{Data, FrameView};
 use crate::model_views::View;
-use egui::{Align, Color32, emath, epaint, Frame, Layout, pos2, Pos2, Rect, Stroke, Ui, vec2, Vec2};
-
-
+use egui::{Align, Color32, emath, epaint, Frame, Id, Layout, pos2, Pos2, Rect, Stroke, Ui, vec2, Vec2};
+use futures::SinkExt;
 
 
 #[derive(Debug)]
@@ -76,6 +75,8 @@ impl WapukuAppModel {
             name,
             data,
         ));
+
+        // self.frames.flush();
     }
 
     pub fn purge_frame(&mut self, frame_id: usize) {
@@ -102,6 +103,8 @@ impl WapukuAppModel {
     }
 
     pub fn on_each_fram<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
+        debug!("wapuku:on_each_fram: self.frames={:?}", self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+
         self.frames.iter().enumerate().for_each(|(i, frame)| {
             (f)(&mut self.ctx, i, frame);
         })
@@ -147,19 +150,9 @@ impl Default for WapukuApp {
 }
 
 impl WapukuApp {
-    /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Box<WapukuAppModel>>>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        // if let Some(storage) = cc.storage {
-        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        // }
 
         Self {
-            // Example stuff:
             model
         }
     }

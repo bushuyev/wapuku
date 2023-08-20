@@ -2,7 +2,7 @@ use std::alloc::System;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use log::{debug, log, trace};
 pub use wapuku_common_web::get_pool;
@@ -29,7 +29,7 @@ pub enum DataMsg {
     Err { msg:String}
 }
 
-static MODEL_LOCK:Mutex<usize> = Mutex::new(0);
+
 
 
 
@@ -100,6 +100,9 @@ pub async fn run() {
     let mut wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
     let mut wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
 
+    let MODEL_LOCK:Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let model_lock = Arc::clone(&MODEL_LOCK);
+
     let timer_closure = Closure::wrap(Box::new(move || {
 
 
@@ -120,7 +123,7 @@ pub async fn run() {
 
                             match PolarsData::load(*data, *name.clone()) {
                                 Ok(frames) => {
-                                    if let Ok(lock) = MODEL_LOCK.try_lock() {
+                                    if let Ok(lock) = model_lock.try_lock() {
                                         debug!("wapuku::run_in_pool: got model");
 
                                         for df in frames {
