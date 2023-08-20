@@ -1,11 +1,15 @@
+use std::alloc::System;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use std::sync::Mutex;
 
-use log::{debug, trace};
+use log::{debug, log, trace};
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
+pub use wapuku_common_web::allocator::tracing::*;
 use wapuku_common_web::workers::PoolWorker;
 use wapuku_model::model::Data;
 use wapuku_model::polars_df::PolarsData;
@@ -24,6 +28,50 @@ pub enum DataMsg {
     Ok {},
     Err { msg:String}
 }
+
+static MODEL_LOCK:Mutex<usize> = Mutex::new(0);
+
+
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn log(s: &str);
+}
+
+static TOTAL_MEM:f32 = 50000.0 * 65536.0;
+
+static ALLOCATED:AtomicUsize = AtomicUsize::new(0);
+
+#[no_mangle]
+pub extern "C" fn on_alloc(size: usize, align: usize, pointer: *mut u8) {
+    ALLOCATED.fetch_add(size, Ordering::Relaxed);
+}
+
+#[no_mangle]
+pub extern "C" fn on_dealloc(size: usize, align: usize, pointer: *mut u8) {
+    ALLOCATED.fetch_sub(size, Ordering::Relaxed);
+}
+
+
+#[no_mangle]
+pub extern "C" fn on_alloc_zeroed(size: usize, align: usize, pointer: *mut u8) {
+    ALLOCATED.fetch_add(size, Ordering::Relaxed);
+}
+
+#[no_mangle]
+pub extern "C" fn on_realloc(
+    old_pointer: *mut u8,
+    new_pointer: *mut u8,
+    old_size: usize,
+    new_size: usize,
+    align: usize,
+) {
+    ALLOCATED.fetch_add(new_size - old_size, Ordering::Relaxed);
+}
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: TracingAllocator<System> = TracingAllocator(System);
 
 #[wasm_bindgen]
 pub async fn run() {
@@ -54,6 +102,8 @@ pub async fn run() {
 
     let timer_closure = Closure::wrap(Box::new(move || {
 
+
+
         if let Ok(mut model_borrowed) = wapuku_app_model_rc1.try_borrow_mut() {
 
             if let Some(action) = model_borrowed.get_next_action(){
@@ -70,8 +120,14 @@ pub async fn run() {
 
                             match PolarsData::load(*data, *name.clone()) {
                                 Ok(frames) => {
-                                    for df in frames {
-                                        model_borrowed.add_frame(df.name().clone(), Box::new(df));
+                                    if let Ok(lock) = MODEL_LOCK.try_lock() {
+                                        debug!("wapuku::run_in_pool: got model");
+
+                                        for df in frames {
+                                            model_borrowed.add_frame(df.name().clone(), Box::new(df));
+                                        }
+                                    } else {
+                                        debug!("wapuku::run_in_pool: model locked ");
                                     }
                                 }
                                 Err(e) => {
@@ -106,6 +162,9 @@ pub async fn run() {
                     }
                 }
             }
+            // debug!("wapuku: ALLOCATED={:?} TOTAL_MEM={:?} p={}", ALLOCATED, TOTAL_MEM, ALLOCATED.load(Ordering::Relaxed) as f32 / TOTAL_MEM);
+            //
+            model_borrowed.set_memory_allocated(ALLOCATED.load(Ordering::Relaxed) as f32 / TOTAL_MEM);
         }
 
     }) as Box<dyn FnMut()>);
@@ -113,10 +172,9 @@ pub async fn run() {
     if window.set_interval_with_callback_and_timeout_and_arguments_0(&timer_closure.as_ref().unchecked_ref(), 100).is_err() {
         panic!("set_interval_with_callback_and_timeout_and_arguments_0");
     }
-
     timer_closure.forget();
 
-    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+    // eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
 

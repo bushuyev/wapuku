@@ -2,6 +2,7 @@ use std::collections::{ HashSet};
 use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use log::debug;
 
 use crate::data_type::*;
 
@@ -13,6 +14,7 @@ pub struct FrameView {
     summary:Summary,
     data:Box<dyn Data>
 }
+
 
 impl FrameView {
     pub fn new(name: String, data: Box<dyn Data>) -> Self {

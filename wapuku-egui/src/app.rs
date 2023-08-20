@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::mem;
 use std::rc::Rc;
 
 use eframe::*;
@@ -9,7 +10,10 @@ use log::debug;
 use rfd;
 use wapuku_model::model::{Data, FrameView};
 use crate::model_views::View;
-use egui::{Align, Color32, emath, epaint, Frame, pos2, Pos2, Rect, Stroke, Ui, vec2, Vec2};
+use egui::{Align, Color32, emath, epaint, Frame, Layout, pos2, Pos2, Rect, Stroke, Ui, vec2, Vec2};
+
+
+
 
 #[derive(Debug)]
 pub enum Action {
@@ -39,6 +43,7 @@ pub struct WapukuAppModel {
     frames: Vec<FrameView>,
     ctx: ModelCtx,
     messages: Vec<String>,
+    memory_allocated:f32
 }
 
 impl WapukuAppModel {
@@ -48,6 +53,7 @@ impl WapukuAppModel {
             ctx: ModelCtx::new(),
             frames: vec![],
             messages: vec![],
+            memory_allocated: 0.0
         }
     }
 
@@ -75,6 +81,7 @@ impl WapukuAppModel {
     pub fn purge_frame(&mut self, frame_id: usize) {
         debug!("wapuku: purge_frame frame_id={:?}", frame_id);
         self.frames.remove(frame_id);
+        // mem::drop(self.frames.remove(frame_id));
     }
 
     pub fn set_error(&mut self, msg: String) {
@@ -99,6 +106,16 @@ impl WapukuAppModel {
             (f)(&mut self.ctx, i, frame);
         })
     }
+
+
+    pub fn set_memory_allocated(&mut self, memory_allocated: f32) {
+        self.memory_allocated = memory_allocated;
+    }
+
+
+    pub fn memory_allocated(&self) -> f32 {
+        self.memory_allocated
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -106,9 +123,6 @@ impl WapukuAppModel {
 pub struct WapukuApp {
     #[serde(skip)]
     model: Rc<RefCell<Box<WapukuAppModel>>>,
-
-    #[serde(skip)]
-    value: f32,
 }
 
 impl WapukuApp {
@@ -128,7 +142,6 @@ impl Default for WapukuApp {
         Self {
             // Example stuff:
             model: Rc::new(RefCell::new(Box::new(WapukuAppModel::new()))),
-            value: 2.7,
         }
     }
 }
@@ -147,8 +160,7 @@ impl WapukuApp {
 
         Self {
             // Example stuff:
-            model,
-            value: 2.7,
+            model
         }
     }
 }
@@ -174,6 +186,9 @@ impl eframe::App for WapukuApp {
 
         egui::TopBottomPanel::top("wrap_app_top_bar").show(ctx, |ui| {
             egui::trace!(ui);
+            ui.horizontal(|ui| {
+
+            });
             ui.horizontal_wrapped(|ui| {
                 ui.visuals_mut().button_frame = false;
 
@@ -243,7 +258,17 @@ impl eframe::App for WapukuApp {
                             model_borrowed_mut.clear_messages();
                         }
                     }
+
+                    let progress_bar = egui::ProgressBar::new(model_borrowed_mut.memory_allocated());
+                    // let progress_bar = egui::ProgressBar::new(0.5).animate(false);
+
+                    ui.with_layout(Layout::right_to_left(Align::Center),|ui| {
+                        ui.add_sized([100.0, 20.0], progress_bar);
+                        ui.label("memory:");
+                    });
                 }
+
+
             });
         });
 

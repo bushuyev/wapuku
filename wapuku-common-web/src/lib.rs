@@ -4,6 +4,7 @@ use rayon::*;
 use log::{debug};
 use std::sync::{Arc, Mutex};
 pub mod workers;
+pub mod allocator;
 
 use workers::interval_future::IntervalFuture;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -20,7 +21,9 @@ extern "C" {
 }
 
 
-static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed, addr
+static POOL_PR:Mutex<Option<u32>> = Mutex::new(None);//Mutext not needed?
+
+
 
 #[wasm_bindgen]
 pub fn init_worker(ptr: u32) {
@@ -33,7 +36,7 @@ pub fn init_worker(ptr: u32) {
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-pub extern "C" fn get_pool()->ThreadPool {
+pub extern "C" fn get_pool()->ThreadPool {//can be called once because Box::from_raw invalidates pool_addr
 
     let pool_addr_op:Option<u32> = if let Ok(pool_locked) = POOL_PR.try_lock() {
         log("wapuku: get_pool: got pool");
@@ -122,7 +125,9 @@ pub async fn init_pool(threads: usize) {
 
 #[wasm_bindgen]
 pub fn run_in_pool(ptr: u32) {
-    log("wapuku: run_in_pool");
+    log("wapuku::run_in_pool");
+
     let closure = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce() + Send>) };
     (*closure)();
+
 }

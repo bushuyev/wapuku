@@ -282,6 +282,13 @@ impl Data for PolarsData {
     }
 }
 
+
+// impl Drop for PolarsData {
+//     fn drop(&mut self) {
+//         debug!("wapuku: Drop for PolarsData")
+//     }
+// }
+
 fn map_to_wapuku(d_type: &DataType) -> WapukuDataType {
     //TODO
     match d_type {

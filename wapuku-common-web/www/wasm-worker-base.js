@@ -13,7 +13,7 @@ export function setupWorker(worker, init, run_in_pool, init_worker, init_pool){
         if (event.data[0] === "init_pool") {
 
 
-            await init_pool(2);
+            await init_pool(4);
 
             console.log("wapuku: pool init done");
 

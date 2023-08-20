@@ -1,10 +1,12 @@
 [package]
 name = "wapuku-common-web"
-version.workspace = true
-authors.workspace = true
-description.workspace = true
-documentation.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2021"
+#version.workspace = true
+#authors.workspace = true
+#description.workspace = true
+#documentation.workspace = true
+#edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
@@ -23,7 +25,8 @@ web-sys = { version = "0.3.63", features = [
     "Element",
     "Location",
     "Worker",
-    "MessageEvent"
+    "MessageEvent",
+    "WorkerGlobalScope"
 ]}
 
 
@@ -31,4 +34,9 @@ web-sys = { version = "0.3.63", features = [
 simplelog = "0.10.2"
 ctor = "0.1.21"
 
-#[workspace]
+
+[patch.crates-io]
+wasm-bindgen = {path = "../../wasm-bindgen"}
+wasm-bindgen-macro-support = { path = "../../wasm-bindgen/crates/macro-support"}
+
+[workspace]
