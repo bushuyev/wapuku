@@ -1,8 +1,9 @@
-use std::collections::{ HashSet};
+use std::collections::{HashMap, HashSet};
 use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use log::debug;
+use uuid::Uuid;
 
 use crate::data_type::*;
 
@@ -10,18 +11,22 @@ use crate::data_type::*;
 
 #[derive(Debug)]
 pub struct FrameView {
+    id:u128,
     name:String,
     summary:Summary,
-    data:Box<dyn Data>
+    data:Box<dyn Data>,
+    histograms:HashMap<String, Histogram>
 }
-
 
 impl FrameView {
     pub fn new(name: String, data: Box<dyn Data>) -> Self {
+        let id = Uuid::new_v4().as_u128();
         Self {
+            id,
             name,
-            summary:data.build_summary(),
-            data
+            summary:data.build_summary(id),
+            data,
+            histograms: HashMap::new()
         }
     }
 
@@ -31,6 +36,15 @@ impl FrameView {
     }
     pub fn summary(&self) -> &Summary {
         &self.summary
+    }
+
+
+    pub fn id(&self) -> u128 {
+        self.id
+    }
+
+    pub fn histogram(&mut self, column:Box<String>) {
+        self.histograms.insert(*column.clone(), self.data.build_histogram(self.id, *column));
     }
 }
 
@@ -124,6 +138,7 @@ impl StringColumnSummary {
 
 #[derive(Debug)]
 pub struct Summary {
+    frame_id: u128,
     columns:Vec<ColumnSummary>
 }
 
@@ -133,8 +148,24 @@ impl Summary {
         &self.columns
     }
 
-    pub fn new(columns: Vec<ColumnSummary>) -> Self {
-        Self { columns }
+    pub fn new(frame_id: u128, columns: Vec<ColumnSummary>) -> Self {
+        Self {frame_id, columns }
+    }
+
+
+    pub fn frame_id(&self) -> u128 {
+        self.frame_id
+    }
+}
+
+#[derive(Debug)]
+pub struct Histogram {
+
+}
+
+impl Histogram {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 ///////////////Data view model////////////////
@@ -351,7 +382,8 @@ pub trait Data:Debug {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
-    fn build_summary(&self) -> Summary;
+    fn build_summary(&self, frame_id: u128) -> Summary;
+    fn build_histogram(&self, frame_id: u128, column:String) -> Histogram;
 }
 
 #[derive(Debug)]

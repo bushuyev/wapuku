@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::data_type::WapukuDataType;
-use crate::model::{Data, DataBounds, DataGroup, DataProperty, GroupsGrid, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, WapukuError};
+use crate::model::{Data, DataBounds, DataGroup, DataProperty, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, WapukuError};
 
 #[derive(Debug)]
 pub struct TestData {
@@ -84,7 +84,11 @@ impl  Data for TestData {
         )
     }
 
-    fn build_summary(&self) -> Summary {
+    fn build_summary(&self, frame_id: u128) -> Summary {
+        todo!()
+    }
+
+    fn build_histogram(&self, frame_id: u128, column: String) -> Histogram {
         todo!()
     }
 }

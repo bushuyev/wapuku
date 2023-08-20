@@ -100,12 +100,10 @@ pub async fn run() {
     let mut wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
     let mut wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
 
-    let MODEL_LOCK:Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
-    let model_lock = Arc::clone(&MODEL_LOCK);
+    let model_lock:Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let model_lock_arc = Arc::clone(&model_lock);
 
     let timer_closure = Closure::wrap(Box::new(move || {
-
-
 
         if let Ok(mut model_borrowed) = wapuku_app_model_rc1.try_borrow_mut() {
 
@@ -120,10 +118,9 @@ pub async fn run() {
                             let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, load file name={:?} size={}", name, data.len());
 
-
                             match PolarsData::load(*data, *name.clone()) {
                                 Ok(frames) => {
-                                    if let Ok(lock) = model_lock.try_lock() {
+                                    if let Ok(lock) = model_lock_arc.try_lock() {
                                         debug!("wapuku::run_in_pool: got model");
 
                                         for df in frames {
@@ -141,11 +138,18 @@ pub async fn run() {
 
                         });
                     }
-                    Action::ListUnique { name_ptr} => {
+                    Action::Histogram { frame_id, name_ptr} => {
                         pool_worker.run_in_pool( || {
                             let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, ::ListUnique name={}", name);
-                            // model_borrowed.update_summary();
+                            //
+                            if let Ok(lock) = model_lock_arc.try_lock() {
+                                debug!("wapuku::run_in_pool: got model");
+                                model_borrowed.histogram(frame_id, *name);
+
+                            } else {
+                                debug!("wapuku::run_in_pool: model locked ");
+                            }
 
                             // to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");
 

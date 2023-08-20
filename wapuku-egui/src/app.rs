@@ -17,7 +17,7 @@ use futures::SinkExt;
 #[derive(Debug)]
 pub enum Action {
     LoadFile { name_ptr: u32, data_ptr: u32 },
-    ListUnique { name_ptr: u32 },
+    Histogram { frame_id:u128, name_ptr: u32 },
 }
 
 
@@ -37,22 +37,32 @@ impl ModelCtx {
     }
 }
 
+static mut model_counter:usize = 0;
+
 pub struct WapukuAppModel {
     data_name: String,
     frames: Vec<FrameView>,
     ctx: ModelCtx,
     messages: Vec<String>,
-    memory_allocated:f32
+    memory_allocated:f32,
+    test:String
 }
 
 impl WapukuAppModel {
     pub fn new() -> Self {
+        debug!("wapuku: WapukuAppModel::new");
+        let test = unsafe {
+            model_counter = model_counter + 1;
+            String::from(format!("aaa: {}", model_counter))
+        };
+
         Self {
             data_name: String::from("nope"),
             ctx: ModelCtx::new(),
             frames: vec![],
             messages: vec![],
-            memory_allocated: 0.0
+            memory_allocated: 0.0,
+            test
         }
     }
 
@@ -76,7 +86,10 @@ impl WapukuAppModel {
             data,
         ));
 
-        // self.frames.flush();
+        self.test = String::from("BBB");
+
+        // self.frames.
+        debug!("wapuku:add_frame: self.test={} self.frames={:?}", self.test, self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
     }
 
     pub fn purge_frame(&mut self, frame_id: usize) {
@@ -103,7 +116,7 @@ impl WapukuAppModel {
     }
 
     pub fn on_each_fram<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
-        debug!("wapuku:on_each_fram: self.frames={:?}", self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+        debug!("wapuku:on_each_fram: self.test={} self.frames={:?}", self.test, self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
 
         self.frames.iter().enumerate().for_each(|(i, frame)| {
             (f)(&mut self.ctx, i, frame);
@@ -119,12 +132,18 @@ impl WapukuAppModel {
     pub fn memory_allocated(&self) -> f32 {
         self.memory_allocated
     }
+
+    pub fn histogram(&mut self, frame_id:u128, column_name:Box<String>) {
+        if let Some(mut frame) = self.frames.iter_mut().find(|f|f.id().eq(&frame_id)) {
+            frame.histogram(column_name);
+        }
+    }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+// #[derive(serde::Deserialize, serde::Serialize)]
+// #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct WapukuApp {
-    #[serde(skip)]
+    // #[serde(skip)]
     model: Rc<RefCell<Box<WapukuAppModel>>>,
 }
 
@@ -139,15 +158,15 @@ impl WapukuApp {
     }
 }
 
-impl Default for WapukuApp {
-    fn default() -> Self {
-        debug!("Default for WapukuApp::default");
-        Self {
-            // Example stuff:
-            model: Rc::new(RefCell::new(Box::new(WapukuAppModel::new()))),
-        }
-    }
-}
+// impl Default for WapukuApp {
+//     fn default() -> Self {
+//         debug!("Default for WapukuApp::default");
+//         Self {
+//             // Example stuff:
+//             model: Rc::new(RefCell::new(Box::new(WapukuAppModel::new()))),
+//         }
+//     }
+// }
 
 impl WapukuApp {
     pub fn new(cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Box<WapukuAppModel>>>) -> Self {
@@ -160,7 +179,7 @@ impl WapukuApp {
 
 impl eframe::App for WapukuApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        // eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -270,10 +289,11 @@ impl eframe::App for WapukuApp {
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
             let mut frame_to_close: Option<usize> = None;
 
-            model_borrowed_mut.on_each_fram( |actions, i, frame_view| {
+            model_borrowed_mut.on_each_fram( |model_ctx, frame_i, frame_view| {
                 let mut is_open = true;
 
                 let frame = egui::Window::new(frame_view.name())
+                    .id(Id::from(frame_view.id().to_string()))
                     .default_width(300.)
                     .default_height(300.)
                     .vscroll(true)
@@ -282,14 +302,14 @@ impl eframe::App for WapukuApp {
                     .default_pos([0., 0.])
                     .open(&mut is_open)
                     .show(ctx, |ui| {
-                        frame_view.summary().ui(ui, actions)
+                        frame_view.summary().ui(ui, model_ctx)
                     });
 
 
                 connections.push(frame.unwrap().response.rect.min);
 
                 if !is_open {
-                    frame_to_close.replace(i);
+                    frame_to_close.replace(frame_i);
                 }
             });
 

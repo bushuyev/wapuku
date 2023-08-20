@@ -44,11 +44,12 @@ impl View for Summary {
 
                 match column_summary.dtype() {
                     ColumnSummaryType::Numeric { data} => {
-                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), ctx, column_summary.name());
+
+                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), ctx, self.frame_id(), column_summary.name());
 
                     }
                     ColumnSummaryType::String {data}=> {
-                        label_cell(&mut row, data.unique_values(), ctx, column_summary.name());
+                        label_cell(&mut row, data.unique_values(), ctx, self.frame_id(), column_summary.name());
                     }
                     ColumnSummaryType::Boolean => {
 
@@ -61,7 +62,7 @@ impl View for Summary {
     }
 }
 
-fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, name: &str) {
+fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, frame_id:u128, name: &str) {
 
     row.col(|ui| {
         ui.horizontal_centered(|ui| {
@@ -69,7 +70,9 @@ fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mu
             ui.add(egui::Label::new(label).wrap(true));
 
             if ui.button(">").clicked() {
-                ctx.queue_action(Action::ListUnique{
+
+                ctx.queue_action(Action::Histogram {
+                    frame_id,
                     name_ptr: Box::into_raw(Box::new(Box::new(String::from(name)))) as u32,
                 });
 
