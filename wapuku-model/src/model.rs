@@ -3,7 +3,7 @@ use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use log::debug;
-use uuid::Uuid;
+
 
 use crate::data_type::*;
 
@@ -14,18 +14,15 @@ pub struct FrameView {
     id:u128,
     name:String,
     summary:Summary,
-    data:Box<dyn Data>,
     histograms:HashMap<String, Histogram>
 }
 
 impl FrameView {
-    pub fn new(name: String, data: Box<dyn Data>) -> Self {
-        let id = Uuid::new_v4().as_u128();
+    pub fn new(id: u128, name: String, summary: Summary) -> Self {
         Self {
             id,
             name,
-            summary:data.build_summary(id),
-            data,
+            summary,
             histograms: HashMap::new()
         }
     }
@@ -44,7 +41,7 @@ impl FrameView {
     }
 
     pub fn histogram(&mut self, column:Box<String>) {
-        self.histograms.insert(*column.clone(), self.data.build_histogram(self.id, *column));
+        // self.histograms.insert(*column.clone(), self.data.build_histogram(self.id, *column));
     }
 }
 

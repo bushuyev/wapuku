@@ -1,7 +1,8 @@
 use std::alloc::System;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use log::{debug, log, trace};
@@ -14,24 +15,15 @@ use wapuku_common_web::workers::PoolWorker;
 use wapuku_model::model::{Data, FrameView};
 use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
+use app::ActionRs;
+use uuid::Uuid;
 
 pub use app::WapukuApp;
 
-use crate::app::{Action, WapukuAppModel};
+use crate::app::{ActionRq, WapukuAppModel};
 
 mod app;
 mod model_views;
-
-
-#[derive(Debug)]
-pub enum DataMsg {
-    AddFrame {name: String, frame: FrameView},
-    Ok {},
-    Err { msg:String}
-}
-
-
-
 
 
 #[wasm_bindgen]
@@ -86,7 +78,7 @@ pub async fn run() {
     let runner_rc_1 = Rc::clone(&runner_rc);
     let runner_rc_2 = Rc::clone(&runner_rc);
 
-    let (to_main, from_worker) = std::sync::mpsc::channel::<DataMsg>();
+    let (to_main, from_worker) = std::sync::mpsc::channel::<ActionRs>();
     let to_main_rc = Rc::new(to_main);
     let to_main_rc_1 = Rc::clone(&to_main_rc);
     let to_main_rc_2 = Rc::clone(&to_main_rc);
@@ -106,8 +98,9 @@ pub async fn run() {
     let mut wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
     let mut wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
 
-    let model_lock:Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
-    let model_lock_arc = Arc::clone(&model_lock);
+    let mut data_map:HashMap<u128, Box<dyn Data>> = HashMap::new();
+    let mut data_map_rc = Rc::new(RefCell::new(data_map));
+
 
     let timer_closure = Closure::wrap(Box::new(move || {
 
@@ -116,9 +109,10 @@ pub async fn run() {
             if let Some(action) = model_borrowed.get_next_action(){
                 debug!("wapuku: got action {:?}", action);
                 match action {
-                    Action::LoadFile{name_ptr, data_ptr} => {
+                    ActionRq::LoadFrame {name_ptr, data_ptr} => {
 
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
 
                         pool_worker.run_in_pool( move || {
 
@@ -133,39 +127,39 @@ pub async fn run() {
                                         debug!("wapuku::run_in_pool: got model");
 
                                         for df in frames {
+                                            let id = Uuid::new_v4().as_u128();
                                             // model_borrowed.add_frame(df.name().clone(), Box::new(df));
-                                            to_main_rc_1_1.send(DataMsg::AddFrame {
-                                                name: df.name().clone(),
+                                            to_main_rc_1_1.send(ActionRs::LoadFrame {
                                                 frame: FrameView::new(
+                                                    id,
                                                     df.name().clone(),
-                                                    Box::new(df)
+                                                    df.build_summary(id),
                                                 )
                                             }).expect("send");
+
+                                            data_map_rc_1.borrow_mut().insert(id, Box::new(df));
                                         }
                                     // } else {
                                     //     debug!("wapuku::run_in_pool: model locked ");
                                     // }
                                 }
                                 Err(e) => {
-                                    to_main_rc_1_1.send(DataMsg::Err { msg: String::from(e.to_string()) }).expect("send");
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
                                 }
                             }
 
 
                         });
                     }
-                    Action::Histogram { frame_id, name_ptr} => {
-                        pool_worker.run_in_pool( || {
-                            let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
-                            debug!("wapuku: running in pool, ::ListUnique name={}", name);
-                            //
-                            if let Ok(lock) = model_lock_arc.try_lock() {
-                                debug!("wapuku::run_in_pool: got model");
-                                model_borrowed.histogram(frame_id, *name);
+                    ActionRq::Histogram { frame_id, name_ptr} => {
+                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
 
-                            } else {
-                                debug!("wapuku::run_in_pool: model locked ");
-                            }
+                        pool_worker.run_in_pool( move || {
+                            let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
+                            debug!("wapuku: running in pool, ::ListUnique name={}", name);
+
+                            data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name);
+
 
                             // to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");
 
@@ -177,19 +171,22 @@ pub async fn run() {
             if let Ok(data_msg) = from_worker_rc1.try_recv() {
 
                 match data_msg {
-                    DataMsg::Ok {  } => {
+
+                    ActionRs::LoadFrame {  frame } => {
+                        model_borrowed.add_frame(frame);
                     }
-                    DataMsg::Err { msg } => {
+
+                    ActionRs::Histogram { histogram } => {
+                        model_borrowed.add_histogram(histogram);
+                    }
+
+                    ActionRs::Err { msg } => {
                         trace!("wapuku: error={:?}", msg);
                         model_borrowed.set_error(msg);
                     }
-                    DataMsg::AddFrame { name, frame } => {
-                        model_borrowed.add_frame(frame);
-                    }
                 }
             }
-            // debug!("wapuku: ALLOCATED={:?} TOTAL_MEM={:?} p={}", ALLOCATED, TOTAL_MEM, ALLOCATED.load(Ordering::Relaxed) as f32 / TOTAL_MEM);
-            //
+
             model_borrowed.set_memory_allocated(ALLOCATED.load(Ordering::Relaxed) as f32 / TOTAL_MEM);
         }
 

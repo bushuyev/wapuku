@@ -1,29 +1,34 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::mem;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use eframe::*;
 use eframe::emath::Align2;
-use egui_extras::{Column, TableBuilder};
 use log::debug;
 use rfd;
-use wapuku_model::model::{Data, FrameView};
+use wapuku_model::model::{Data, FrameView, Histogram};
 use crate::model_views::View;
-use egui::{Align, Color32, emath, epaint, Frame, Id, Layout, pos2, Pos2, Rect, Stroke, Ui, vec2, Vec2};
-use futures::SinkExt;
-
+use egui::{Align, Color32, emath, epaint, Frame, Id, Layout, Rect, Stroke, Vec2};
+use std::collections::HashMap;
 
 #[derive(Debug)]
-pub enum Action {
-    LoadFile { name_ptr: u32, data_ptr: u32 },
+pub enum ActionRq {
+    LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
+}
+
+#[derive(Debug)]
+pub enum ActionRs {
+    LoadFrame {frame: FrameView},
+    Histogram {histogram:Histogram},
+    Err { msg:String}
 }
 
 
 pub struct ModelCtx {
-    pending_actions: VecDeque<Action>,
+    pending_actions: VecDeque<ActionRq>,
 }
 
 impl ModelCtx {
@@ -33,20 +38,24 @@ impl ModelCtx {
         }
     }
 
-    pub fn queue_action(&mut self, action: Action) {
+    pub fn queue_action(&mut self, action: ActionRq) {
         self.pending_actions.push_back(action)
     }
 }
 
 static mut model_counter:usize = 0;
 
+
+
+
 pub struct WapukuAppModel {
     data_name: String,
-    frames: Vec<FrameView>,
+    frames: HashMap<u128, FrameView>,
     ctx: ModelCtx,
     messages: Vec<String>,
     memory_allocated:f32,
-    test:String
+
+    lock:Arc<Mutex<usize>>
 }
 
 unsafe impl Sync for WapukuAppModel {}
@@ -62,10 +71,10 @@ impl WapukuAppModel {
         Self {
             data_name: String::from("nope"),
             ctx: ModelCtx::new(),
-            frames: vec![],
+            frames: HashMap::new(),
             messages: vec![],
             memory_allocated: 0.0,
-            test
+            lock: Arc::new(Mutex::new(0))
         }
     }
 
@@ -77,27 +86,34 @@ impl WapukuAppModel {
         &self.data_name
     }
 
-    pub fn get_next_action(&mut self) -> Option<Action> {
+    pub fn get_next_action(&mut self) -> Option<ActionRq> {
         self.ctx.pending_actions.pop_front()
     }
 
     pub fn add_frame(&mut self, frame:FrameView) {
         debug!("wapuku: add_frame name={:?}", frame.name());
+        let model_lock_arc = Arc::clone(&self.lock);
+        let result = model_lock_arc.try_lock();
+        if let Ok(lock) = result {
+            self.frames.insert(frame.id(), frame);
 
-        self.frames.push(frame);
-        self.test = String::from("BBB");
+            debug!("wapuku:add_frame: Ok");
+        } else {
+            debug!("wapuku::add_frame: model locked ");
+        }
+    }
 
-        // self.frames.
-        debug!("wapuku:add_frame: self.test={} self_ptr={:p} frames_ptr={:p} self.frames={:?}", self.test, self, &self.frames, self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+    pub fn add_histogram(&mut self, historgam:Histogram) {
+
     }
 
     pub fn debug_ptr(&self) {
         debug!("wapuku:debug_ptr: self_ptr={:p}",  self);
     }
 
-    pub fn purge_frame(&mut self, frame_id: usize) {
+    pub fn purge_frame(&mut self, frame_id: u128) {
         debug!("wapuku: purge_frame frame_id={:?}", frame_id);
-        self.frames.remove(frame_id);
+        self.frames.remove(&frame_id);
         // mem::drop(self.frames.remove(frame_id));
     }
 
@@ -114,14 +130,13 @@ impl WapukuAppModel {
         &self.messages
     }
 
-    pub fn queue_action(&mut self, action: Action) {
+    pub fn queue_action(&mut self, action: ActionRq) {
         self.ctx.pending_actions.push_back(action)
     }
 
-    pub fn on_each_fram<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
-        debug!("wapuku:on_each_fram: self.test={} self_ptr={:p} frames_ptr={:p} self.frames={:?}", self.test, self, &self.frames,  self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
 
-        self.frames.iter().enumerate().for_each(|(i, frame)| {
+        self.frames.values().enumerate().for_each(|(i, frame)| {
             (f)(&mut self.ctx, i, frame);
         })
     }
@@ -137,7 +152,7 @@ impl WapukuAppModel {
     }
 
     pub fn histogram(&mut self, frame_id:u128, column_name:Box<String>) {
-        if let Some(mut frame) = self.frames.iter_mut().find(|f|f.id().eq(&frame_id)) {
+        if let Some(mut frame) = self.frames.get_mut(&frame_id) {
             frame.histogram(column_name);
         }
     }
@@ -221,7 +236,7 @@ impl eframe::App for WapukuApp {
                             // debug!("wapuku: load size={} bytes_vec={:?}", bytes_vec.len(), bytes_vec);
 
                             model_for_file_callback.borrow_mut().queue_action(
-                                Action::LoadFile {
+                                ActionRq::LoadFrame {
                                     name_ptr: Box::into_raw(Box::new(Box::new(file.file_name()))) as u32,
                                     data_ptr: Box::into_raw(Box::new(Box::new(file.read().await))) as u32,
                                 }
@@ -239,7 +254,7 @@ impl eframe::App for WapukuApp {
 
                         if let Ok(mut model_borrowed_mut) = model_for_file_callback.try_borrow_mut() {
                             model_borrowed_mut.queue_action(
-                                Action::LoadFile {
+                                ActionRq::LoadFrame {
                                     name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 1.parquet")))) as u32,
                                     data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata1.parquet").to_vec()))) as u32,
                                 });
@@ -251,7 +266,7 @@ impl eframe::App for WapukuApp {
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Ok(mut model_borrowed_mut) = model_for_file_callback.try_borrow_mut() {
                             model_borrowed_mut.queue_action(
-                                Action::LoadFile {
+                                ActionRq::LoadFrame {
                                     name_ptr: Box::into_raw(Box::new(Box::new(String::from("Sample 2.parquet")))) as u32,
                                     data_ptr: Box::into_raw(Box::new(Box::new(include_bytes!("../www/data/userdata2.parquet").to_vec()))) as u32,
                                 }
@@ -290,9 +305,9 @@ impl eframe::App for WapukuApp {
         let mut connections = vec![];
 
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
-            let mut frame_to_close: Option<usize> = None;
+            let mut frame_to_close: Option<u128> = None;
 
-            model_borrowed_mut.on_each_fram( |model_ctx, frame_i, frame_view| {
+            model_borrowed_mut.on_each_frame( |model_ctx, frame_i, frame_view| {
                 let mut is_open = true;
 
                 let frame = egui::Window::new(frame_view.name())
@@ -312,7 +327,7 @@ impl eframe::App for WapukuApp {
                 connections.push(frame.unwrap().response.rect.min);
 
                 if !is_open {
-                    frame_to_close.replace(frame_i);
+                    frame_to_close.replace(frame_view.id());
                 }
             });
 
@@ -349,3 +364,4 @@ impl eframe::App for WapukuApp {
 
     }
 }
+

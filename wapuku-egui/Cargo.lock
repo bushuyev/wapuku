@@ -3956,6 +3956,7 @@ dependencies = [
  "reqwest",
  "rfd",
  "serde",
+ "uuid",
  "wapuku-common-web",
  "wapuku-model",
  "wapuku-resources",

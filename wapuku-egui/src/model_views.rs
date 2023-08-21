@@ -3,7 +3,7 @@ use std::rc::Rc;
 use egui::{Ui, WidgetText};
 use egui_extras::{Column, TableBuilder, TableRow};
 use wapuku_model::model::{ColumnSummaryType, Summary};
-use crate::app::{Action, ModelCtx, WapukuAppModel};
+use crate::app::{ActionRq, ModelCtx, WapukuAppModel};
 
 pub trait View {
     fn ui(&self, ui: &mut egui::Ui, ctx: &mut ModelCtx);
@@ -71,7 +71,7 @@ fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mu
 
             if ui.button(">").clicked() {
 
-                ctx.queue_action(Action::Histogram {
+                ctx.queue_action(ActionRq::Histogram {
                     frame_id,
                     name_ptr: Box::into_raw(Box::new(Box::new(String::from(name)))) as u32,
                 });
