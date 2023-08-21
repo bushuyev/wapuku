@@ -81,14 +81,10 @@ impl WapukuAppModel {
         self.ctx.pending_actions.pop_front()
     }
 
-    pub fn add_frame(&mut self, name: String, data: Box<dyn Data>) {
-        debug!("wapuku: add_frame name={:?}", name);
+    pub fn add_frame(&mut self, frame:FrameView) {
+        debug!("wapuku: add_frame name={:?}", frame.name());
 
-        self.frames.push(FrameView::new(
-            name,
-            data,
-        ));
-
+        self.frames.push(frame);
         self.test = String::from("BBB");
 
         // self.frames.

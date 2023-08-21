@@ -11,7 +11,7 @@ pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 pub use wapuku_common_web::allocator::tracing::*;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::Data;
+use wapuku_model::model::{Data, FrameView};
 use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
 
@@ -25,6 +25,7 @@ mod model_views;
 
 #[derive(Debug)]
 pub enum DataMsg {
+    AddFrame {name: String, frame: FrameView},
     Ok {},
     Err { msg:String}
 }
@@ -117,27 +118,36 @@ pub async fn run() {
                 match action {
                     Action::LoadFile{name_ptr, data_ptr} => {
 
-                        pool_worker.run_in_pool( || {
+                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+
+                        pool_worker.run_in_pool( move || {
 
                             let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
                             let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             // let model = unsafe { Box::from_raw(0x610750 as *mut WapukuAppModel) };
-                            debug!("wapuku: running in pool, load file name={:?} model_borrowed_ptr={:p}", name, &model_borrowed);
+                            debug!("wapuku: running in pool, load file name={:?}", name);
 
                             match PolarsData::load(*data, *name.clone()) {
                                 Ok(frames) => {
-                                    if let Ok(lock) = model_lock_arc.try_lock() {
+                                    // if let Ok(lock) = model_lock_arc.try_lock() {
                                         debug!("wapuku::run_in_pool: got model");
 
                                         for df in frames {
-                                            model_borrowed.add_frame(df.name().clone(), Box::new(df));
+                                            // model_borrowed.add_frame(df.name().clone(), Box::new(df));
+                                            to_main_rc_1_1.send(DataMsg::AddFrame {
+                                                name: df.name().clone(),
+                                                frame: FrameView::new(
+                                                    df.name().clone(),
+                                                    Box::new(df)
+                                                )
+                                            }).expect("send");
                                         }
-                                    } else {
-                                        debug!("wapuku::run_in_pool: model locked ");
-                                    }
+                                    // } else {
+                                    //     debug!("wapuku::run_in_pool: model locked ");
+                                    // }
                                 }
                                 Err(e) => {
-                                    to_main_rc_1.send(DataMsg::Err { msg: String::from(e.to_string()) }).expect("send");
+                                    to_main_rc_1_1.send(DataMsg::Err { msg: String::from(e.to_string()) }).expect("send");
                                 }
                             }
 
@@ -172,6 +182,9 @@ pub async fn run() {
                     DataMsg::Err { msg } => {
                         trace!("wapuku: error={:?}", msg);
                         model_borrowed.set_error(msg);
+                    }
+                    DataMsg::AddFrame { name, frame } => {
+                        model_borrowed.add_frame(frame);
                     }
                 }
             }
