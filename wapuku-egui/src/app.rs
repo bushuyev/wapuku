@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::mem;
+use std::pin::Pin;
 use std::rc::Rc;
 
 use eframe::*;
@@ -48,6 +49,8 @@ pub struct WapukuAppModel {
     test:String
 }
 
+unsafe impl Sync for WapukuAppModel {}
+
 impl WapukuAppModel {
     pub fn new() -> Self {
         debug!("wapuku: WapukuAppModel::new");
@@ -89,7 +92,11 @@ impl WapukuAppModel {
         self.test = String::from("BBB");
 
         // self.frames.
-        debug!("wapuku:add_frame: self.test={} self.frames={:?}", self.test, self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+        debug!("wapuku:add_frame: self.test={} self_ptr={:p} frames_ptr={:p} self.frames={:?}", self.test, self, &self.frames, self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+    }
+
+    pub fn debug_ptr(&self) {
+        debug!("wapuku:debug_ptr: self_ptr={:p}",  self);
     }
 
     pub fn purge_frame(&mut self, frame_id: usize) {
@@ -116,7 +123,7 @@ impl WapukuAppModel {
     }
 
     pub fn on_each_fram<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
-        debug!("wapuku:on_each_fram: self.test={} self.frames={:?}", self.test, self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
+        debug!("wapuku:on_each_fram: self.test={} self_ptr={:p} frames_ptr={:p} self.frames={:?}", self.test, self, &self.frames,  self.frames.iter().map(|f|f.name()).collect::<Vec<&str>>());
 
         self.frames.iter().enumerate().for_each(|(i, frame)| {
             (f)(&mut self.ctx, i, frame);
@@ -144,7 +151,7 @@ impl WapukuAppModel {
 // #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct WapukuApp {
     // #[serde(skip)]
-    model: Rc<RefCell<Box<WapukuAppModel>>>,
+    model: Rc<RefCell<Pin<Box<WapukuAppModel>>>>,
 }
 
 impl WapukuApp {
@@ -169,7 +176,7 @@ impl WapukuApp {
 // }
 
 impl WapukuApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Box<WapukuAppModel>>>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Pin<Box<WapukuAppModel>>>>) -> Self {
 
         Self {
             model

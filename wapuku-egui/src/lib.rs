@@ -96,7 +96,12 @@ pub async fn run() {
 
     pool_worker.init().await.expect("pool_worker init");
 
-    let mut wapuku_app_model = Rc::new(RefCell::new(Box::new(WapukuAppModel::new())));
+    let model = WapukuAppModel::new();
+    let model_box = Box::pin(model);
+    debug!("wapuku: model_box_ptr={:p}", &model_box);
+    model_box.debug_ptr();
+
+    let mut wapuku_app_model = Rc::new(RefCell::new(model_box));
     let mut wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
     let mut wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
 
@@ -116,7 +121,8 @@ pub async fn run() {
 
                             let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
                             let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
-                            debug!("wapuku: running in pool, load file name={:?} size={}", name, data.len());
+                            // let model = unsafe { Box::from_raw(0x610750 as *mut WapukuAppModel) };
+                            debug!("wapuku: running in pool, load file name={:?} model_borrowed_ptr={:p}", name, &model_borrowed);
 
                             match PolarsData::load(*data, *name.clone()) {
                                 Ok(frames) => {
