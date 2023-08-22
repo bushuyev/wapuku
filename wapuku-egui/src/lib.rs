@@ -153,15 +153,15 @@ pub async fn run() {
                     }
                     ActionRq::Histogram { frame_id, name_ptr} => {
                         let mut data_map_rc_1 = Rc::clone(&data_map_rc);
-
+                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
                         pool_worker.run_in_pool( move || {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, ::ListUnique name={}", name);
 
-                            data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name);
-
-
-                            // to_main_rc_1.send(DataMsg::Summary{min:0., avg: 1., max:2.}).expect("send");
+                            to_main_rc_1_1.send(ActionRs::Histogram {
+                                frame_id,
+                                histogram: data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name)
+                            }).expect("send");
 
                         });
                     }
@@ -176,8 +176,8 @@ pub async fn run() {
                         model_borrowed.add_frame(frame);
                     }
 
-                    ActionRs::Histogram { histogram } => {
-                        model_borrowed.add_histogram(histogram);
+                    ActionRs::Histogram { frame_id, histogram } => {
+                        model_borrowed.add_histogram(frame_id, histogram);
                     }
 
                     ActionRs::Err { msg } => {

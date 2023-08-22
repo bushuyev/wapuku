@@ -1,15 +1,33 @@
 use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
-use egui::{Ui, WidgetText};
+use egui::{Color32, Ui, WidgetText};
+use egui::Id;
+use egui::plot::{
+    Arrows, AxisBools, /*AxisHints,*/ Bar, BarChart, BoxElem, BoxPlot, BoxSpread, CoordinatesFormatter,
+    Corner, GridInput, GridMark, HLine, Legend, Line, LineStyle, MarkerShape, Plot, PlotImage,
+    PlotPoint, PlotPoints, PlotResponse, Points, Polygon, Text, VLine,
+};
 use egui_extras::{Column, TableBuilder, TableRow};
-use wapuku_model::model::{ColumnSummaryType, Summary};
+use wapuku_model::model::{ColumnSummaryType, Histogram, Summary};
 use crate::app::{ActionRq, ModelCtx, WapukuAppModel};
 
 pub trait View {
+    fn title(&self) -> &str;
+    fn id(&self) -> Id;
     fn ui(&self, ui: &mut egui::Ui, ctx: &mut ModelCtx);
 }
 
 impl View for Summary {
+    fn title(&self) -> &str {
+        self._title()
+    }
+
+    fn id(&self) -> Id {
+        Id::from(self.ui_id().to_string())
+    }
+
+
+
     fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx){
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
@@ -59,6 +77,46 @@ impl View for Summary {
 
         });
 
+    }
+}
+
+impl View for Histogram {
+
+    fn title(&self) -> &str {
+        &"Histogram"
+    }
+
+    fn id(&self) -> Id {
+        Id::from(self.ui_id().to_string())
+    }
+
+
+    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
+        ui.label("Histogram!");
+        let mut chart = BarChart::new(
+            (-395..=395)
+                .step_by(10)
+                .map(|x| x as f64 * 0.01)
+                .map(|x| {
+                    (
+                        x,
+                        (-x * x / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt(),
+                    )
+                })
+                // The 10 factor here is purely for a nice 1:1 aspect ratio
+                .map(|(x, f)| Bar::new(x, f * 10.0).width(0.095))
+                .collect(),
+        )
+            .color(Color32::LIGHT_BLUE)
+            .name("Normal Distribution");
+
+        Plot::new("Normal Distribution Demo")
+            .legend(Legend::default())
+            .clamp_grid(true)
+            // .y_axis_width(3)
+            .allow_zoom(true)
+            .allow_drag(true)
+            .show(ui, |plot_ui| plot_ui.bar_chart(chart));
     }
 }
 

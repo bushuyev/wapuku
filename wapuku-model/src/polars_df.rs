@@ -199,6 +199,7 @@ impl Data for PolarsData {
 
         Summary::new(
             frame_id,
+            self.name.clone(),
             desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)| {
                 if i % 1000 == 0 {
                     debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
@@ -256,7 +257,7 @@ impl Data for PolarsData {
     fn build_histogram(&self, frame_id: u128, column: String) -> Histogram {
         // self.df
         debug!("wapuku: build_histogram={:?}", column);
-        Histogram::new()
+        Histogram::new(frame_id, column)
     }
 }
 

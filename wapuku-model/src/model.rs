@@ -27,7 +27,6 @@ impl FrameView {
         }
     }
 
-
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -35,13 +34,16 @@ impl FrameView {
         &self.summary
     }
 
-
     pub fn id(&self) -> u128 {
         self.id
     }
 
-    pub fn histogram(&mut self, column:Box<String>) {
-        // self.histograms.insert(*column.clone(), self.data.build_histogram(self.id, *column));
+    pub fn add_histogram(&mut self, histogram:Histogram) {
+        self.histograms.insert(histogram.column.clone(), histogram);
+    }
+
+    pub fn histograms(&self)->impl Iterator<Item = &Histogram> {
+        self.histograms.values().into_iter()
     }
 }
 
@@ -135,7 +137,9 @@ impl StringColumnSummary {
 
 #[derive(Debug)]
 pub struct Summary {
+    ui_id:String,
     frame_id: u128,
+    _title:String,
     columns:Vec<ColumnSummary>
 }
 
@@ -145,24 +149,46 @@ impl Summary {
         &self.columns
     }
 
-    pub fn new(frame_id: u128, columns: Vec<ColumnSummary>) -> Self {
-        Self {frame_id, columns }
+    pub fn new(frame_id: u128, title:String,  columns: Vec<ColumnSummary>) -> Self {
+        Self {
+            _title: title,
+            ui_id: format!("summary_{}", frame_id),
+            frame_id,
+            columns
+        }
     }
-
 
     pub fn frame_id(&self) -> u128 {
         self.frame_id
+    }
+    pub fn ui_id(&self) -> &str {
+        &self.ui_id
+    }
+
+
+    pub fn _title(&self) -> &str {
+        &self._title
     }
 }
 
 #[derive(Debug)]
 pub struct Histogram {
-
+    ui_id:String,
+    column:String,
+    frame_id: u128,
 }
 
 impl Histogram {
-    pub fn new() -> Self {
-        Self {}
+
+    pub fn new(frame_id: u128, column:String) -> Self {
+        Self {
+            ui_id: format!("histogram{}/{}", frame_id, column),
+            column,
+            frame_id,
+        }
+    }
+    pub fn ui_id(&self) -> &str {
+        &self.ui_id
     }
 }
 ///////////////Data view model////////////////

@@ -20,6 +20,7 @@ cfg-if = "1"
 anyhow = "1.0"
 reqwest = { version = "0.11" }
 
+#egui = {git = "https://github.com/emilk/egui.git" }
 egui = "0.22.0"
 egui_extras = "0.22.0"
 

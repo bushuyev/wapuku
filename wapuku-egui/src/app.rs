@@ -4,14 +4,13 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use eframe::*;
-use eframe::emath::Align2;
 use log::debug;
 use rfd;
 use wapuku_model::model::{Data, FrameView, Histogram};
 use crate::model_views::View;
-use egui::{Align, Color32, emath, epaint, Frame, Id, Layout, Rect, Stroke, Vec2};
+use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Rect, Stroke, Vec2};
 use std::collections::HashMap;
+use std::io::Read;
 
 #[derive(Debug)]
 pub enum ActionRq {
@@ -22,7 +21,7 @@ pub enum ActionRq {
 #[derive(Debug)]
 pub enum ActionRs {
     LoadFrame {frame: FrameView},
-    Histogram {histogram:Histogram},
+    Histogram {frame_id:u128, histogram:Histogram},
     Err { msg:String}
 }
 
@@ -94,6 +93,7 @@ impl WapukuAppModel {
         debug!("wapuku: add_frame name={:?}", frame.name());
         let model_lock_arc = Arc::clone(&self.lock);
         let result = model_lock_arc.try_lock();
+
         if let Ok(lock) = result {
             self.frames.insert(frame.id(), frame);
 
@@ -103,8 +103,12 @@ impl WapukuAppModel {
         }
     }
 
-    pub fn add_histogram(&mut self, historgam:Histogram) {
-
+    pub fn add_histogram(&mut self, frame_id:u128, historgam:Histogram) {
+        if let Some(frame) = self.frames.get_mut(&frame_id) {
+            frame.add_histogram(historgam);
+        } else {
+            debug!("wapuku: no frame_id={}", frame_id); //TODO err msg
+        }
     }
 
     pub fn debug_ptr(&self) {
@@ -134,10 +138,15 @@ impl WapukuAppModel {
         self.ctx.pending_actions.push_back(action)
     }
 
-    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &FrameView) {
+    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &dyn View) {
 
-        self.frames.values().enumerate().for_each(|(i, frame)| {
-            (f)(&mut self.ctx, i, frame);
+        self.frames.values().for_each(|frame| {
+            (f)(&mut self.ctx, 0, frame.summary());
+
+            for hist in frame.histograms() {
+                (f)(&mut self.ctx, 0, hist);
+            }
+
         })
     }
 
@@ -151,11 +160,6 @@ impl WapukuAppModel {
         self.memory_allocated
     }
 
-    pub fn histogram(&mut self, frame_id:u128, column_name:Box<String>) {
-        if let Some(mut frame) = self.frames.get_mut(&frame_id) {
-            frame.histogram(column_name);
-        }
-    }
 }
 
 // #[derive(serde::Deserialize, serde::Serialize)]
@@ -307,11 +311,11 @@ impl eframe::App for WapukuApp {
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
             let mut frame_to_close: Option<u128> = None;
 
-            model_borrowed_mut.on_each_frame( |model_ctx, frame_i, frame_view| {
+            model_borrowed_mut.on_each_frame( |model_ctx, frame_i, view| {
                 let mut is_open = true;
 
-                let frame = egui::Window::new(frame_view.name())
-                    .id(Id::from(frame_view.id().to_string()))
+                let frame = egui::Window::new(view.title())
+                    .id(view.id())
                     .default_width(300.)
                     .default_height(300.)
                     .vscroll(true)
@@ -320,14 +324,14 @@ impl eframe::App for WapukuApp {
                     .default_pos([0., 0.])
                     .open(&mut is_open)
                     .show(ctx, |ui| {
-                        frame_view.summary().ui(ui, model_ctx)
+                        view.ui(ui, model_ctx)
                     });
 
 
                 connections.push(frame.unwrap().response.rect.min);
 
                 if !is_open {
-                    frame_to_close.replace(frame_view.id());
+                    // frame_to_close.replace(frame_view.id());
                 }
             });
 
