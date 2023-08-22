@@ -3,21 +3,20 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 
 use log::{debug, log, trace};
+use uuid::Uuid;
+pub use wapuku_common_web::allocator::tracing::*;
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
-pub use wapuku_common_web::allocator::tracing::*;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::{Data, FrameView};
+use wapuku_model::model::{Data, wa_id, WaFrame};
 use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
-use app::ActionRs;
-use uuid::Uuid;
 
+use app::ActionRs;
 pub use app::WapukuApp;
 
 use crate::app::{ActionRq, WapukuAppModel};
@@ -127,17 +126,17 @@ pub async fn run() {
                                         debug!("wapuku::run_in_pool: got model");
 
                                         for df in frames {
-                                            let id = Uuid::new_v4().as_u128();
+                                            let frame_id = wa_id();
                                             // model_borrowed.add_frame(df.name().clone(), Box::new(df));
                                             to_main_rc_1_1.send(ActionRs::LoadFrame {
-                                                frame: FrameView::new(
-                                                    id,
+                                                frame: WaFrame::new(
+                                                    frame_id,
                                                     df.name().clone(),
-                                                    df.build_summary(id),
+                                                    df.build_summary(frame_id),
                                                 )
                                             }).expect("send");
 
-                                            data_map_rc_1.borrow_mut().insert(id, Box::new(df));
+                                            data_map_rc_1.borrow_mut().insert(frame_id, Box::new(df));
                                         }
                                     // } else {
                                     //     debug!("wapuku::run_in_pool: model locked ");

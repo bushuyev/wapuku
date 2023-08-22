@@ -3,24 +3,36 @@ use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use log::debug;
+use uuid::Uuid;
 
 
 use crate::data_type::*;
 
 ///////////////Data management model////////////////
 
+pub fn wa_id() -> u128 {
+    Uuid::new_v4().as_u128()
+}
+
 #[derive(Debug)]
-pub struct FrameView {
+pub enum WaModels {
+    Summary{ frame_id: u128},
+    Histogram{ frame_id: u128, histogram_id: u128}
+}
+
+
+#[derive(Debug)]
+pub struct WaFrame {
     id:u128,
     name:String,
     summary:Summary,
-    histograms:HashMap<String, Histogram>
+    histograms:HashMap<u128, Histogram>
 }
 
-impl FrameView {
+impl WaFrame {
     pub fn new(id: u128, name: String, summary: Summary) -> Self {
         Self {
-            id,
+            id: id,
             name,
             summary,
             histograms: HashMap::new()
@@ -38,12 +50,21 @@ impl FrameView {
         self.id
     }
 
-    pub fn add_histogram(&mut self, histogram:Histogram) {
-        self.histograms.insert(histogram.column.clone(), histogram);
+    pub fn add_histogram(&mut self, mut histogram:Histogram) {
+        self.histograms.insert(*histogram.id(), histogram);
     }
 
     pub fn histograms(&self)->impl Iterator<Item = &Histogram> {
         self.histograms.values().into_iter()
+    }
+
+    pub fn purge(&mut self, id: WaModels) {
+        match id {
+            WaModels::Histogram{frame_id, histogram_id} => {
+                self.histograms.remove(&histogram_id);
+            },
+            _=>{}
+        }
     }
 }
 
@@ -137,7 +158,7 @@ impl StringColumnSummary {
 
 #[derive(Debug)]
 pub struct Summary {
-    ui_id:String,
+    id:u128,
     frame_id: u128,
     _title:String,
     columns:Vec<ColumnSummary>
@@ -149,10 +170,10 @@ impl Summary {
         &self.columns
     }
 
-    pub fn new(frame_id: u128, title:String,  columns: Vec<ColumnSummary>) -> Self {
+    pub fn new(id:u128, frame_id: u128, title:String,  columns: Vec<ColumnSummary>) -> Self {
         Self {
             _title: title,
-            ui_id: format!("summary_{}", frame_id),
+            id,
             frame_id,
             columns
         }
@@ -161,34 +182,72 @@ impl Summary {
     pub fn frame_id(&self) -> u128 {
         self.frame_id
     }
-    pub fn ui_id(&self) -> &str {
-        &self.ui_id
-    }
-
 
     pub fn _title(&self) -> &str {
         &self._title
+    }
+
+    pub fn id(&self) -> u128 {
+        self.id
     }
 }
 
 #[derive(Debug)]
 pub struct Histogram {
-    ui_id:String,
+    id:u128,
     column:String,
+    title: String,
     frame_id: u128,
+    values:HistogramValues,
+}
+
+#[derive(Debug)]
+pub enum HistogramValues {
+    Numeric{ x_0: f32, x_1: f32, y: Vec<f32>},
+    Categoric { y: HashMap<String, f32>}
+}
+
+impl HistogramValues {
+    pub fn len(&self) -> usize {
+        match self {
+            HistogramValues::Numeric { x_0, x_1, y } => {
+                y.len()
+            }
+            HistogramValues::Categoric { y } => {
+                y.len()
+            }
+        }
+    }
 }
 
 impl Histogram {
 
-    pub fn new(frame_id: u128, column:String) -> Self {
+    pub fn new(frame_id: u128, column:String, values:HistogramValues) -> Self {
         Self {
-            ui_id: format!("histogram{}/{}", frame_id, column),
+            id: wa_id(),
+            title: format!("histogram{}/{}", frame_id, column),
             column,
             frame_id,
+            values
         }
     }
-    pub fn ui_id(&self) -> &str {
-        &self.ui_id
+    pub fn id(&self) -> &u128 {
+        &self.id
+    }
+
+    pub fn column(&self) -> &str {
+        &self.column
+    }
+    pub fn frame_id(&self) -> u128 {
+        self.frame_id
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn values(&self) -> &HistogramValues {
+        &self.values
     }
 }
 ///////////////Data view model////////////////

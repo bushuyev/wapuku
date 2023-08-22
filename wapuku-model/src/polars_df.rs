@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
 
 use log::debug;
@@ -198,6 +198,7 @@ impl Data for PolarsData {
         // desc.get_columns().iter().map(|c|c.)
 
         Summary::new(
+            wa_id(),
             frame_id,
             self.name.clone(),
             desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)| {
@@ -255,9 +256,15 @@ impl Data for PolarsData {
     }
 
     fn build_histogram(&self, frame_id: u128, column: String) -> Histogram {
-        // self.df
+        // self.df.lazy().select([column]).hi
         debug!("wapuku: build_histogram={:?}", column);
-        Histogram::new(frame_id, column)
+        let mut y = HashMap::new();
+        y.insert(String::from("A"), 10.);
+        y.insert(String::from("B"), 20.);
+        y.insert(String::from("C"), 10.);
+        Histogram::new(frame_id, column, HistogramValues::Categoric {
+            y
+        })
     }
 }
 
@@ -473,7 +480,7 @@ mod tests {
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let summary = data.build_summary();
+        let summary = data.build_summary(0);
 
         check_numeric_column(&summary, 0, "1.0");
         check_numeric_column(&summary, 1, "10.0");
@@ -492,7 +499,7 @@ mod tests {
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let summary = data.build_summary();
+        let summary = data.build_summary(0);
 
         // for c in summary.columns() {
         //     println!("type=1={:?}",  TypeId::of::<u8>() == c.type_id());

@@ -1,4 +1,5 @@
 use std::cell::{RefCell, RefMut};
+use std::cmp::Ordering;
 use std::rc::Rc;
 use egui::{Color32, Ui, WidgetText};
 use egui::Id;
@@ -8,13 +9,15 @@ use egui::plot::{
     PlotPoint, PlotPoints, PlotResponse, Points, Polygon, Text, VLine,
 };
 use egui_extras::{Column, TableBuilder, TableRow};
-use wapuku_model::model::{ColumnSummaryType, Histogram, Summary};
+use wapuku_model::model::{ColumnSummaryType, Histogram, HistogramValues, Summary, WaModels};
 use crate::app::{ActionRq, ModelCtx, WapukuAppModel};
 
 pub trait View {
     fn title(&self) -> &str;
-    fn id(&self) -> Id;
+    fn ui_id(&self) -> Id;
     fn ui(&self, ui: &mut egui::Ui, ctx: &mut ModelCtx);
+
+    fn model_id(&self) -> WaModels;
 }
 
 impl View for Summary {
@@ -22,11 +25,9 @@ impl View for Summary {
         self._title()
     }
 
-    fn id(&self) -> Id {
-        Id::from(self.ui_id().to_string())
+    fn ui_id(&self) -> Id {
+        Id::new(self.id())
     }
-
-
 
     fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx){
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
@@ -78,6 +79,10 @@ impl View for Summary {
         });
 
     }
+
+    fn model_id(&self) -> WaModels {
+        WaModels::Summary{ frame_id: self.frame_id()}
+    }
 }
 
 impl View for Histogram {
@@ -86,37 +91,55 @@ impl View for Histogram {
         &"Histogram"
     }
 
-    fn id(&self) -> Id {
-        Id::from(self.ui_id().to_string())
+    fn ui_id(&self) -> Id {
+        Id::new(self.id())
     }
 
-
     fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
-        ui.label("Histogram!");
-        let mut chart = BarChart::new(
-            (-395..=395)
-                .step_by(10)
-                .map(|x| x as f64 * 0.01)
-                .map(|x| {
-                    (
-                        x,
-                        (-x * x / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt(),
-                    )
-                })
-                // The 10 factor here is purely for a nice 1:1 aspect ratio
-                .map(|(x, f)| Bar::new(x, f * 10.0).width(0.095))
-                .collect(),
+
+        let max_height = ui.available_height() * 0.8;
+        let max_width = ui.available_width() * 0.8;
+
+
+        let values = self.values();
+        let width = max_width/ values.len() as f32;
+
+        let bars = match values {
+            HistogramValues::Numeric { .. } => {
+                vec![]
+            }
+            HistogramValues::Categoric { y } => {
+
+                let max = y.values().max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(&0.);
+
+                y.iter().enumerate().map(|(i, (k, v))|{
+                    Bar::new((i as f32 * width) as f64, (max_height * v/ max ) as f64)
+                        .width(width as f64)
+                        .name(k)
+                }).collect()
+            }
+        };
+
+
+        let chart = BarChart::new(
+            bars
         )
-            .color(Color32::LIGHT_BLUE)
-            .name("Normal Distribution");
+        .color(Color32::LIGHT_BLUE)
+        .name(self.title());
 
         Plot::new("Normal Distribution Demo")
+            // .show_grid(false)
+            .show_axes([false, false])
             .legend(Legend::default())
             .clamp_grid(true)
             // .y_axis_width(3)
             .allow_zoom(true)
             .allow_drag(true)
             .show(ui, |plot_ui| plot_ui.bar_chart(chart));
+    }
+
+    fn model_id(&self) -> WaModels {
+        WaModels::Histogram{ frame_id: self.frame_id(), histogram_id: *self.id()}
     }
 }
 

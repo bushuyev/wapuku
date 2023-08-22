@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use log::debug;
 use rfd;
-use wapuku_model::model::{Data, FrameView, Histogram};
+use wapuku_model::model::{Data, WaFrame, Histogram, WaModels};
 use crate::model_views::View;
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Rect, Stroke, Vec2};
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ pub enum ActionRq {
 
 #[derive(Debug)]
 pub enum ActionRs {
-    LoadFrame {frame: FrameView},
+    LoadFrame {frame: WaFrame},
     Histogram {frame_id:u128, histogram:Histogram},
     Err { msg:String}
 }
@@ -49,7 +49,7 @@ static mut model_counter:usize = 0;
 
 pub struct WapukuAppModel {
     data_name: String,
-    frames: HashMap<u128, FrameView>,
+    frames: HashMap<u128, WaFrame>,
     ctx: ModelCtx,
     messages: Vec<String>,
     memory_allocated:f32,
@@ -89,7 +89,7 @@ impl WapukuAppModel {
         self.ctx.pending_actions.pop_front()
     }
 
-    pub fn add_frame(&mut self, frame:FrameView) {
+    pub fn add_frame(&mut self, frame:WaFrame) {
         debug!("wapuku: add_frame name={:?}", frame.name());
         let model_lock_arc = Arc::clone(&self.lock);
         let result = model_lock_arc.try_lock();
@@ -115,9 +115,19 @@ impl WapukuAppModel {
         debug!("wapuku:debug_ptr: self_ptr={:p}",  self);
     }
 
-    pub fn purge_frame(&mut self, frame_id: u128) {
-        debug!("wapuku: purge_frame frame_id={:?}", frame_id);
-        self.frames.remove(&frame_id);
+    pub fn purge(&mut self, id: WaModels) {
+        debug!("wapuku: purge_frame frame_id={:?}", id);
+        match id {
+            WaModels::Summary{frame_id} => {
+                self.frames.remove(&frame_id);
+            }
+            WaModels::Histogram{frame_id, histogram_id} => {
+                if let Some(frame) = self.frames.get_mut(&frame_id) {
+                    frame.purge(id);
+                }
+            }
+        }
+
         // mem::drop(self.frames.remove(frame_id));
     }
 
@@ -309,13 +319,13 @@ impl eframe::App for WapukuApp {
         let mut connections = vec![];
 
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
-            let mut frame_to_close: Option<u128> = None;
+            let mut frame_to_close: Option<WaModels> = None;
 
             model_borrowed_mut.on_each_frame( |model_ctx, frame_i, view| {
                 let mut is_open = true;
 
                 let frame = egui::Window::new(view.title())
-                    .id(view.id())
+                    .id(view.ui_id())
                     .default_width(300.)
                     .default_height(300.)
                     .vscroll(true)
@@ -325,18 +335,18 @@ impl eframe::App for WapukuApp {
                     .open(&mut is_open)
                     .show(ctx, |ui| {
                         view.ui(ui, model_ctx)
-                    });
+                    }).expect("show frame");
 
 
-                connections.push(frame.unwrap().response.rect.min);
+                connections.push(frame.response.rect.min);
 
                 if !is_open {
-                    // frame_to_close.replace(frame_view.id());
+                    frame_to_close.replace(view.model_id());
                 }
             });
 
             if frame_to_close.is_some() {
-                model_borrowed_mut.purge_frame(frame_to_close.unwrap());
+                model_borrowed_mut.purge(frame_to_close.unwrap());
             }
         }
 
