@@ -6,9 +6,9 @@ use std::sync::{Arc, Mutex};
 
 use log::debug;
 use rfd;
-use wapuku_model::model::{Data, WaFrame, Histogram, WaModels};
+use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId};
 use crate::model_views::View;
-use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Rect, Stroke, Vec2};
+use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Vec2};
 use std::collections::HashMap;
 use std::io::Read;
 
@@ -115,13 +115,13 @@ impl WapukuAppModel {
         debug!("wapuku:debug_ptr: self_ptr={:p}",  self);
     }
 
-    pub fn purge(&mut self, id: WaModels) {
+    pub fn purge(&mut self, id: WaModelId) {
         debug!("wapuku: purge_frame frame_id={:?}", id);
         match id {
-            WaModels::Summary{frame_id} => {
+            WaModelId::Summary{frame_id} => {
                 self.frames.remove(&frame_id);
             }
-            WaModels::Histogram{frame_id, histogram_id} => {
+            WaModelId::Histogram{frame_id, histogram_id} => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
@@ -316,10 +316,10 @@ impl eframe::App for WapukuApp {
             });
         });
 
-        let mut connections = vec![];
+        let mut connections:HashMap<u128, Vec<Pos2>> = HashMap::new();
 
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
-            let mut frame_to_close: Option<WaModels> = None;
+            let mut frame_to_close: Option<WaModelId> = None;
 
             model_borrowed_mut.on_each_frame( |model_ctx, frame_i, view| {
                 let mut is_open = true;
@@ -338,7 +338,12 @@ impl eframe::App for WapukuApp {
                     }).expect("show frame");
 
 
-                connections.push(frame.response.rect.min);
+                // connections.push(frame.response.rect.min);
+                connections.insert(*view.model_id().id(), vec![frame.response.rect.min]);
+                if let Some(parent_connections) = view.model_id().parent_id().and_then(|parent_id|connections.get_mut(parent_id)) {
+                    parent_connections.push(frame.response.rect.min);
+                }
+
 
                 if !is_open {
                     frame_to_close.replace(view.model_id());
@@ -368,8 +373,14 @@ impl eframe::App for WapukuApp {
 
                     // debug!("connections={:?} connections_in_screen={:?}", connections.clone(), connections_in_screen);
 
+                    connections.into_values().filter(|v|v.len() > 1).for_each(|mut connection| {
+                        let parent_point = connection.remove(0);
+                        connection.into_iter().for_each(|endpoint|{
+                            ui.painter().extend(vec![epaint::Shape::line(vec![parent_point, endpoint], Stroke::new(2.0, Color32::GREEN))]);
+                        });
 
-                    ui.painter().extend(vec![epaint::Shape::line(connections, Stroke::new(2.0, Color32::GREEN))]);
+                    })
+                    //
                     // ui.painter().extend(vec![epaint::Shape::line(vec![Pos2::new(0., 0., ), Pos2::new(100., 100. )], Stroke::new(2.0, Color32::GREEN))]);
                 });
             });

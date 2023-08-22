@@ -9,7 +9,7 @@ use egui::plot::{
     PlotPoint, PlotPoints, PlotResponse, Points, Polygon, Text, VLine,
 };
 use egui_extras::{Column, TableBuilder, TableRow};
-use wapuku_model::model::{ColumnSummaryType, Histogram, HistogramValues, Summary, WaModels};
+use wapuku_model::model::{ColumnSummaryType, Histogram, HistogramValues, Summary, WaModelId};
 use crate::app::{ActionRq, ModelCtx, WapukuAppModel};
 
 pub trait View {
@@ -17,7 +17,7 @@ pub trait View {
     fn ui_id(&self) -> Id;
     fn ui(&self, ui: &mut egui::Ui, ctx: &mut ModelCtx);
 
-    fn model_id(&self) -> WaModels;
+    fn model_id(&self) -> WaModelId;
 }
 
 impl View for Summary {
@@ -80,8 +80,8 @@ impl View for Summary {
 
     }
 
-    fn model_id(&self) -> WaModels {
-        WaModels::Summary{ frame_id: self.frame_id()}
+    fn model_id(&self) -> WaModelId {
+        WaModelId::Summary{ frame_id: self.frame_id()}
     }
 }
 
@@ -138,8 +138,8 @@ impl View for Histogram {
             .show(ui, |plot_ui| plot_ui.bar_chart(chart));
     }
 
-    fn model_id(&self) -> WaModels {
-        WaModels::Histogram{ frame_id: self.frame_id(), histogram_id: *self.id()}
+    fn model_id(&self) -> WaModelId {
+        WaModelId::Histogram{ frame_id: self.frame_id(), histogram_id: *self.id()}
     }
 }
 

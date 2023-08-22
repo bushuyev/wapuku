@@ -15,9 +15,33 @@ pub fn wa_id() -> u128 {
 }
 
 #[derive(Debug)]
-pub enum WaModels {
+pub enum WaModelId {
     Summary{ frame_id: u128},
     Histogram{ frame_id: u128, histogram_id: u128}
+}
+
+impl WaModelId {
+    pub fn id(&self) -> &u128 {
+        match self {
+            WaModelId::Summary { frame_id } => {
+                frame_id
+            }
+            WaModelId::Histogram { frame_id, histogram_id } => {
+                histogram_id
+            }
+        }
+    }
+
+    pub fn parent_id(&self)->Option<&u128> {
+        match self {
+            WaModelId::Summary { .. } => {
+                None
+            }
+            WaModelId::Histogram { frame_id, .. } => {
+                Some(frame_id)
+            }
+        }
+    }
 }
 
 
@@ -58,9 +82,9 @@ impl WaFrame {
         self.histograms.values().into_iter()
     }
 
-    pub fn purge(&mut self, id: WaModels) {
+    pub fn purge(&mut self, id: WaModelId) {
         match id {
-            WaModels::Histogram{frame_id, histogram_id} => {
+            WaModelId::Histogram{frame_id, histogram_id} => {
                 self.histograms.remove(&histogram_id);
             },
             _=>{}
