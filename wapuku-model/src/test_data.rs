@@ -88,7 +88,7 @@ impl  Data for TestData {
         todo!()
     }
 
-    fn build_histogram(&self, frame_id: u128, column: String) -> Histogram {
+    fn build_histogram(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
         todo!()
     }
 }

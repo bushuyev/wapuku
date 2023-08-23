@@ -100,7 +100,6 @@ impl View for Histogram {
         let max_height = ui.available_height() * 0.8;
         let max_width = ui.available_width() * 0.8;
 
-
         let values = self.values();
         let width = max_width/ values.len() as f32;
 
@@ -129,6 +128,8 @@ impl View for Histogram {
 
         Plot::new("Normal Distribution Demo")
             // .show_grid(false)
+            .show_x(false)
+            .show_y(false)
             .show_axes([false, false])
             .legend(Legend::default())
             .clamp_grid(true)

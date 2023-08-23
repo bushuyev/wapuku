@@ -12,7 +12,7 @@ pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::{Data, wa_id, WaFrame};
+use wapuku_model::model::{Data, Histogram, wa_id, WaFrame, WapukuError};
 use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
 
@@ -157,10 +157,18 @@ pub async fn run() {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, ::ListUnique name={}", name);
 
-                            to_main_rc_1_1.send(ActionRs::Histogram {
-                                frame_id,
-                                histogram: data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name)
-                            }).expect("send");
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name);
+                            match result {
+                                Ok(histogram) => {
+                                    to_main_rc_1_1.send(ActionRs::Histogram {
+                                        frame_id,
+                                        histogram,
+                                    }).expect("send");
+                                }
+                                Err(e) => {
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                                }
+                            }
 
                         });
                     }

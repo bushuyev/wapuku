@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
 
-use log::debug;
+use log::{debug, error, warn};
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::StartBy::WindowBound;
@@ -255,19 +255,28 @@ impl Data for PolarsData {
 
     }
 
-    fn build_histogram(&self, frame_id: u128, column: String) -> Histogram {
-        // self.df.lazy().select([column]).hi
+    fn build_histogram(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
         debug!("wapuku: build_histogram={:?}", column);
-        let mut y = HashMap::new();
-        y.insert(String::from("A"), 10.);
-        y.insert(String::from("B"), 20.);
-        y.insert(String::from("C"), 10.);
-        Histogram::new(frame_id, column, HistogramValues::Categoric {
-            y
-        })
+
+        let groupby_df = self.df.clone().lazy().groupby([col(column.as_str())]).agg([count().alias("count")]).collect()?;
+        let mut val_count = groupby_df.iter();
+
+        Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
+            y: std::iter::zip(
+                val_count.next().expect("val").iter(),
+                val_count.next().expect("count").iter()
+            ).fold(HashMap::new(), |mut map, vv|{
+
+                if let (AnyValue::Utf8(v1), AnyValue::UInt32(v2)) = vv {
+                    map.insert(v1.to_string(), v2 as f32);
+                } else {
+                    warn!("unexpected values in build_histogram: {:?}", vv);
+                }
+                map
+            })
+        }))
     }
 }
-
 
 // impl Drop for PolarsData {
 //     fn drop(&mut self) {
@@ -460,7 +469,7 @@ mod tests {
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType};
-    use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, NumericColumnSummary, Property, PropertyRange, Summary};
+    use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, HistogramValues, NumericColumnSummary, Property, PropertyRange, Summary};
     use crate::polars_df::{group_by_2, PolarsData};
 
     #[ctor::ctor]
@@ -482,42 +491,53 @@ mod tests {
 
         let summary = data.build_summary(0);
 
-        check_numeric_column(&summary, 0, "1.0");
-        check_numeric_column(&summary, 1, "10.0");
-        check_numeric_column(&summary, 2, "11.0");
-        // assert_eq!(summary.numeric_columns(0).unwrap().min(), "1.0");
-        // assert_eq!(summary.numeric_columns(1).unwrap().min(), "10.0");
-        // assert_eq!(summary.numeric_columns(2).unwrap().min(), "11.0");
+        check_numeric_column(&summary, 0, "1.0", "2.0", "3");
+        check_numeric_column(&summary, 1, "10.0", "20", "30");
+
+    }
+
+    #[test]
+    fn test_build_histogram_str() {
+        let mut df = df!(
+            "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
+            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
+            "property_3" => &["A",  "B",  "C",  "A",  "B",  "C",  "C",  "B", "C"]
+        ).unwrap();
+
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let histogram = data.build_histogram(0u128, String::from("property_3")).expect("build_histogram");
+
+        if let HistogramValues::Categoric {y} = histogram.values() {
+            println!("y={:?}", y);
+            assert_eq!(y.get("A").unwrap(), &2.0);
+            assert_eq!(y.get("B").unwrap(), &3.0);
+            assert_eq!(y.get("C").unwrap(), &4.0);
+        } else {
+            panic!("not categoric")
+        }
     }
 
     #[test]
     fn test_build_summary_str() {
         let mut df = df!(
-            "property_1" => &[1i32,   2i32,    3i32,    1i32,       2i32,    3i32,    1i32,    2i32,   3i32],
-            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,    3f32,    1f32,    2f32,   3f32],
+            "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
+            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
             "property_3" => &["A",  "B",  "C",  "D",  "E",  "F",  "G",  "H", "I"]
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
         let summary = data.build_summary(0);
 
-        // for c in summary.columns() {
-        //     println!("type=1={:?}",  TypeId::of::<u8>() == c.type_id());
-        //     println!("type=1={:?}",  TypeId::of::<f32>() == c.type_id());
-        //     println!("type=1={:?}",  TypeId::of::<String>() == c.type_id());
-        // }
+        check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
 
-        check_numeric_column(&summary, 0, "1.0");
-        // check_numeric_column(&summary, 1, "1.0");
-
-
-        // assert_eq!(summary.columns()[1].min(), "10.0");
-        // assert_eq!(summary.columns()[2].min(), "11.0");
     }
 
-    fn check_numeric_column(summary: &Summary, i: usize, value: &str) {
+    fn check_numeric_column(summary: &Summary, i: usize, min: &str, avg: &str, max: &str) {
         if let ColumnSummaryType::Numeric { data } = summary.columns()[i].dtype() {
-            assert_eq!(data.min(), value);
+            assert_eq!(data.min(), min);
+            assert_eq!(data.avg(), avg);
+            assert_eq!(data.max(), max);
         } else {
             panic!("column {} is not numeric", i)
         }

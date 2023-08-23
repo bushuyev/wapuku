@@ -249,7 +249,7 @@ impl Histogram {
     pub fn new(frame_id: u128, column:String, values:HistogramValues) -> Self {
         Self {
             id: wa_id(),
-            title: format!("histogram{}/{}", frame_id, column),
+            title: format!("histogram/{}", column),
             column,
             frame_id,
             values
@@ -281,6 +281,22 @@ pub enum WapukuError {
     DataLoad { msg: String },
     DataFrame { msg: String },
     General {msg: String}
+}
+
+impl WapukuError {
+    pub fn msg(&self) -> &str {
+        match self {
+            WapukuError::DataLoad { msg } => {
+                msg.as_ref()
+            }
+            WapukuError::DataFrame { msg } => {
+                msg.as_ref()
+            }
+            WapukuError::General { msg } => {
+                msg.as_ref()
+            }
+        }
+    }
 }
 
 impl Display for WapukuError {
@@ -489,7 +505,7 @@ pub trait Data:Debug {
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
     fn build_summary(&self, frame_id: u128) -> Summary;
-    fn build_histogram(&self, frame_id: u128, column:String) -> Histogram;
+    fn build_histogram(&self, frame_id: u128, column:String) -> Result<Histogram, WapukuError>;
 }
 
 #[derive(Debug)]
