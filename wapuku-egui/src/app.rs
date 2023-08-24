@@ -8,7 +8,7 @@ use log::debug;
 use rfd;
 use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId};
 use crate::model_views::View;
-use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Vec2};
+use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Ui, Vec2};
 use std::collections::HashMap;
 use std::io::Read;
 
@@ -379,13 +379,14 @@ impl eframe::App for WapukuApp {
                             ui.painter().extend(vec![epaint::Shape::line(vec![parent_point, endpoint], Stroke::new(2.0, Color32::GREEN))]);
                         });
 
-                    })
+                    });
                     //
                     // ui.painter().extend(vec![epaint::Shape::line(vec![Pos2::new(0., 0., ), Pos2::new(100., 100. )], Stroke::new(2.0, Color32::GREEN))]);
                 });
+
             });
 
-
+        // debug!("wapuku: data: {:?}", ctx.data());
 
     }
 }

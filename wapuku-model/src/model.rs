@@ -228,7 +228,7 @@ pub struct Histogram {
 #[derive(Debug)]
 pub enum HistogramValues {
     Numeric{ x_0: f32, x_1: f32, y: Vec<f32>},
-    Categoric { y: HashMap<String, f32>}
+    Categoric { y: Vec<(String, f32)>}
 }
 
 impl HistogramValues {
@@ -266,7 +266,7 @@ impl Histogram {
         self.frame_id
     }
 
-    pub fn title(&self) -> &str {
+    pub fn _title(&self) -> &str {
         &self.title
     }
 

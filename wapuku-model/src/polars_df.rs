@@ -258,17 +258,24 @@ impl Data for PolarsData {
     fn build_histogram(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
         debug!("wapuku: build_histogram={:?}", column);
 
-        let groupby_df = self.df.clone().lazy().groupby([col(column.as_str())]).agg([count().alias("count")]).collect()?;
+        let groupby_df = self.df.clone().lazy()
+            .groupby([col(column.as_str())])
+            .agg([count().alias("count")])
+            .sort("count",  Default::default())
+            .collect()?;
+
+        debug!("groupby_df={:?}", groupby_df);
+
         let mut val_count = groupby_df.iter();
 
         Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
             y: std::iter::zip(
                 val_count.next().expect("val").iter(),
                 val_count.next().expect("count").iter()
-            ).fold(HashMap::new(), |mut map, vv|{
+            ).fold(Vec::new(), |mut map, vv|{
 
                 if let (AnyValue::Utf8(v1), AnyValue::UInt32(v2)) = vv {
-                    map.insert(v1.to_string(), v2 as f32);
+                    map.push((v1.to_string(), v2 as f32));
                 } else {
                     warn!("unexpected values in build_histogram: {:?}", vv);
                 }
@@ -510,9 +517,9 @@ mod tests {
 
         if let HistogramValues::Categoric {y} = histogram.values() {
             println!("y={:?}", y);
-            assert_eq!(y.get("A").unwrap(), &2.0);
-            assert_eq!(y.get("B").unwrap(), &3.0);
-            assert_eq!(y.get("C").unwrap(), &4.0);
+            assert_eq!(y.get(0).unwrap().1, 2.0);
+            assert_eq!(y.get(1).unwrap().1, 3.0);
+            assert_eq!(y.get(2).unwrap().1, 4.0);
         } else {
             panic!("not categoric")
         }

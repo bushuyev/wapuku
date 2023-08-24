@@ -9,6 +9,7 @@ use egui::plot::{
     PlotPoint, PlotPoints, PlotResponse, Points, Polygon, Text, VLine,
 };
 use egui_extras::{Column, TableBuilder, TableRow};
+use log::debug;
 use wapuku_model::model::{ColumnSummaryType, Histogram, HistogramValues, Summary, WaModelId};
 use crate::app::{ActionRq, ModelCtx, WapukuAppModel};
 
@@ -36,8 +37,8 @@ impl View for Summary {
             .striped(true)
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT))
-            .column(Column::auto().at_least(40.0).resizable(true).clip(true))
-            .column(Column::auto().at_least(40.0).resizable(true).clip(true))
+            .column(Column::auto().at_least(100.0).resizable(true).clip(true))
+            .column(Column::auto().at_least(100.0).resizable(true).clip(true))
             .column(Column::remainder());
 
         table.header(20.0, |mut header| {
@@ -88,7 +89,7 @@ impl View for Summary {
 impl View for Histogram {
 
     fn title(&self) -> &str {
-        &"Histogram"
+        self._title()
     }
 
     fn ui_id(&self) -> Id {
@@ -103,13 +104,13 @@ impl View for Histogram {
         let values = self.values();
         let width = max_width/ values.len() as f32;
 
-        let bars = match values {
+        let mut bars = match values {
             HistogramValues::Numeric { .. } => {
                 vec![]
             }
             HistogramValues::Categoric { y } => {
 
-                let max = y.values().max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(&0.);
+                let max = y.iter().map(|v|v.1).max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(0.);
 
                 y.iter().enumerate().map(|(i, (k, v))|{
                     Bar::new((i as f32 * width) as f64, (max_height * v/ max ) as f64)
@@ -124,19 +125,32 @@ impl View for Histogram {
             bars
         )
         .color(Color32::LIGHT_BLUE)
-        .name(self.title());
 
-        Plot::new("Normal Distribution Demo")
+        .name(self._title());
+
+        let r = Plot::new("Normal Distribution Demo")
+            // .legend(Legend::default())
             // .show_grid(false)
+            .label_formatter(|name, value| {
+                    if !name.is_empty() {
+                        name.to_owned()
+                    } else {
+                        "_".to_owned()
+                    }
+                })
             .show_x(false)
-            .show_y(false)
+            // .show_y(false)
             .show_axes([false, false])
-            .legend(Legend::default())
+            // .legend(Legend::default())
             .clamp_grid(true)
             // .y_axis_width(3)
             .allow_zoom(true)
             .allow_drag(true)
-            .show(ui, |plot_ui| plot_ui.bar_chart(chart));
+            .show(ui, |plot_ui| {
+                plot_ui.bar_chart(chart);
+
+            });
+
     }
 
     fn model_id(&self) -> WaModelId {
