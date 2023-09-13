@@ -1,7 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::io::{Cursor, Read};
 
-use log::{debug, error, warn};
+use ::zip::*;
+use ::zip::result::*;
+use log::{debug, warn};
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::StartBy::WindowBound;
@@ -9,9 +11,6 @@ use polars::time::Duration;
 
 use crate::data_type::WapukuDataType;
 use crate::model::*;
-use ::zip::*;
-use ::zip::result::*;
-use polars::datatypes::DataType::Categorical;
 use crate::utils::*;
 
 impl From<PolarsError> for WapukuError {
@@ -61,19 +60,18 @@ impl PolarsData {
 
         let mut val_count = groupby_df.iter();
 
-        Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
-            y: std::iter::zip(
+        Ok(Histogram::new(frame_id, column, std::iter::zip(
                 val_count.next().expect("val").iter(),
                 val_count.next().expect("count").iter()
             ).fold(Vec::new(), |mut vec, vv| {
                 if let (AnyValue::Utf8(v1), AnyValue::UInt32(v2)) = vv {
-                    vec.push((v1.to_string(), v2 as f32));
+                    vec.push((v1.to_string(), v2));
                 } else {
                     warn!("unexpected values in build_histogram: {:?}", vv);
                 }
                 vec
             })
-        }))
+        ))
     }
 
     fn group_by_numeric(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
@@ -82,7 +80,7 @@ impl PolarsData {
               .filter(col(column.as_str()).is_not_null())
               .collect()?.column(column.as_str())?,
             None,
-            Some(10)
+            Some(100)
         )?;
         // debug!("wapuku:group_by_numeric rs={:?}", groupby_df);
         //
@@ -96,21 +94,20 @@ impl PolarsData {
         let mut val_count = groupby_df.iter();
         val_count.next(); //skip break_point
 
-        Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
-            y: std::iter::zip(
+        Ok(Histogram::new(frame_id, column,  std::iter::zip(
                 val_count.next().expect("cat").iter(),
                 val_count.next().expect("property_2_count").iter()
             ).fold(Vec::new(), |mut vec, vv| {
 
                 if let (AnyValue::Categorical(a, RevMapping::Local(b), c), AnyValue::UInt32(count)) = vv {
                     warn!("a={:?}, count={:?}", b.value(a as usize), count);
-                    vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count as f32));
+                    vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
                 } else {
                     warn!("unexpected values in build_histogram: {:?}", vv);
                 }
                 vec
             })
-        }))
+        ))
         // Err(WapukuError::ToDo)
     }
 
@@ -541,22 +538,18 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
 
 #[cfg(test)]
 mod tests {
-    use std::any::{Any, TypeId};
     use std::collections::HashSet;
     use std::fs::File;
-    use crate::tests::init_log;
 
     use log::debug;
     use polars::datatypes::AnyValue::List;
     use polars::df;
-    use regex::{Captures, Regex, Replacer};
-
     use polars::prelude::*;
 
-    use crate::data_type::{WapukuDataType};
-    use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, HistogramValues, NumericColumnSummary, Property, PropertyRange, Summary};
+    use crate::data_type::WapukuDataType;
+    use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary};
     use crate::polars_df::{group_by_2, PolarsData};
-    use crate::utils::FloatReformatter;
+    use crate::tests::init_log;
 
     #[ctor::ctor]
     fn init() {
@@ -577,8 +570,8 @@ mod tests {
 
         let summary = data.build_summary(0);
 
-        check_numeric_column(&summary, 0, "1.0", "2.0", "3");
-        check_numeric_column(&summary, 1, "10.0", "20", "30");
+        check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
+        check_numeric_column(&summary, 1, "10.0", "20.0", "30.0");
 
     }
 
@@ -594,14 +587,12 @@ mod tests {
 
         let histogram = data.build_histogram(0u128, String::from("property_3")).expect("build_histogram");
 
-        if let HistogramValues::Categoric {y} = histogram.values() {
-            println!("y={:?}", y);
-            assert_eq!(y.get(0).unwrap().1, 2.0);
-            assert_eq!(y.get(1).unwrap().1, 3.0);
-            assert_eq!(y.get(2).unwrap().1, 4.0);
-        } else {
-            panic!("not categoric")
-        }
+        let y = histogram.values();
+        println!("y={:?}", y);
+        assert_eq!(y.get(0).unwrap().1, 2);
+        assert_eq!(y.get(1).unwrap().1, 3);
+        assert_eq!(y.get(2).unwrap().1, 4);
+
     }
 
     #[test]
@@ -618,15 +609,13 @@ mod tests {
 
         println!("histogram={:?}", histogram);
 
-        if let HistogramValues::Categoric {y} = histogram.values() {
-            println!("y={:?}", y);
-            assert_eq!(y.get(0).unwrap().0, "(-inf, 0.00]");
-            assert_eq!(y.get(0).unwrap().1, 0.0);
-            assert_eq!(y.get(3).unwrap().0, "(0.80, 1.20]");
-            assert_eq!(y.get(3).unwrap().1, 3.0);
-        } else {
-            panic!("not categoric")
-        }
+        let y = histogram.values();
+        println!("y={:?}", y);
+        assert_eq!(y.get(0).unwrap().0, "(-inf, 0.00]");
+        assert_eq!(y.get(0).unwrap().1, 0);
+        assert_eq!(y.get(3).unwrap().0, "(0.80, 1.20]");
+        assert_eq!(y.get(3).unwrap().1, 3);
+
     }
 
     #[test]

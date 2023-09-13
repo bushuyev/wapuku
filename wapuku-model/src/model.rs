@@ -222,31 +222,12 @@ pub struct Histogram {
     column:String,
     title: String,
     frame_id: u128,
-    values:HistogramValues,
-}
-
-#[derive(Debug)]
-pub enum HistogramValues {
-    Numeric{ x_0: f32, x_1: f32, y: Vec<f32>},
-    Categoric { y: Vec<(String, f32)>}
-}
-
-impl HistogramValues {
-    pub fn len(&self) -> usize {
-        match self {
-            HistogramValues::Numeric { x_0, x_1, y } => {
-                y.len()
-            }
-            HistogramValues::Categoric { y } => {
-                y.len()
-            }
-        }
-    }
+    values:Vec<(String, u32)>,
 }
 
 impl Histogram {
 
-    pub fn new(frame_id: u128, column:String, values:HistogramValues) -> Self {
+    pub fn new(frame_id: u128, column:String, values:Vec<(String, u32)>) -> Self {
         Self {
             id: wa_id(),
             title: format!("histogram/{}", column),
@@ -270,7 +251,7 @@ impl Histogram {
         &self.title
     }
 
-    pub fn values(&self) -> &HistogramValues {
+    pub fn values(&self) -> &Vec<(String, u32)> {
         &self.values
     }
 }

@@ -18,6 +18,15 @@ impl FloatReformatter {
     }
 }
 
+
+pub fn val_or_na(v: &String) -> impl ToString + Sized + '_{
+    if v.is_empty() {
+        "n/a"
+    } else {
+        v
+    }
+}
+
 mod util_tests {
     use regex::Regex;
     use crate::utils::FloatReformatter;

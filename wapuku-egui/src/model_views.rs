@@ -1,17 +1,15 @@
-use std::cell::{RefCell, RefMut};
-use std::cmp::Ordering;
-use std::rc::Rc;
 use egui::{Color32, Ui, WidgetText};
 use egui::Id;
-use egui_plot::{
-    Arrows, AxisBools, AxisHints, Bar, BarChart, BoxElem, BoxPlot, BoxSpread, CoordinatesFormatter,
-    Corner, GridInput, GridMark, HLine, Legend, Line, LineStyle, MarkerShape, Plot, PlotImage,
-    PlotPoint, PlotPoints, PlotResponse, Points, Polygon, Text, VLine,
-};
 use egui_extras::{Column, TableBuilder, TableRow};
+use egui_plot::{
+    Bar, BarChart,
+    Plot,
+};
 use log::debug;
-use wapuku_model::model::{ColumnSummaryType, Histogram, HistogramValues, Summary, WaModelId};
-use crate::app::{ActionRq, ModelCtx, WapukuAppModel};
+use wapuku_model::model::{ColumnSummaryType, Histogram, Summary, WaModelId};
+use wapuku_model::utils::val_or_na;
+
+use crate::app::{ActionRq, ModelCtx};
 
 pub trait View {
     fn title(&self) -> &str;
@@ -105,54 +103,40 @@ impl View for Histogram {
         let values = self.values();
         let width = max_width/ values.len() as f32;
 
-        let mut bars = match values {
-            HistogramValues::Numeric { .. } => {
-                vec![]
-            }
-            HistogramValues::Categoric { y } => {
 
-                let max = y.iter().map(|v|v.1).max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(0.);
+        // let max = values.iter().map(|v|v.1).max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(0);
 
-                y.iter().enumerate().map(|(i, (k, v))|{
-                    Bar::new((i as f32 * width) as f64, (max_height * v/ max ) as f64)
-                        .width(width as f64)
-                        .name(k)
-                }).collect()
-            }
-        };
+        let y_ratio = 1.; // (max_height / max as f32) as f64;
+
+        let mut bars  = values.iter().enumerate().map(|(i, (k, v))|{
+
+            Bar::new((i as f32 * width) as f64, *v as f64 * y_ratio )
+                .width(width as f64)
+                .name(val_or_na(k))
+        }).collect();
 
 
         let chart = BarChart::new(
             bars
         )
+        .element_formatter(Box::new(move |b, c|{
+                format!("{}, {}", b.name, (b.value/y_ratio) as u32)
+            }))
         .color(Color32::LIGHT_BLUE)
-
         .name(self._title());
 
-        let x_hint = AxisHints::default()
-            .formatter(|x, y, r | {
-                let s = format!("x={} y={} r={:?}", x, y, r);
-                debug!("wapuku: AxisHints={:?}", s);
-                s
-            });
 
         let r = Plot::new("Normal Distribution Demo")
-            // .legend(Legend::default())
-            // .show_grid(false)
-            .custom_x_axes(vec![x_hint])
+
             .label_formatter(|name, value| {
+                    // debug!("wapuku: name={:?}, value={:?}", name, value);
+
                     if !name.is_empty() {
                         name.to_owned()
                     } else {
-                        "*".to_owned()
+                        "".to_owned()
                     }
                 })
-            // .show_x(false)
-            // .show_y(false)
-            // .show_axes([false, false])
-            // .legend(Legend::default())
-            // .clamp_grid(true)
-            // .y_axis_width(3)
             .allow_zoom(true)
             .allow_drag(true)
             .show(ui, |plot_ui| {
@@ -166,6 +150,7 @@ impl View for Histogram {
         WaModelId::Histogram{ frame_id: self.frame_id(), histogram_id: *self.id()}
     }
 }
+
 
 fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, frame_id:u128, name: &str) {
 
