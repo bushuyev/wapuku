@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use egui::{Color32, Ui, WidgetText};
 use egui::Id;
-use egui::plot::{
-    Arrows, AxisBools, /*AxisHints,*/ Bar, BarChart, BoxElem, BoxPlot, BoxSpread, CoordinatesFormatter,
+use egui_plot::{
+    Arrows, AxisBools, AxisHints, Bar, BarChart, BoxElem, BoxPlot, BoxSpread, CoordinatesFormatter,
     Corner, GridInput, GridMark, HLine, Legend, Line, LineStyle, MarkerShape, Plot, PlotImage,
     PlotPoint, PlotPoints, PlotResponse, Points, Polygon, Text, VLine,
 };
@@ -129,21 +129,29 @@ impl View for Histogram {
 
         .name(self._title());
 
+        let x_hint = AxisHints::default()
+            .formatter(|x, y, r | {
+                let s = format!("x={} y={} r={:?}", x, y, r);
+                debug!("wapuku: AxisHints={:?}", s);
+                s
+            });
+
         let r = Plot::new("Normal Distribution Demo")
             // .legend(Legend::default())
             // .show_grid(false)
+            .custom_x_axes(vec![x_hint])
             .label_formatter(|name, value| {
                     if !name.is_empty() {
                         name.to_owned()
                     } else {
-                        "_".to_owned()
+                        "*".to_owned()
                     }
                 })
-            .show_x(false)
+            // .show_x(false)
             // .show_y(false)
-            .show_axes([false, false])
+            // .show_axes([false, false])
             // .legend(Legend::default())
-            .clamp_grid(true)
+            // .clamp_grid(true)
             // .y_axis_width(3)
             .allow_zoom(true)
             .allow_drag(true)
