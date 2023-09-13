@@ -280,7 +280,8 @@ impl Histogram {
 pub enum WapukuError {
     DataLoad { msg: String },
     DataFrame { msg: String },
-    General {msg: String}
+    General {msg: String},
+    ToDo
 }
 
 impl WapukuError {
@@ -294,6 +295,9 @@ impl WapukuError {
             }
             WapukuError::General { msg } => {
                 msg.as_ref()
+            }
+            WapukuError::ToDo => {
+                "todo"
             }
         }
     }

@@ -11,6 +11,8 @@ use crate::data_type::WapukuDataType;
 use crate::model::*;
 use ::zip::*;
 use ::zip::result::*;
+use polars::datatypes::DataType::Categorical;
+use crate::utils::*;
 
 impl From<PolarsError> for WapukuError {
     fn from(value: PolarsError) -> Self {
@@ -47,6 +49,71 @@ impl PolarsData {
             name,
         }
     }
+
+    fn group_by_categoric(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+        let groupby_df = self.df.clone().lazy()
+            .groupby([col(column.as_str())])
+            .agg([count().alias("count")])
+            .sort("count", Default::default())
+            .collect()?;
+
+        debug!("groupby_df={:?}", groupby_df);
+
+        let mut val_count = groupby_df.iter();
+
+        Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
+            y: std::iter::zip(
+                val_count.next().expect("val").iter(),
+                val_count.next().expect("count").iter()
+            ).fold(Vec::new(), |mut vec, vv| {
+                if let (AnyValue::Utf8(v1), AnyValue::UInt32(v2)) = vv {
+                    vec.push((v1.to_string(), v2 as f32));
+                } else {
+                    warn!("unexpected values in build_histogram: {:?}", vv);
+                }
+                vec
+            })
+        }))
+    }
+
+    fn group_by_numeric(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+        let groupby_df = hist(
+            self.df.clone().lazy()
+              .filter(col(column.as_str()).is_not_null())
+              .collect()?.column(column.as_str())?,
+            None,
+            Some(10)
+        )?;
+        // debug!("wapuku:group_by_numeric rs={:?}", groupby_df);
+        //
+        // debug!("groupby_df={:?}", groupby_df);
+        //
+        // ┌─────────────┬───────────────────────────────────┬──────────────────┐
+        // │ break_point ┆ category                          ┆ property_2_count │
+        // │ ---         ┆ ---                               ┆ ---              │
+        // │ f64         ┆ cat                               ┆ u32              │
+        // ╞═════════════╪═══════════════════════════════════╪══════════════════╡
+        let mut val_count = groupby_df.iter();
+        val_count.next(); //skip break_point
+
+        Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
+            y: std::iter::zip(
+                val_count.next().expect("cat").iter(),
+                val_count.next().expect("property_2_count").iter()
+            ).fold(Vec::new(), |mut vec, vv| {
+
+                if let (AnyValue::Categorical(a, RevMapping::Local(b), c), AnyValue::UInt32(count)) = vv {
+                    warn!("a={:?}, count={:?}", b.value(a as usize), count);
+                    vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count as f32));
+                } else {
+                    warn!("unexpected values in build_histogram: {:?}", vv);
+                }
+                vec
+            })
+        }))
+        // Err(WapukuError::ToDo)
+    }
+
 }
 
 impl Data for PolarsData {
@@ -258,30 +325,38 @@ impl Data for PolarsData {
     fn build_histogram(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
         debug!("wapuku: build_histogram={:?}", column);
 
-        let groupby_df = self.df.clone().lazy()
-            .groupby([col(column.as_str())])
-            .agg([count().alias("count")])
-            .sort("count",  Default::default())
-            .collect()?;
+        match self.df.column(column.as_str())?.dtype() {
+            // DataType::Boolean => {}
 
-        debug!("groupby_df={:?}", groupby_df);
+            DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 |
+            DataType::Int8  | DataType::Int16  | DataType::Int32  | DataType::Int64  |
+            DataType::Float32 | DataType::Float64  |
+            DataType::Date | DataType::Time
 
-        let mut val_count = groupby_df.iter();
+            => {
+                Ok(self.group_by_numeric(frame_id, column)?)
+            }
+            // DataType::Decimal(_, _) => {}
+            DataType::Utf8 => {
+                Ok(self.group_by_categoric(frame_id, column)?)
+            }
+            // DataType::Binary => {}
+            // DataType::Datetime(_, _) => {}
+            // DataType::Duration(_) => {}
+            // DataType::Array(_, _) => {}
+            // DataType::List(_) => {}
+            // DataType::Object(_) => {}
+            // DataType::Null => {}
+            // DataType::Categorical(_) => {}
+            // DataType::Struct(_) => {}
+            // DataType::Unknown => {}
+            dtype => {
+                Err(WapukuError::DataLoad { msg: format!("can't build historgram for {} of type {}", column, dtype)})
+            }
+        }
 
-        Ok(Histogram::new(frame_id, column, HistogramValues::Categoric {
-            y: std::iter::zip(
-                val_count.next().expect("val").iter(),
-                val_count.next().expect("count").iter()
-            ).fold(Vec::new(), |mut map, vv|{
 
-                if let (AnyValue::Utf8(v1), AnyValue::UInt32(v2)) = vv {
-                    map.push((v1.to_string(), v2 as f32));
-                } else {
-                    warn!("unexpected values in build_histogram: {:?}", vv);
-                }
-                map
-            })
-        }))
+
     }
 }
 
@@ -468,16 +543,20 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
 mod tests {
     use std::any::{Any, TypeId};
     use std::collections::HashSet;
+    use std::fs::File;
     use crate::tests::init_log;
 
     use log::debug;
     use polars::datatypes::AnyValue::List;
     use polars::df;
+    use regex::{Captures, Regex, Replacer};
+
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType};
     use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, HistogramValues, NumericColumnSummary, Property, PropertyRange, Summary};
     use crate::polars_df::{group_by_2, PolarsData};
+    use crate::utils::FloatReformatter;
 
     #[ctor::ctor]
     fn init() {
@@ -524,6 +603,49 @@ mod tests {
             panic!("not categoric")
         }
     }
+
+    #[test]
+    fn test_build_histogram_f32() {
+        let mut df = df!(
+            "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
+            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
+            "property_3" => &["A",  "B",  "C",  "A",  "B",  "C",  "C",  "B", "C"]
+        ).unwrap();
+
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let histogram = data.build_histogram(0u128, String::from("property_2")).expect("build_histogram");
+
+        println!("histogram={:?}", histogram);
+
+        if let HistogramValues::Categoric {y} = histogram.values() {
+            println!("y={:?}", y);
+            assert_eq!(y.get(0).unwrap().0, "(-inf, 0.00]");
+            assert_eq!(y.get(0).unwrap().1, 0.0);
+            assert_eq!(y.get(3).unwrap().0, "(0.80, 1.20]");
+            assert_eq!(y.get(3).unwrap().1, 3.0);
+        } else {
+            panic!("not categoric")
+        }
+    }
+
+    #[test]
+    fn test_asof(){
+
+        let file = File::open("../wapuku-egui/www/data/userdata1.parquet").expect("could not open file");
+
+        let df = ParquetReader::new(file).finish().unwrap();
+
+        println!("{:?}", df);
+
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let histogram = data.build_histogram(0u128, String::from("salary")).expect("build_histogram");
+
+        println!("histogram={:?}", histogram);
+
+    }
+
 
     #[test]
     fn test_build_summary_str() {

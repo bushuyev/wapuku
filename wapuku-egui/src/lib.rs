@@ -169,7 +169,6 @@ pub async fn run() {
                                     to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
                                 }
                             }
-
                         });
                     }
                 }

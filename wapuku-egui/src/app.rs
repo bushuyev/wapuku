@@ -326,7 +326,7 @@ impl eframe::App for WapukuApp {
 
                 let frame = egui::Window::new(view.title())
                     .id(view.ui_id())
-                    .default_width(300.)
+                    .default_width(600.)
                     .default_height(300.)
                     .vscroll(true)
                     .resizable(true)

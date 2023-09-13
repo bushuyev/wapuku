@@ -37,8 +37,8 @@ impl View for Summary {
             .striped(true)
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT))
-            .column(Column::auto().at_least(100.0).resizable(true).clip(true))
-            .column(Column::auto().at_least(100.0).resizable(true).clip(true))
+            .column(Column::auto().at_least(200.0).resizable(true).clip(true))
+            .column(Column::auto().at_least(200.0).resizable(true).clip(true))
             .column(Column::remainder());
 
         table.header(20.0, |mut header| {
@@ -71,6 +71,7 @@ impl View for Summary {
                     ColumnSummaryType::String {data}=> {
                         label_cell(&mut row, data.unique_values(), ctx, self.frame_id(), column_summary.name());
                     }
+
                     ColumnSummaryType::Boolean => {
 
                     }
