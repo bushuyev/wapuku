@@ -6,7 +6,7 @@ use egui_plot::{
     Plot,
 };
 use log::debug;
-use wapuku_model::model::{ColumnSummaryType, Histogram, Summary, WaModelId};
+use wapuku_model::model::{ColumnSummaryType, DataLump, Histogram, Summary, WaModelId};
 use wapuku_model::utils::val_or_na;
 
 use crate::app::{ActionRq, ModelCtx};
@@ -31,6 +31,21 @@ impl View for Summary {
     fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx){
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
+        ui.horizontal(|ui| {
+            ui.add(egui::Label::new("Shape:"));
+            ui.add(egui::Label::new(self.shape()));
+
+            ui.separator();
+            if ui.button("Show data:").clicked() {
+                ctx.queue_action(ActionRq::FetchData {
+                    frame_id: self.frame_id(),
+                    offset: 0,
+                    limit: 100
+                });
+
+            };
+        });
+
         let mut table = TableBuilder::new(ui)
             .striped(true)
             .resizable(true)
@@ -51,7 +66,6 @@ impl View for Summary {
             });
 
         }).body(|mut body| {
-
 
             body.rows(2. * text_height, self.columns().len(), |row_index, mut row| {
                 let column_summary = &self.columns()[row_index];
@@ -74,6 +88,14 @@ impl View for Summary {
 
                     }
                 }
+                row.col(|ui| {
+                    if ui.button(">").clicked() {
+                        ctx.queue_action(ActionRq::Histogram {
+                            frame_id: self.frame_id(),
+                            name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
+                        });
+                    }
+                });
             })
 
         });
@@ -125,7 +147,6 @@ impl View for Histogram {
         .color(Color32::LIGHT_BLUE)
         .name(self._title());
 
-
         let r = Plot::new("Normal Distribution Demo")
 
             .label_formatter(|name, value| {
@@ -139,6 +160,7 @@ impl View for Histogram {
                 })
             .allow_zoom(true)
             .allow_drag(true)
+            .custom_x_axes(vec![])
             .show(ui, |plot_ui| {
                 plot_ui.bar_chart(chart);
 
@@ -151,22 +173,63 @@ impl View for Histogram {
     }
 }
 
+impl View for DataLump {
+    fn title(&self) -> &str {
+        self._title()
+    }
+
+    fn ui_id(&self) -> Id {
+        Id::new(self.id())
+    }
+
+    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
+        let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
+
+        let mut table = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT));
+
+
+        let columns = self.columns();
+
+            // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
+            // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
+            // .column(Column::remainder());
+
+        table.header(20.0, |mut header| {
+            header.col(|ui| {
+                ui.strong("Column");
+            });
+            header.col(|ui| {
+                ui.strong("Data");
+            });
+            header.col(|ui| {
+                ui.strong("Actions");
+            });
+
+        }).body(|mut body| {
+            body.rows(2. * text_height, columns[0].len(), |row_index, mut row| {
+                let column_summary = &self.columns()[row_index];
+
+                row.col(|ui| {
+                    ui.label(column_summary.name().clone());
+                });
+            })
+        });
+    }
+
+    fn model_id(&self) -> WaModelId {
+        WaModelId::DataLump{ frame_id: self.frame_id()}
+    }
+}
+
 
 fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, frame_id:u128, name: &str) {
 
     row.col(|ui| {
         ui.horizontal_centered(|ui| {
-
             ui.add(egui::Label::new(label).wrap(true));
-
-            if ui.button(">").clicked() {
-
-                ctx.queue_action(ActionRq::Histogram {
-                    frame_id,
-                    name_ptr: Box::into_raw(Box::new(Box::new(String::from(name)))) as u32,
-                });
-
-            }
         });
     });
 }

@@ -16,6 +16,7 @@ use std::io::Read;
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
+    FetchData { frame_id:u128, offset:i64, limit:u32}
 }
 
 #[derive(Debug)]
@@ -230,11 +231,9 @@ impl eframe::App for WapukuApp {
 
         egui::TopBottomPanel::top("wrap_app_top_bar").show(ctx, |ui| {
             egui::trace!(ui);
-            ui.horizontal(|ui| {
 
-            });
             ui.horizontal_wrapped(|ui| {
-                ui.visuals_mut().button_frame = false;
+                // ui.visuals_mut().button_frame = false;
 
                 if ui.button("Load").clicked() {
                     let task = rfd::AsyncFileDialog::new()
@@ -340,9 +339,14 @@ impl eframe::App for WapukuApp {
 
                 // connections.push(frame.response.rect.min);
                 connections.insert(*view.model_id().id(), vec![frame.response.rect.min]);
+
                 if let Some(parent_connections) = view.model_id().parent_id().and_then(|parent_id|connections.get_mut(parent_id)) {
                     parent_connections.push(frame.response.rect.min);
                 }
+
+                // if frame.response.double_clicked() {
+                //     debug!("frame.response.double_clicked!")
+                // }
 
 
                 if !is_open {

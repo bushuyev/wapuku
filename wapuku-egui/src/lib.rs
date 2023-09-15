@@ -138,9 +138,6 @@ pub async fn run() {
 
                                             data_map_rc_1.borrow_mut().insert(frame_id, Box::new(df));
                                         }
-                                    // } else {
-                                    //     debug!("wapuku::run_in_pool: model locked ");
-                                    // }
                                 }
                                 Err(e) => {
                                     to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
@@ -169,6 +166,13 @@ pub async fn run() {
                                     to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
                                 }
                             }
+                        });
+                    }
+                    ActionRq::FetchData { frame_id , offset, limit} => {
+                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+                        pool_worker.run_in_pool( move || {
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).fetch_data(frame_id, offset, limit);
                         });
                     }
                 }

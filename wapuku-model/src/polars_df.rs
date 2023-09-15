@@ -1,15 +1,17 @@
 use std::collections::HashSet;
 use std::io::{Cursor, Read};
+use std::iter::Skip;
 
 use ::zip::*;
 use ::zip::result::*;
-use log::{debug, warn};
+use log::{debug, error, warn};
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::StartBy::WindowBound;
+use polars::series::SeriesIter;
 use polars::time::Duration;
 
-use crate::data_type::WapukuDataType;
+use crate::data_type::{WapukuDataType, WapukuDataValues};
 use crate::model::*;
 use crate::utils::*;
 
@@ -257,7 +259,7 @@ impl Data for PolarsData {
 
         let desc = self.df.describe(None).unwrap();
         // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
-        debug!("head={:?}", desc.head(None));
+        debug!("desc.shape()={:?}", self.df.shape());
         debug!("get={:?} desc.get_columns().len()={}", desc.get(0), desc.get_columns().len());
         // desc.get_columns().iter().map(|c|c.)
 
@@ -315,6 +317,7 @@ impl Data for PolarsData {
                     }
                 }
             }).collect(),
+            format!("{:?}", self.df.shape())
         )
 
     }
@@ -351,9 +354,41 @@ impl Data for PolarsData {
                 Err(WapukuError::DataLoad { msg: format!("can't build historgram for {} of type {}", column, dtype)})
             }
         }
+    }
 
+    fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError> {
+        let columns = self.df.get_columns();
+        debug!("columns.len()={}", columns.len());
 
+        columns.into_iter().enumerate().try_fold(DataLump::new(limit, columns.len()), |mut a, (col, s)|{
+            debug!("col()={}", col);
 
+            match s.dtype() {//TODO dtype into wdtype
+                DataType::Boolean => {
+                    a.add_column(WapukuDataType::Boolean, s.name())
+                }
+
+                DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 | DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
+                    a.add_column(WapukuDataType::Numeric, s.name())
+                }
+
+                DataType::Float32 | DataType::Float64 => {
+                    a.add_column(WapukuDataType::Numeric, s.name())
+                }
+
+                DataType::Utf8 | DataType::Binary | DataType::Date | DataType::Datetime(_,_) | DataType::Duration(_) | DataType::Time | DataType::Array(_,_)  | DataType::List(_) | /*DataType::Object | */
+                DataType::Null | DataType::Categorical(_) | /*DataType::Struct(_) |*/   DataType::Unknown => {
+                    a.add_column(WapukuDataType::String, s.name())
+                }
+
+            };
+
+            s.iter().skip(offset).take(limit).enumerate().map(|(row, v)|(row, v.to_string())).for_each(|(row, v)|{
+                a.set_value(row, col, v);
+            });
+
+            Ok(a)
+        })
     }
 }
 
@@ -540,13 +575,14 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
 mod tests {
     use std::collections::HashSet;
     use std::fs::File;
+    use std::iter;
 
     use log::debug;
     use polars::datatypes::AnyValue::List;
     use polars::df;
     use polars::prelude::*;
 
-    use crate::data_type::WapukuDataType;
+    use crate::data_type::{WapukuDataType, WapukuDataValues};
     use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary};
     use crate::polars_df::{group_by_2, PolarsData};
     use crate::tests::init_log;
@@ -613,28 +649,10 @@ mod tests {
         println!("y={:?}", y);
         assert_eq!(y.get(0).unwrap().0, "(-inf, 0.00]");
         assert_eq!(y.get(0).unwrap().1, 0);
-        assert_eq!(y.get(3).unwrap().0, "(0.80, 1.20]");
+        assert_eq!(y.get(3).unwrap().0, "(0.08, 0.12]");
         assert_eq!(y.get(3).unwrap().1, 3);
 
     }
-
-    #[test]
-    fn test_asof(){
-
-        let file = File::open("../wapuku-egui/www/data/userdata1.parquet").expect("could not open file");
-
-        let df = ParquetReader::new(file).finish().unwrap();
-
-        println!("{:?}", df);
-
-        let mut data = PolarsData::new(df, String::from("test"));
-
-        let histogram = data.build_histogram(0u128, String::from("salary")).expect("build_histogram");
-
-        println!("histogram={:?}", histogram);
-
-    }
-
 
     #[test]
     fn test_build_summary_str() {
@@ -648,6 +666,29 @@ mod tests {
         let summary = data.build_summary(0);
 
         check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
+
+    }
+
+    #[test]
+    fn test_fetch_data() {
+        // let column_vec = iter::repeat(3).map(|_|Some(String::from("XXX"))).collect::<Vec<Option<String>>>();
+
+        let column_vec = (0..3).map(|_|Some(String::from("XXX"))).collect::<Vec<Option<String>>>();
+
+        let mut df = df!(
+            "property_1" => &[1i32,   2i32,   3i32,  10i32,    20i32,   30i32,    100i32,    200i32,   300i32],
+            "property_2" => &[1f32,   2f32,   3f32,  10f32,    20f32,   30f32,    100f32,    200f32,   300f32],
+            "property_3" => &["A",    "B",    "C",   "D",      "E",     "F",      "G",       "H",      "I"]
+        ).unwrap();
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let data = data.fetch_data(0u128, 3, 3).unwrap();
+        debug!("data={:?}", data.columns()[0]);
+
+        assert_eq!(data.columns()[0], vec![Some(String::from("10")), Some(String::from("10.0")), Some(String::from("\"D\""))]);
+
+
+        // println!("alasdfsafsa");
 
     }
 

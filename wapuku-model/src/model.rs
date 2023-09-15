@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::{error, fmt};
+use std::{error, fmt, iter};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use log::debug;
@@ -17,6 +17,7 @@ pub fn wa_id() -> u128 {
 #[derive(Debug)]
 pub enum WaModelId {
     Summary{ frame_id: u128},
+    DataLump{ frame_id: u128},
     Histogram{ frame_id: u128, histogram_id: u128}
 }
 
@@ -29,6 +30,9 @@ impl WaModelId {
             WaModelId::Histogram { frame_id, histogram_id } => {
                 histogram_id
             }
+            WaModelId::DataLump { frame_id } => {
+                frame_id
+            }
         }
     }
 
@@ -38,6 +42,9 @@ impl WaModelId {
                 None
             }
             WaModelId::Histogram { frame_id, .. } => {
+                Some(frame_id)
+            }
+            WaModelId::DataLump { frame_id } => {
                 Some(frame_id)
             }
         }
@@ -185,7 +192,8 @@ pub struct Summary {
     id:u128,
     frame_id: u128,
     _title:String,
-    columns:Vec<ColumnSummary>
+    columns:Vec<ColumnSummary>,
+    shape:String
 }
 
 impl Summary {
@@ -194,12 +202,13 @@ impl Summary {
         &self.columns
     }
 
-    pub fn new(id:u128, frame_id: u128, title:String,  columns: Vec<ColumnSummary>) -> Self {
+    pub fn new(id:u128, frame_id: u128, title:String,  columns: Vec<ColumnSummary>, shape:String) -> Self {
         Self {
             _title: title,
             id,
             frame_id,
-            columns
+            columns,
+            shape
         }
     }
 
@@ -213,6 +222,11 @@ impl Summary {
 
     pub fn id(&self) -> u128 {
         self.id
+    }
+
+
+    pub fn shape(&self) -> &str {
+        &self.shape
     }
 }
 
@@ -255,6 +269,50 @@ impl Histogram {
         &self.values
     }
 }
+
+/////////////////////////
+#[derive(Debug)]
+pub struct DataLump {
+    id:u128,
+    title: String,
+    data:Vec<Vec<Option<String>>>,
+    columns:Vec<(WapukuDataType, String)>
+}
+
+impl DataLump {
+
+    pub fn new(rows:usize, columns:usize) -> Self {
+        let column_vec = (0..columns).map(|_|None).collect::<Vec<Option<String>>>();
+        Self {
+            id: wa_id(),
+            title: format!("data"),
+            data: (0..rows).map(|_|column_vec.clone()).collect(),
+            columns: vec![]
+        }
+    }
+
+    pub fn add_column(&mut self,  dtype:WapukuDataType, name:impl Into<String>) {
+        self.columns.push((dtype, name.into()));
+    }
+
+    pub fn set_value(&mut self, row:usize, col:usize, val:String) {
+        self.data[row][col].replace(val);
+    }
+
+    pub fn columns(&self) ->&Vec<Vec<Option<String>>> {
+        &self.data
+    }
+
+    pub fn id(&self) -> u128 {
+        self.id
+    }
+
+    pub fn _title(&self) -> &str {
+        &self.title
+    }
+
+}
+
 ///////////////Data view model////////////////
 
 #[derive(Debug)]
@@ -491,6 +549,7 @@ pub trait Data:Debug {
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
     fn build_summary(&self, frame_id: u128) -> Summary;
     fn build_histogram(&self, frame_id: u128, column:String) -> Result<Histogram, WapukuError>;
+    fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
 }
 
 #[derive(Debug)]
