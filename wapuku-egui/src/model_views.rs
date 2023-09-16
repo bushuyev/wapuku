@@ -37,7 +37,7 @@ impl View for Summary {
 
             ui.separator();
             if ui.button("Show data:").clicked() {
-                ctx.queue_action(ActionRq::FetchData {
+                ctx.queue_action(ActionRq::DataLump {
                     frame_id: self.frame_id(),
                     offset: 0,
                     limit: 100
@@ -193,28 +193,29 @@ impl View for DataLump {
 
         let columns = self.columns();
 
+        columns.iter().for_each(|c|{
+            table = table.column(Column::auto().at_least(200.0).resizable(true).clip(true));
+        });
             // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
             // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
             // .column(Column::remainder());
 
         table.header(20.0, |mut header| {
-            header.col(|ui| {
-                ui.strong("Column");
+
+            columns.iter().for_each(|c|{
+                header.col(|ui| {
+                    ui.strong(c.1.clone());
+                });
             });
-            header.col(|ui| {
-                ui.strong("Data");
-            });
-            header.col(|ui| {
-                ui.strong("Actions");
-            });
+
 
         }).body(|mut body| {
             body.rows(2. * text_height, columns[0].len(), |row_index, mut row| {
-                let column_summary = &self.columns()[row_index];
-
-                row.col(|ui| {
-                    ui.label(column_summary.name().clone());
-                });
+                // let column_summary = &self.data()[row_index];
+                //
+                // row.col(|ui| {
+                //     ui.label(column_summary.name().clone());
+                // });
             })
         });
     }

@@ -685,7 +685,7 @@ mod tests {
         let data = data.fetch_data(0u128, 3, 3).unwrap();
         debug!("data={:?}", data.columns()[0]);
 
-        assert_eq!(data.columns()[0], vec![Some(String::from("10")), Some(String::from("10.0")), Some(String::from("\"D\""))]);
+        assert_eq!(data.data()[0], vec![Some(String::from("10")), Some(String::from("10.0")), Some(String::from("\"D\""))]);
 
 
         // println!("alasdfsafsa");

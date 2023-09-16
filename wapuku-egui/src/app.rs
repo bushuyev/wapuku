@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use log::debug;
 use rfd;
-use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId};
+use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId, DataLump};
 use crate::model_views::View;
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Ui, Vec2};
 use std::collections::HashMap;
@@ -16,13 +16,14 @@ use std::io::Read;
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
-    FetchData { frame_id:u128, offset:i64, limit:u32}
+    DataLump { frame_id:u128, offset:i64, limit:u32}
 }
 
 #[derive(Debug)]
 pub enum ActionRs {
     LoadFrame {frame: WaFrame},
     Histogram {frame_id:u128, histogram:Histogram},
+    DataLump { frame_id:u128, lump:DataLump},
     Err { msg:String}
 }
 
@@ -153,6 +154,8 @@ impl WapukuAppModel {
 
         self.frames.values().for_each(|frame| {
             (f)(&mut self.ctx, 0, frame.summary());
+
+            // (f)(&mut self.ctx, 0, frame.summary());
 
             for hist in frame.histograms() {
                 (f)(&mut self.ctx, 0, hist);

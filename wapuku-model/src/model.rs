@@ -299,9 +299,11 @@ impl DataLump {
         self.data[row][col].replace(val);
     }
 
-    pub fn columns(&self) ->&Vec<Vec<Option<String>>> {
+    pub fn data(&self) ->&Vec<Vec<Option<String>>> {
         &self.data
     }
+
+
 
     pub fn id(&self) -> u128 {
         self.id
@@ -311,6 +313,9 @@ impl DataLump {
         &self.title
     }
 
+    pub fn columns(&self) -> &Vec<(WapukuDataType, String)> {
+        &self.columns
+    }
 }
 
 ///////////////Data view model////////////////
