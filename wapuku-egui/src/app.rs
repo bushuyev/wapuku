@@ -16,7 +16,7 @@ use std::io::Read;
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
-    DataLump { frame_id:u128, offset:i64, limit:u32}
+    DataLump { frame_id:u128, offset:usize, limit:usize}
 }
 
 #[derive(Debug)]
@@ -113,6 +113,15 @@ impl WapukuAppModel {
         }
     }
 
+    pub fn add_data_lump(&mut self, frame_id:u128, data_lump:DataLump) {
+        if let Some(frame) = self.frames.get_mut(&frame_id) {
+            frame.add_data_lump(data_lump);
+        } else {
+            debug!("wapuku: no frame_id={}", frame_id); //TODO err msg
+        }
+    }
+
+
     pub fn debug_ptr(&self) {
         debug!("wapuku:debug_ptr: self_ptr={:p}",  self);
     }
@@ -124,6 +133,11 @@ impl WapukuAppModel {
                 self.frames.remove(&frame_id);
             }
             WaModelId::Histogram{frame_id, histogram_id} => {
+                if let Some(frame) = self.frames.get_mut(&frame_id) {
+                    frame.purge(id);
+                }
+            }
+            WaModelId::DataLump { frame_id, lump_id } => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
@@ -159,6 +173,10 @@ impl WapukuAppModel {
 
             for hist in frame.histograms() {
                 (f)(&mut self.ctx, 0, hist);
+            }
+
+            for lump in frame.data_lumps() {
+                (f)(&mut self.ctx, 0, lump);
             }
 
         })

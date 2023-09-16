@@ -360,7 +360,7 @@ impl Data for PolarsData {
         let columns = self.df.get_columns();
         debug!("columns.len()={}", columns.len());
 
-        columns.into_iter().enumerate().try_fold(DataLump::new(limit, columns.len()), |mut a, (col, s)|{
+        columns.into_iter().enumerate().try_fold(DataLump::new(frame_id, limit, columns.len()), |mut a, (col, s)|{
             debug!("col()={}", col);
 
             match s.dtype() {//TODO dtype into wdtype

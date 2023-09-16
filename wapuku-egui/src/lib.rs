@@ -175,9 +175,11 @@ pub async fn run() {
                             let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).fetch_data(frame_id, offset, limit);
                             match result {
                                 Ok(data_lump) => {
+                                    debug!("wapuku: running in pool, sending data lump");
+
                                     to_main_rc_1_1.send(ActionRs::DataLump {
                                         frame_id,
-                                        data_lump,
+                                        lump: data_lump,
                                     }).expect("send");
                                 }
                                 Err(e) => {
@@ -202,7 +204,9 @@ pub async fn run() {
                     }
 
                     ActionRs::DataLump { frame_id, lump } => {
-                        model_borrowed.add_histogram(frame_id, histogram);
+                        debug!("wapuku: running in pool, got data lump");
+
+                        model_borrowed.add_data_lump(frame_id, lump);
                     }
 
                     ActionRs::Err { msg } => {

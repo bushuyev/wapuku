@@ -17,7 +17,7 @@ pub fn wa_id() -> u128 {
 #[derive(Debug)]
 pub enum WaModelId {
     Summary{ frame_id: u128},
-    DataLump{ frame_id: u128},
+    DataLump{ frame_id: u128, lump_id:u128},
     Histogram{ frame_id: u128, histogram_id: u128}
 }
 
@@ -30,8 +30,8 @@ impl WaModelId {
             WaModelId::Histogram { frame_id, histogram_id } => {
                 histogram_id
             }
-            WaModelId::DataLump { frame_id } => {
-                frame_id
+            WaModelId::DataLump { frame_id , lump_id} => {
+                lump_id
             }
         }
     }
@@ -44,7 +44,7 @@ impl WaModelId {
             WaModelId::Histogram { frame_id, .. } => {
                 Some(frame_id)
             }
-            WaModelId::DataLump { frame_id } => {
+            WaModelId::DataLump { frame_id, .. } => {
                 Some(frame_id)
             }
         }
@@ -57,7 +57,8 @@ pub struct WaFrame {
     id:u128,
     name:String,
     summary:Summary,
-    histograms:HashMap<u128, Histogram>
+    histograms:HashMap<u128, Histogram>,
+    data_lumps:HashMap<u128, DataLump>
 }
 
 impl WaFrame {
@@ -66,7 +67,8 @@ impl WaFrame {
             id: id,
             name,
             summary,
-            histograms: HashMap::new()
+            histograms: HashMap::new(),
+            data_lumps: HashMap::new()
         }
     }
 
@@ -85,8 +87,16 @@ impl WaFrame {
         self.histograms.insert(*histogram.id(), histogram);
     }
 
+    pub fn add_data_lump(&mut self, mut data_lump:DataLump) {
+        self.data_lumps.insert(*data_lump.id(), data_lump);
+    }
+
     pub fn histograms(&self)->impl Iterator<Item = &Histogram> {
         self.histograms.values().into_iter()
+    }
+
+    pub fn data_lumps(&self)->impl Iterator<Item = &DataLump> {
+        self.data_lumps.values().into_iter()
     }
 
     pub fn purge(&mut self, id: WaModelId) {
@@ -94,6 +104,9 @@ impl WaFrame {
             WaModelId::Histogram{frame_id, histogram_id} => {
                 self.histograms.remove(&histogram_id);
             },
+            WaModelId::DataLump {frame_id, lump_id} => {
+                self.data_lumps.remove(&lump_id);
+            }
             _=>{}
         }
     }
@@ -233,9 +246,9 @@ impl Summary {
 #[derive(Debug)]
 pub struct Histogram {
     id:u128,
+    frame_id: u128,
     column:String,
     title: String,
-    frame_id: u128,
     values:Vec<(String, u32)>,
 }
 
@@ -274,6 +287,7 @@ impl Histogram {
 #[derive(Debug)]
 pub struct DataLump {
     id:u128,
+    frame_id: u128,
     title: String,
     data:Vec<Vec<Option<String>>>,
     columns:Vec<(WapukuDataType, String)>
@@ -281,10 +295,11 @@ pub struct DataLump {
 
 impl DataLump {
 
-    pub fn new(rows:usize, columns:usize) -> Self {
+    pub fn new(frame_id: u128, rows:usize, columns:usize) -> Self {
         let column_vec = (0..columns).map(|_|None).collect::<Vec<Option<String>>>();
         Self {
             id: wa_id(),
+            frame_id,
             title: format!("data"),
             data: (0..rows).map(|_|column_vec.clone()).collect(),
             columns: vec![]
@@ -305,9 +320,10 @@ impl DataLump {
 
 
 
-    pub fn id(&self) -> u128 {
-        self.id
+    pub fn id(&self) -> &u128 {
+        &self.id
     }
+
 
     pub fn _title(&self) -> &str {
         &self.title
@@ -315,6 +331,9 @@ impl DataLump {
 
     pub fn columns(&self) -> &Vec<(WapukuDataType, String)> {
         &self.columns
+    }
+    pub fn frame_id(&self) -> &u128 {
+        &self.frame_id
     }
 }
 

@@ -193,8 +193,8 @@ impl View for DataLump {
 
         let columns = self.columns();
 
-        columns.iter().for_each(|c|{
-            table = table.column(Column::auto().at_least(200.0).resizable(true).clip(true));
+        table = columns.iter().fold(table, |t, c|{
+            t.column(Column::auto().at_least(20.0).resizable(true).clip(true))
         });
             // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
             // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
@@ -210,18 +210,26 @@ impl View for DataLump {
 
 
         }).body(|mut body| {
-            body.rows(2. * text_height, columns[0].len(), |row_index, mut row| {
+            let mut data_iter = self.data().iter();
+
+            body.rows(2. * text_height, self.data().len(), |row_index, mut row| {
                 // let column_summary = &self.data()[row_index];
-                //
-                // row.col(|ui| {
-                //     ui.label(column_summary.name().clone());
-                // });
+
+                if let Some(row_data) = data_iter.next(){
+                    row_data.iter().for_each(|col_data|{
+                        row.col(|ui| {
+                            ui.label(col_data.as_ref().map(|v|v.clone()).unwrap_or(String::from("n/a")));
+                        });
+                    });
+                }
+
+
             })
         });
     }
 
     fn model_id(&self) -> WaModelId {
-        WaModelId::DataLump{ frame_id: self.frame_id()}
+        WaModelId::DataLump{ frame_id: *self.frame_id(), lump_id: *self.id() }
     }
 }
 
