@@ -288,6 +288,7 @@ impl Histogram {
 pub struct DataLump {
     id:u128,
     frame_id: u128,
+    offset:usize,
     title: String,
     data:Vec<Vec<Option<String>>>,
     columns:Vec<(WapukuDataType, String)>
@@ -295,11 +296,12 @@ pub struct DataLump {
 
 impl DataLump {
 
-    pub fn new(frame_id: u128, rows:usize, columns:usize) -> Self {
+    pub fn new(frame_id: u128, offset:usize, rows:usize, columns:usize) -> Self {
         let column_vec = (0..columns).map(|_|None).collect::<Vec<Option<String>>>();
         Self {
             id: wa_id(),
             frame_id,
+            offset,
             title: format!("data"),
             data: (0..rows).map(|_|column_vec.clone()).collect(),
             columns: vec![]
@@ -325,6 +327,7 @@ impl DataLump {
     }
 
 
+
     pub fn _title(&self) -> &str {
         &self.title
     }
@@ -334,6 +337,9 @@ impl DataLump {
     }
     pub fn frame_id(&self) -> &u128 {
         &self.frame_id
+    }
+    pub fn offset(&self) -> &usize {
+        &self.offset
     }
 }
 

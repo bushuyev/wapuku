@@ -143,7 +143,6 @@ impl WapukuAppModel {
                 }
             }
         }
-
         // mem::drop(self.frames.remove(frame_id));
     }
 

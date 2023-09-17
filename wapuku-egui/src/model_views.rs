@@ -185,6 +185,33 @@ impl View for DataLump {
     fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
+        ui.horizontal(|ui| {
+
+            if self.offset() > &0 {
+
+                if ui.button("Prev").clicked() {
+
+                    ctx.queue_action(ActionRq::DataLump {
+                        frame_id: *self.frame_id(),
+                        offset: if self.offset() > &100 {*self.offset() - 100} else {0},
+                        limit: 100
+                    });
+                };
+            }
+
+            ui.add(egui::Label::new(format!("{}-{}", self.offset(), self.offset()+self.data().len())));
+
+            if ui.button("Next").clicked() {
+
+                ctx.queue_action(ActionRq::DataLump {
+                    frame_id: *self.frame_id(),
+                    offset: *self.offset() + 100,
+                    limit: 100
+                });
+
+            };
+        });
+
         let mut table = TableBuilder::new(ui)
             .striped(true)
             .resizable(true)
