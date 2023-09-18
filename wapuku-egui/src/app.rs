@@ -174,7 +174,7 @@ impl WapukuAppModel {
                 (f)(&mut self.ctx, 0, hist);
             }
 
-            for lump in frame.data_lumps() {
+            if let Some(lump) = frame.data_lump() {
                 (f)(&mut self.ctx, 0, lump);
             }
 

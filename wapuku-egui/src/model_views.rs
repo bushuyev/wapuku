@@ -36,7 +36,7 @@ impl View for Summary {
             ui.add(egui::Label::new(self.shape()));
 
             ui.separator();
-            if ui.button("Show data:").clicked() {
+            if ui.button("Show data").clicked() {
                 ctx.queue_action(ActionRq::DataLump {
                     frame_id: self.frame_id(),
                     offset: 0,

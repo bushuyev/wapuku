@@ -58,7 +58,7 @@ pub struct WaFrame {
     name:String,
     summary:Summary,
     histograms:HashMap<u128, Histogram>,
-    data_lumps:HashMap<u128, DataLump>
+    data_lump:Option<DataLump>
 }
 
 impl WaFrame {
@@ -68,7 +68,7 @@ impl WaFrame {
             name,
             summary,
             histograms: HashMap::new(),
-            data_lumps: HashMap::new()
+            data_lump: None
         }
     }
 
@@ -88,15 +88,19 @@ impl WaFrame {
     }
 
     pub fn add_data_lump(&mut self, mut data_lump:DataLump) {
-        self.data_lumps.insert(*data_lump.id(), data_lump);
+        if let Some(lump) = self.data_lump.as_mut() {
+            lump.replace_data(data_lump);
+        } else {
+            self.data_lump.replace(data_lump);
+        }
     }
 
     pub fn histograms(&self)->impl Iterator<Item = &Histogram> {
         self.histograms.values().into_iter()
     }
 
-    pub fn data_lumps(&self)->impl Iterator<Item = &DataLump> {
-        self.data_lumps.values().into_iter()
+    pub fn data_lump(&self)->Option<&DataLump> {
+        self.data_lump.as_ref()
     }
 
     pub fn purge(&mut self, id: WaModelId) {
@@ -105,7 +109,7 @@ impl WaFrame {
                 self.histograms.remove(&histogram_id);
             },
             WaModelId::DataLump {frame_id, lump_id} => {
-                self.data_lumps.remove(&lump_id);
+                self.data_lump.take();
             }
             _=>{}
         }
@@ -340,6 +344,11 @@ impl DataLump {
     }
     pub fn offset(&self) -> &usize {
         &self.offset
+    }
+    pub fn replace_data(&mut self, other:DataLump) {
+        self.offset = other.offset;
+        self.title = other.title;
+        self.data = other.data;
     }
 }
 
