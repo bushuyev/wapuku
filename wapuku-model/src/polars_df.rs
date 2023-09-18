@@ -256,13 +256,24 @@ impl Data for PolarsData {
 
         //TODO
         // self.df.get_columns().len() < 20
+        // self.df.lazy().filter()
 
-        let desc = self.df.describe(None).unwrap();
+        //
         // self.df.get_column_names().into_iter().zip(desc.iter()).for_each((|(name, column)|{
         debug!("desc.shape()={:?}", self.df.shape());
-        debug!("get={:?} desc.get_columns().len()={}", desc.get(0), desc.get_columns().len());
+        // debug!("get={:?} desc.get_columns().len()={}", desc.get(0), desc.get_columns().len());
         // desc.get_columns().iter().map(|c|c.)
 
+
+     /*   Summary::new(
+            wa_id(),
+            frame_id,
+            self.name.clone(),
+            self.df.get_columns().iter().map(|s| ColumnSummary::new(String::from(s.name()), ColumnSummaryType::Boolean)).collect(),
+            format!("{:?}", self.df.shape())
+        )*/
+
+        let desc = self.df.describe(None).unwrap();
         Summary::new(
             wa_id(),
             frame_id,

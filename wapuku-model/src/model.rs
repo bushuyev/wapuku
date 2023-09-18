@@ -17,6 +17,7 @@ pub fn wa_id() -> u128 {
 #[derive(Debug)]
 pub enum WaModelId {
     Summary{ frame_id: u128},
+    Filter{ frame_id: u128, filter_id:u128},
     DataLump{ frame_id: u128, lump_id:u128},
     Histogram{ frame_id: u128, histogram_id: u128}
 }
@@ -33,6 +34,9 @@ impl WaModelId {
             WaModelId::DataLump { frame_id , lump_id} => {
                 lump_id
             }
+            WaModelId::Filter { frame_id, filter_id } => {
+                filter_id
+            }
         }
     }
 
@@ -47,6 +51,9 @@ impl WaModelId {
             WaModelId::DataLump { frame_id, .. } => {
                 Some(frame_id)
             }
+            WaModelId::Filter { frame_id, .. } => {
+                Some(frame_id)
+            }
         }
     }
 }
@@ -58,7 +65,8 @@ pub struct WaFrame {
     name:String,
     summary:Summary,
     histograms:HashMap<u128, Histogram>,
-    data_lump:Option<DataLump>
+    data_lump:Option<DataLump>,
+    filter:Option<Filter>
 }
 
 impl WaFrame {
@@ -68,8 +76,18 @@ impl WaFrame {
             name,
             summary,
             histograms: HashMap::new(),
-            data_lump: None
+            data_lump: None,
+            filter: None
         }
+    }
+
+
+    pub fn add_filter(&mut self) {
+        self.filter.replace(Filter::empty(self.id));
+    }
+
+    pub fn filter(&self) -> Option<&Filter> {
+        self.filter.as_ref()
     }
 
     pub fn name(&self) -> &str {
@@ -110,7 +128,10 @@ impl WaFrame {
             },
             WaModelId::DataLump {frame_id, lump_id} => {
                 self.data_lump.take();
-            }
+            },
+            WaModelId::Filter {frame_id, filter_id} => {
+                self.filter.take();
+            },
             _=>{}
         }
     }
@@ -210,7 +231,7 @@ pub struct Summary {
     frame_id: u128,
     _title:String,
     columns:Vec<ColumnSummary>,
-    shape:String
+    shape:String,
 }
 
 impl Summary {
@@ -245,14 +266,16 @@ impl Summary {
     pub fn shape(&self) -> &str {
         &self.shape
     }
+
+
 }
 
 #[derive(Debug)]
 pub struct Histogram {
     id:u128,
     frame_id: u128,
-    column:String,
     title: String,
+    column:String,
     values:Vec<(String, u32)>,
 }
 
@@ -261,19 +284,17 @@ impl Histogram {
     pub fn new(frame_id: u128, column:String, values:Vec<(String, u32)>) -> Self {
         Self {
             id: wa_id(),
+            frame_id,
             title: format!("histogram/{}", column),
             column,
-            frame_id,
             values
         }
     }
+
     pub fn id(&self) -> &u128 {
         &self.id
     }
 
-    pub fn column(&self) -> &str {
-        &self.column
-    }
     pub fn frame_id(&self) -> u128 {
         self.frame_id
     }
@@ -281,6 +302,11 @@ impl Histogram {
     pub fn _title(&self) -> &str {
         &self.title
     }
+
+    pub fn column(&self) -> &str {
+        &self.column
+    }
+
 
     pub fn values(&self) -> &Vec<(String, u32)> {
         &self.values
@@ -665,3 +691,48 @@ impl PropertiesSet for SimplePropertiesSet {
     }
 }
 
+//////////////////////////////////
+#[derive(Debug)]
+pub struct Filter {
+    id:u128,
+    frame_id: u128,
+    title: String,
+    conditions:Conditions
+}
+
+impl Filter {
+
+    pub fn empty(frame_id: u128)-> Self {
+        Self {
+            id: wa_id(),
+            frame_id,
+            title: format!("filter/{}", "some"),//TODO name
+            conditions:Conditions::AND(vec![])
+        }
+    }
+
+    pub fn id(&self) -> &u128 {
+        &self.id
+    }
+
+    pub fn frame_id(&self) -> u128 {
+        self.frame_id
+    }
+
+    pub fn _title(&self) -> &str {
+        &self.title
+    }
+}
+
+#[derive(Debug)]
+enum Conditions {
+    AND(Vec<Condition>),
+    OR(Vec<Condition>)
+}
+
+#[derive(Debug)]
+enum  Condition {
+    Numeric{min:f32, max:f32},
+    String{pattern:String},
+    Boolean{val:bool}
+}

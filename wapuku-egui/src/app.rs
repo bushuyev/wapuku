@@ -4,13 +4,18 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use log::debug;
+use log::{debug, error};
 use rfd;
-use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId, DataLump};
+use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId, DataLump, Summary};
 use crate::model_views::View;
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Ui, Vec2};
 use std::collections::HashMap;
 use std::io::Read;
+
+pub enum UIAction {
+    WaFrame{frame_id: u128, action: Box<dyn FnMut(&mut WaFrame)>}
+}
+
 
 #[derive(Debug)]
 pub enum ActionRq {
@@ -30,17 +35,23 @@ pub enum ActionRs {
 
 pub struct ModelCtx {
     pending_actions: VecDeque<ActionRq>,
+    uid_actions: Vec<UIAction>,
 }
 
 impl ModelCtx {
     pub fn new() -> Self {
         Self {
-            pending_actions: VecDeque::new()
+            pending_actions: VecDeque::new(),
+            uid_actions: vec![]
         }
     }
 
     pub fn queue_action(&mut self, action: ActionRq) {
         self.pending_actions.push_back(action)
+    }
+
+    pub fn ui_action(&mut self, action: UIAction) {
+        self.uid_actions.push(action)
     }
 }
 
@@ -142,6 +153,11 @@ impl WapukuAppModel {
                     frame.purge(id);
                 }
             }
+            WaModelId::Filter { frame_id, filter_id } => {
+                if let Some(frame) = self.frames.get_mut(&frame_id) {
+                    frame.purge(id);
+                }
+            }
         }
         // mem::drop(self.frames.remove(frame_id));
     }
@@ -163,19 +179,22 @@ impl WapukuAppModel {
         self.ctx.pending_actions.push_back(action)
     }
 
-    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, usize, &dyn View) {
+    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, &dyn View) {
 
         self.frames.values().for_each(|frame| {
-            (f)(&mut self.ctx, 0, frame.summary());
+            (f)(&mut self.ctx, frame.summary());
 
-            // (f)(&mut self.ctx, 0, frame.summary());
+            if let Some(filter) = frame.filter(){
+                (f)(&mut self.ctx, filter);
+            }
+
 
             for hist in frame.histograms() {
-                (f)(&mut self.ctx, 0, hist);
+                (f)(&mut self.ctx, hist);
             }
 
             if let Some(lump) = frame.data_lump() {
-                (f)(&mut self.ctx, 0, lump);
+                (f)(&mut self.ctx, lump);
             }
 
         })
@@ -191,6 +210,19 @@ impl WapukuAppModel {
         self.memory_allocated
     }
 
+    pub fn run_ui_actions(&mut self) {
+        for action in self.ctx.uid_actions.drain(..) {
+            match action {
+                UIAction::WaFrame{frame_id, mut action} => {
+                   if let Some(frame) = self.frames.get_mut(&frame_id) {
+                       (action)(frame)
+                   } else {
+                       error!("frame {} not found", frame_id)
+                   }
+                }
+            }
+        }
+    }
 }
 
 // #[derive(serde::Deserialize, serde::Serialize)]
@@ -340,7 +372,7 @@ impl eframe::App for WapukuApp {
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
             let mut frame_to_close: Option<WaModelId> = None;
 
-            model_borrowed_mut.on_each_frame( |model_ctx, frame_i, view| {
+            model_borrowed_mut.on_each_frame( |model_ctx, view| {
                 let mut is_open = true;
 
                 let frame = egui::Window::new(view.title())

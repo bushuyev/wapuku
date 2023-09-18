@@ -190,6 +190,7 @@ pub async fn run() {
                     }
                 }
             }
+            model_borrowed.run_ui_actions();
 
             if let Ok(data_msg) = from_worker_rc1.try_recv() {
 

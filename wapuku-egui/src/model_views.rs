@@ -1,4 +1,4 @@
-use egui::{Color32, Ui, WidgetText};
+use egui::{Color32, emath, Frame, pos2, Pos2, Rect, Sense, Shape, Ui, Vec2, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
 use egui_plot::{
@@ -6,10 +6,10 @@ use egui_plot::{
     Plot,
 };
 use log::debug;
-use wapuku_model::model::{ColumnSummaryType, DataLump, Histogram, Summary, WaModelId};
+use wapuku_model::model::{ColumnSummaryType, DataLump, Filter, Histogram, Summary, WaModelId};
 use wapuku_model::utils::val_or_na;
 
-use crate::app::{ActionRq, ModelCtx};
+use crate::app::{ActionRq, ModelCtx, UIAction};
 
 pub trait View {
     fn title(&self) -> &str;
@@ -36,12 +36,27 @@ impl View for Summary {
             ui.add(egui::Label::new(self.shape()));
 
             ui.separator();
-            if ui.button("Show data").clicked() {
+            if ui.button("Data").clicked() {
                 ctx.queue_action(ActionRq::DataLump {
                     frame_id: self.frame_id(),
                     offset: 0,
                     limit: 100
                 });
+
+            };
+
+            if ui.button("Filter").clicked() {
+                let frame_id = self.frame_id();
+
+                ctx.ui_action(
+                    UIAction::WaFrame{frame_id : frame_id, action: Box::new(|mut frame|{
+                        frame.add_filter();
+                    })}
+                );
+
+                // ctx.ui_action(UIAction::WaFrame{frame_id : frame_id, action: Box::new(|mut summary|{
+                //     summary.add_filter();
+                // })));
 
             };
         });
@@ -89,7 +104,7 @@ impl View for Summary {
                     }
                 }
                 row.col(|ui| {
-                    if ui.button(">").clicked() {
+                    if ui.button("H").clicked() {
                         ctx.queue_action(ActionRq::Histogram {
                             frame_id: self.frame_id(),
                             name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
@@ -104,6 +119,47 @@ impl View for Summary {
 
     fn model_id(&self) -> WaModelId {
         WaModelId::Summary{ frame_id: self.frame_id()}
+    }
+}
+
+impl View for Filter {
+    fn title(&self) -> &str {
+        self._title()
+    }
+
+    fn ui_id(&self) -> Id {
+        Id::new(self.id())
+    }
+
+    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
+        Frame::canvas(ui.style()).show(ui, |ui| {
+            let (response, painter) =
+                ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
+
+            let to_screen = emath::RectTransform::from_to(Rect::from_min_size(Pos2::ZERO, response.rect.size()),
+                response.rect,
+            );
+
+            let size = Vec2::splat(2.0 * 10.0);
+
+            let point_in_screen = to_screen.transform_pos(pos2(50.0, 50.0),);
+            let point_rect = Rect::from_center_size(point_in_screen, size);
+            let point_id = response.id.with(1);
+            let point_response = ui.interact(point_rect, point_id, Sense::drag());
+
+            // *point += point_response.drag_delta();
+            // *point = to_screen.from().clamp(*point);
+            //
+            // let point_in_screen = to_screen.transform_pos(*point);
+            let stroke = ui.style().interact(&point_response).fg_stroke;
+
+            Shape::circle_stroke(point_in_screen, 10.0, stroke)
+        });
+
+    }
+
+    fn model_id(&self) -> WaModelId {
+        WaModelId::Filter{ frame_id: self.frame_id(), filter_id: *self.id()}
     }
 }
 
