@@ -287,9 +287,9 @@ impl Data for PolarsData {
                 match data_type {
                     WapukuDataType::Numeric { .. } => {
                         // let min = desc.get(4).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(String::from("n/a"));
-                        ColumnSummary::new(
+                        SummaryColumn::new(
                             String::from(c.name()),
-                            ColumnSummaryType::Numeric {
+                            SummaryColumnType::Numeric {
                                 data: NumericColumnSummary::new(
                                     desc.get(4).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
                                     desc.get(2).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
@@ -314,16 +314,16 @@ impl Data for PolarsData {
 
                         debug!("unique_values={:?}", unique_values);
 
-                        ColumnSummary::new(
+                        SummaryColumn::new(
                             String::from(c.name()),
-                            ColumnSummaryType::String { data: StringColumnSummary::new(unique_values) },
+                            SummaryColumnType::String { data: StringColumnSummary::new(unique_values) },
                         )
                     }
 
                     WapukuDataType::Boolean => {
-                        ColumnSummary::new(
+                        SummaryColumn::new(
                             String::from(c.name()),
-                            ColumnSummaryType::Boolean,
+                            SummaryColumnType::Boolean,
                         )
                     }
                 }
@@ -594,7 +594,7 @@ mod tests {
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType, WapukuDataValues};
-    use crate::model::{ColumnSummaryType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary};
+    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary};
     use crate::polars_df::{group_by_2, PolarsData};
     use crate::tests::init_log;
 
@@ -704,7 +704,7 @@ mod tests {
     }
 
     fn check_numeric_column(summary: &Summary, i: usize, min: &str, avg: &str, max: &str) {
-        if let ColumnSummaryType::Numeric { data } = summary.columns()[i].dtype() {
+        if let SummaryColumnType::Numeric { data } = summary.columns()[i].dtype() {
             assert_eq!(data.min(), min);
             assert_eq!(data.avg(), avg);
             assert_eq!(data.max(), max);

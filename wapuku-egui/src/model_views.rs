@@ -6,7 +6,8 @@ use egui_plot::{
     Plot,
 };
 use log::debug;
-use wapuku_model::model::{ColumnSummaryType, DataLump, Filter, Histogram, Summary, WaModelId};
+use wapuku_model::data_type::WapukuDataType;
+use wapuku_model::model::{SummaryColumnType, DataLump, Filter, Histogram, Summary, WaModelId};
 use wapuku_model::utils::val_or_na;
 
 use crate::app::{ActionRq, ModelCtx, UIAction};
@@ -90,16 +91,16 @@ impl View for Summary {
                 });
 
                 match column_summary.dtype() {
-                    ColumnSummaryType::Numeric { data} => {
+                    SummaryColumnType::Numeric { data} => {
 
                         label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), ctx, self.frame_id(), column_summary.name());
 
                     }
-                    ColumnSummaryType::String {data}=> {
+                    SummaryColumnType::String {data}=> {
                         label_cell(&mut row, data.unique_values(), ctx, self.frame_id(), column_summary.name());
                     }
 
-                    ColumnSummaryType::Boolean => {
+                    SummaryColumnType::Boolean => {
 
                     }
                 }
@@ -133,27 +134,57 @@ impl View for Filter {
 
     fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
         Frame::canvas(ui.style()).show(ui, |ui| {
-            let (response, painter) =
-                ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
 
-            let to_screen = emath::RectTransform::from_to(Rect::from_min_size(Pos2::ZERO, response.rect.size()),
-                response.rect,
-            );
+            ui.horizontal(|ui| {
 
-            let size = Vec2::splat(2.0 * 10.0);
+                egui::ComboBox::from_label("Column")
+                .selected_text(ctx.filter_new_condition_ctx().new_condition_column())
+                .show_ui(ui, |ui| {
+                    ui.style_mut().wrap = Some(false);
+                    ui.set_min_width(60.0);
 
-            let point_in_screen = to_screen.transform_pos(pos2(50.0, 50.0),);
-            let point_rect = Rect::from_center_size(point_in_screen, size);
-            let point_id = response.id.with(1);
-            let point_response = ui.interact(point_rect, point_id, Sense::drag());
+                    for c in self.columns(){
+                        ui.selectable_value(ctx.filter_new_condition_ctx_mut().new_condition_column_mut(), c.name().clone(), c.name());
+                    }
 
-            // *point += point_response.drag_delta();
-            // *point = to_screen.from().clamp(*point);
-            //
-            // let point_in_screen = to_screen.transform_pos(*point);
-            let stroke = ui.style().interact(&point_response).fg_stroke;
+                });
 
-            Shape::circle_stroke(point_in_screen, 10.0, stroke)
+                if let Some(selected_column) = self.columns().iter().find(|c|c.name().eq(ctx.filter_new_condition_ctx().new_condition_column())) {
+                    match selected_column.dtype() {
+                        WapukuDataType::Numeric => {
+                            let color =  if ctx.filter_new_condition_ctx().min().parse::<f32>().is_err(){
+                                Color32::RED
+                            } else {
+                                Color32::BLACK
+                            };
+                            ui.add(egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().min_mut()).hint_text("min").text_color(color));
+
+                            // ui.add(egui::TextEdit::singleline(min_max_mut.1).hint_text("max"));
+                        }
+                        WapukuDataType::String => {
+                            ui.add(egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().pattern_mut()).hint_text("pattern"));
+
+                        }
+                        WapukuDataType::Boolean => {}
+                    }
+
+                    if ui.button("Add").clicked() {
+                        debug!("add filter: {:?}", ctx.filter_new_condition_ctx())
+                    }
+                }
+               /* ui.group(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label("AND");
+                        ui.label("AND");
+                    });
+                });
+
+                ui.group(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label("OR");
+                    });
+                });*/
+            });
         });
 
     }

@@ -81,9 +81,11 @@ impl WaFrame {
         }
     }
 
-
     pub fn add_filter(&mut self) {
-        self.filter.replace(Filter::empty(self.id));
+        self.filter.replace(Filter::empty(
+            self.id,
+            self.summary.columns().iter().map(|cs| cs.into()).collect()
+        ));
     }
 
     pub fn filter(&self) -> Option<&Filter> {
@@ -138,45 +140,62 @@ impl WaFrame {
 }
 
 #[derive(Debug)]
-pub enum ColumnSummaryType {
+pub enum SummaryColumnType {
     Numeric{data:NumericColumnSummary},
     String{data:StringColumnSummary},
     Boolean
 }
 
-impl From<ColumnSummaryType> for WapukuDataType {
-    fn from(value: ColumnSummaryType) -> Self {
+impl From<SummaryColumnType> for WapukuDataType {
+    fn from(value: SummaryColumnType) -> Self {
         match value {
-            ColumnSummaryType::Numeric { .. } => {
+            SummaryColumnType::Numeric { .. } => {
                 WapukuDataType::Numeric
             }
-            ColumnSummaryType::String { .. } => {
+            SummaryColumnType::String { .. } => {
                 WapukuDataType::String
             }
-            ColumnSummaryType::Boolean => {
+            SummaryColumnType::Boolean => {
                 WapukuDataType::Boolean
             }
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ColumnSummary {
-    name:String,
-    dtype:ColumnSummaryType
+impl From<&SummaryColumnType> for WapukuDataType {
+    fn from(value: &SummaryColumnType) -> Self {
+        match value {
+            SummaryColumnType::Numeric { .. } => {
+                WapukuDataType::Numeric
+            }
+            SummaryColumnType::String { .. } => {
+                WapukuDataType::String
+            }
+            SummaryColumnType::Boolean => {
+                WapukuDataType::Boolean
+            }
+        }
+    }
 }
 
-impl ColumnSummary {
+
+#[derive(Debug)]
+pub struct SummaryColumn {
+    name:String,
+    dtype: SummaryColumnType
+}
+
+impl SummaryColumn {
 
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn new(name: String, dtype:ColumnSummaryType) -> Self {
+    pub fn new(name: String, dtype: SummaryColumnType) -> Self {
         Self { name, dtype }
     }
 
-    pub fn dtype(&self) -> &ColumnSummaryType {
+    pub fn dtype(&self) -> &SummaryColumnType {
         &self.dtype
     }
 }
@@ -230,17 +249,13 @@ pub struct Summary {
     id:u128,
     frame_id: u128,
     _title:String,
-    columns:Vec<ColumnSummary>,
+    columns:Vec<SummaryColumn>,
     shape:String,
 }
 
 impl Summary {
 
-    pub fn columns(&self) -> &Vec<ColumnSummary> {
-        &self.columns
-    }
-
-    pub fn new(id:u128, frame_id: u128, title:String,  columns: Vec<ColumnSummary>, shape:String) -> Self {
+    pub fn new(id:u128, frame_id: u128, title:String, columns: Vec<SummaryColumn>, shape:String) -> Self {
         Self {
             _title: title,
             id,
@@ -262,11 +277,13 @@ impl Summary {
         self.id
     }
 
-
     pub fn shape(&self) -> &str {
         &self.shape
     }
 
+    pub fn columns(&self) -> &Vec<SummaryColumn> {
+        &self.columns
+    }
 
 }
 
@@ -692,20 +709,114 @@ impl PropertiesSet for SimplePropertiesSet {
 }
 
 //////////////////////////////////
+
+#[derive(Debug)]
+pub enum FilterColumnType {
+    Numeric{min:f32, max:f32},
+    String{pattern:String},
+    Boolean{val:bool}
+}
+
+#[derive(Debug)]
+pub struct FilterColumn {
+    name:String,
+    dtype: WapukuDataType
+}
+
+impl FilterColumn {
+    pub fn new(name: String, dtype: WapukuDataType) -> Self {
+        Self { name, dtype }
+    }
+
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+    pub fn dtype(&self) -> &WapukuDataType {
+        &self.dtype
+    }
+}
+
+#[derive(Debug)]
+pub struct FilterNewConditionCtx {
+    new_condition_column:String,
+    min:String,
+    max:String,
+    pattern:String,
+    boolean:Option<bool>
+}
+
+impl FilterNewConditionCtx {
+    pub fn new() -> Self {
+        Self {
+            new_condition_column: String::new(),
+            min:String::new(),
+            max:String::new(),
+            pattern:String::new(),
+            boolean:None
+        }
+    }
+
+    pub fn new_condition_column(&self) -> &String {
+        &self.new_condition_column
+    }
+
+    pub fn new_condition_column_mut(&mut self) -> &mut String {
+        &mut self.new_condition_column
+    }
+
+
+    pub fn pattern(&self) -> &str {
+        &self.pattern
+    }
+
+    pub fn pattern_mut(&mut self) -> &mut String {
+        &mut self.pattern
+    }
+
+    pub fn boolean(&self) -> Option<bool> {
+        self.boolean
+    }
+
+    pub fn min(&self) -> &str {
+        &self.min
+    }
+
+    pub fn min_mut(&mut self) -> &mut String {
+        &mut self.min
+    }
+
+    pub fn max(&self) -> &str {
+        &self.max
+    }
+
+    pub fn max_mut(&mut self) -> &String {
+        &mut self.max
+    }
+}
+
 #[derive(Debug)]
 pub struct Filter {
     id:u128,
     frame_id: u128,
     title: String,
+    columns:Vec<FilterColumn>,
     conditions:Conditions
+}
+
+impl From<&SummaryColumn> for FilterColumn {
+    fn from(value: &SummaryColumn) -> Self {
+        FilterColumn::new(value.name().to_string(), value.dtype().into())
+    }
 }
 
 impl Filter {
 
-    pub fn empty(frame_id: u128)-> Self {
+    pub fn empty(frame_id: u128, columns:Vec<FilterColumn>,)-> Self {
         Self {
             id: wa_id(),
             frame_id,
+            columns,
             title: format!("filter/{}", "some"),//TODO name
             conditions:Conditions::AND(vec![])
         }
@@ -721,6 +832,11 @@ impl Filter {
 
     pub fn _title(&self) -> &str {
         &self.title
+    }
+
+
+    pub fn columns(&self) -> &Vec<FilterColumn> {
+        &self.columns
     }
 }
 

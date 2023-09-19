@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use log::{debug, error};
 use rfd;
-use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId, DataLump, Summary};
+use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId, DataLump, Summary, FilterNewConditionCtx};
 use crate::model_views::View;
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Ui, Vec2};
 use std::collections::HashMap;
@@ -36,13 +36,15 @@ pub enum ActionRs {
 pub struct ModelCtx {
     pending_actions: VecDeque<ActionRq>,
     uid_actions: Vec<UIAction>,
+    filter_new_condition_ctx:FilterNewConditionCtx
 }
 
 impl ModelCtx {
     pub fn new() -> Self {
         Self {
             pending_actions: VecDeque::new(),
-            uid_actions: vec![]
+            uid_actions: vec![],
+            filter_new_condition_ctx:FilterNewConditionCtx::new()
         }
     }
 
@@ -52,6 +54,14 @@ impl ModelCtx {
 
     pub fn ui_action(&mut self, action: UIAction) {
         self.uid_actions.push(action)
+    }
+
+    pub fn filter_new_condition_ctx(&self) -> &FilterNewConditionCtx {
+        &self.filter_new_condition_ctx
+    }
+
+    pub fn filter_new_condition_ctx_mut(&mut self) -> &mut FilterNewConditionCtx {
+        &mut self.filter_new_condition_ctx
     }
 }
 
