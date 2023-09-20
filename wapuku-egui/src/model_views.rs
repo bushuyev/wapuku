@@ -1,4 +1,4 @@
-use egui::{Color32, emath, Frame, pos2, Pos2, Rect, Sense, Shape, Ui, Vec2, WidgetText};
+use egui::{Color32, Frame, InnerResponse, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
 use egui_plot::{
@@ -6,11 +6,49 @@ use egui_plot::{
     Plot,
 };
 use log::debug;
-use wapuku_model::data_type::WapukuDataType;
-use wapuku_model::model::{SummaryColumnType, DataLump, Filter, Histogram, Summary, WaModelId};
+use wapuku_model::messages::OK;
+use wapuku_model::model::{DataLump, Filter, Histogram, Summary, SummaryColumnType, WaModelId};
 use wapuku_model::utils::val_or_na;
 
 use crate::app::{ActionRq, ModelCtx, UIAction};
+use crate::edit_models::ValidationResult;
+
+#[derive(Debug)]
+pub struct Msg {
+    text:String,
+    color:Color32
+}
+
+impl Msg {
+    pub fn new(text: &str, color: Color32) -> Self {
+        Self { text:text.to_string(), color }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            text:String::from(OK),
+            color: Color32::BLACK,
+        }
+    }
+
+    pub fn text(&self) -> &String {
+        &self.text
+    }
+    pub fn color(&self) -> &Color32 {
+        &self.color
+    }
+}
+
+
+impl<T:ValidationResult> From<T> for Msg {
+    fn from(value: T) -> Self {
+
+        Msg::new(
+            value.msg(),
+            if value.is_error() { Color32::RED } else { Color32::BLACK }
+        )
+    }
+}
 
 pub trait View {
     fn title(&self) -> &str;
@@ -137,35 +175,67 @@ impl View for Filter {
 
             ui.horizontal(|ui| {
 
-                egui::ComboBox::from_label("Column")
+                if let InnerResponse{inner:Some(r), response} = egui::ComboBox::from_label("Column")
                 .selected_text(ctx.filter_new_condition_ctx().new_condition_column())
                 .show_ui(ui, |ui| {
                     ui.style_mut().wrap = Some(false);
                     ui.set_min_width(60.0);
 
                     for c in self.columns(){
-                        ui.selectable_value(ctx.filter_new_condition_ctx_mut().new_condition_column_mut(), c.name().clone(), c.name());
+                        if ui.selectable_value(ctx.filter_new_condition_ctx_mut().new_condition_column_mut(), c.name().clone(), c.name()).clicked() {
+                            debug!("combo Selected");
+                            if let Some(selected_column) = self.columns().iter().find(|c|c.name().eq(ctx.filter_new_condition_ctx().new_condition_column())) {
+                                ctx.filter_new_condition_ctx_mut().init(selected_column);
+                            }
+                        }
                     }
 
-                });
+                }) {
+                    // debug!("combo result={:?} response={:?}", r, response);
+                };
 
-                if let Some(selected_column) = self.columns().iter().find(|c|c.name().eq(ctx.filter_new_condition_ctx().new_condition_column())) {
+                if let Some(selected_column) = ctx.filter_new_condition_ctx().selected_column() {
+
+
+
                     match selected_column.dtype() {
-                        WapukuDataType::Numeric => {
-                            let color =  if ctx.filter_new_condition_ctx().min().parse::<f32>().is_err(){
-                                Color32::RED
-                            } else {
-                                Color32::BLACK
-                            };
-                            ui.add(egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().min_mut()).hint_text("min").text_color(color));
+                        SummaryColumnType::Numeric { data } => {
+
+                            let msg_color = ctx.filter_new_condition_ctx().msg().color().clone();
+
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+
+
+                                    if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().min_mut())
+                                        .hint_text("min")
+                                        .text_color(msg_color)
+                                        .show(ui).response.changed() {
+
+                                        debug!("min changed");
+                                        ctx.filter_new_condition_ctx_mut().validate();
+                                    }
+
+                                    if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().max_mut())
+                                        .hint_text("max")
+                                        .text_color(msg_color)
+                                        .show(ui).response.changed() {
+
+                                        debug!("max changed");
+                                        ctx.filter_new_condition_ctx_mut().validate();
+                                    }
+
+                                });
+                                ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
+                            });
 
                             // ui.add(egui::TextEdit::singleline(min_max_mut.1).hint_text("max"));
                         }
-                        WapukuDataType::String => {
+                        SummaryColumnType::String{data} => {
                             ui.add(egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().pattern_mut()).hint_text("pattern"));
 
                         }
-                        WapukuDataType::Boolean => {}
+                        SummaryColumnType::Boolean => {}
                     }
 
                     if ui.button("Add").clicked() {
@@ -193,6 +263,7 @@ impl View for Filter {
         WaModelId::Filter{ frame_id: self.frame_id(), filter_id: *self.id()}
     }
 }
+
 
 impl View for Histogram {
 

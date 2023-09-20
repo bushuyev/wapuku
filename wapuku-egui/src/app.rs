@@ -1,16 +1,18 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::io::Read;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Stroke, Vec2};
 use log::{debug, error};
 use rfd;
-use wapuku_model::model::{Data, WaFrame, Histogram, WaModelId, DataLump, Summary, FilterNewConditionCtx};
+use wapuku_model::model::{Data, DataLump, Histogram, WaFrame, WaModelId};
+
+use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::View;
-use egui::{Align, Align2, Color32, emath, epaint, Frame, Id, Layout, Pos2, Rect, Stroke, Ui, Vec2};
-use std::collections::HashMap;
-use std::io::Read;
 
 pub enum UIAction {
     WaFrame{frame_id: u128, action: Box<dyn FnMut(&mut WaFrame)>}

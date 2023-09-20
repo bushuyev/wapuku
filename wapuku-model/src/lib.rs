@@ -4,6 +4,7 @@ pub mod model;
 pub mod data_type;
 pub mod test_data;
 pub mod utils;
+pub mod messages;
 
 
 #[cfg(test)]

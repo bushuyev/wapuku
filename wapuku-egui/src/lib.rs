@@ -23,6 +23,7 @@ use crate::app::{ActionRq, WapukuAppModel};
 
 mod app;
 mod model_views;
+mod edit_models;
 
 
 #[wasm_bindgen]

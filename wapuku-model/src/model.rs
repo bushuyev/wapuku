@@ -7,12 +7,15 @@ use uuid::Uuid;
 
 
 use crate::data_type::*;
+use crate::messages::*;
 
 ///////////////Data management model////////////////
 
 pub fn wa_id() -> u128 {
     Uuid::new_v4().as_u128()
 }
+
+
 
 #[derive(Debug)]
 pub enum WaModelId {
@@ -84,7 +87,8 @@ impl WaFrame {
     pub fn add_filter(&mut self) {
         self.filter.replace(Filter::empty(
             self.id,
-            self.summary.columns().iter().map(|cs| cs.into()).collect()
+            self.summary.columns().iter().map(|cs| cs.clone()).collect()
+            // self.summary.columns().iter().map(|cs| cs.into()).collect()
         ));
     }
 
@@ -139,7 +143,7 @@ impl WaFrame {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SummaryColumnType {
     Numeric{data:NumericColumnSummary},
     String{data:StringColumnSummary},
@@ -179,7 +183,7 @@ impl From<&SummaryColumnType> for WapukuDataType {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SummaryColumn {
     name:String,
     dtype: SummaryColumnType
@@ -187,7 +191,7 @@ pub struct SummaryColumn {
 
 impl SummaryColumn {
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &String {
         &self.name
     }
 
@@ -201,7 +205,7 @@ impl SummaryColumn {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NumericColumnSummary {
     min:String,
     avg:String,
@@ -210,23 +214,21 @@ pub struct NumericColumnSummary {
 
 impl NumericColumnSummary {
 
-
-    pub fn min(&self) -> &str {
+    pub fn min(&self) -> &String {
         &self.min
     }
-    pub fn avg(&self) -> &str {
+    pub fn avg(&self) -> &String {
         &self.avg
     }
-    pub fn max(&self) -> &str {
+    pub fn max(&self) -> &String {
         &self.max
     }
-
     pub fn new(min: String, avg: String, max: String) -> Self {
         Self { min, avg, max }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct  StringColumnSummary {
     unique_values:String
 }
@@ -236,13 +238,10 @@ impl StringColumnSummary {
         Self { unique_values }
     }
 
-
     pub fn unique_values(&self) -> &str {
         &self.unique_values
     }
 }
-
-
 
 #[derive(Debug)]
 pub struct Summary {
@@ -737,70 +736,13 @@ impl FilterColumn {
     }
 }
 
-#[derive(Debug)]
-pub struct FilterNewConditionCtx {
-    new_condition_column:String,
-    min:String,
-    max:String,
-    pattern:String,
-    boolean:Option<bool>
-}
-
-impl FilterNewConditionCtx {
-    pub fn new() -> Self {
-        Self {
-            new_condition_column: String::new(),
-            min:String::new(),
-            max:String::new(),
-            pattern:String::new(),
-            boolean:None
-        }
-    }
-
-    pub fn new_condition_column(&self) -> &String {
-        &self.new_condition_column
-    }
-
-    pub fn new_condition_column_mut(&mut self) -> &mut String {
-        &mut self.new_condition_column
-    }
-
-
-    pub fn pattern(&self) -> &str {
-        &self.pattern
-    }
-
-    pub fn pattern_mut(&mut self) -> &mut String {
-        &mut self.pattern
-    }
-
-    pub fn boolean(&self) -> Option<bool> {
-        self.boolean
-    }
-
-    pub fn min(&self) -> &str {
-        &self.min
-    }
-
-    pub fn min_mut(&mut self) -> &mut String {
-        &mut self.min
-    }
-
-    pub fn max(&self) -> &str {
-        &self.max
-    }
-
-    pub fn max_mut(&mut self) -> &String {
-        &mut self.max
-    }
-}
 
 #[derive(Debug)]
 pub struct Filter {
     id:u128,
     frame_id: u128,
     title: String,
-    columns:Vec<FilterColumn>,
+    columns:Vec<SummaryColumn>,
     conditions:Conditions
 }
 
@@ -812,7 +754,7 @@ impl From<&SummaryColumn> for FilterColumn {
 
 impl Filter {
 
-    pub fn empty(frame_id: u128, columns:Vec<FilterColumn>,)-> Self {
+    pub fn empty(frame_id: u128, columns:Vec<SummaryColumn>,)-> Self {
         Self {
             id: wa_id(),
             frame_id,
@@ -835,9 +777,10 @@ impl Filter {
     }
 
 
-    pub fn columns(&self) -> &Vec<FilterColumn> {
+    pub fn columns(&self) -> &Vec<SummaryColumn> {
         &self.columns
     }
+
 }
 
 #[derive(Debug)]
