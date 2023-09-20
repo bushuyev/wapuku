@@ -22,6 +22,7 @@ pub struct FilterNewConditionCtx {
 
 #[derive(Debug)]
 pub enum FilterValidationResult {
+    EmptyPattern,
     WrongFormat,
     LessThanMin,
     MoreThanMax,
@@ -54,6 +55,9 @@ impl ValidationResult for FilterValidationResult {
             }
             FilterValidationResult::MinLessThanMax => {
                 "MinLessThanMax"
+            }
+            FilterValidationResult::EmptyPattern => {
+                "EmptyPattern"
             }
             FilterValidationResult::Ok => {
                 "Ok"
@@ -138,12 +142,11 @@ impl FilterNewConditionCtx {
                     let min_r = self.min.parse::<f32>();
 
                     self.msg  = if min_r.is_err(){
-                        FilterValidationResult::WrongFormat.into()
-
+                        FilterValidationResult::WrongFormat
                     } else {
                         let max_r = self.max.parse::<f32>();
                         if max_r.is_err() {
-                            FilterValidationResult::WrongFormat.into()
+                            FilterValidationResult::WrongFormat
                         } else {
                             let min = min_r.unwrap();
                             let max = max_r.unwrap();
@@ -152,22 +155,29 @@ impl FilterNewConditionCtx {
                             let column_max = data.max().parse::<f32>().unwrap_or(f32::INFINITY);
 
                             if min < column_min {
-                                FilterValidationResult::LessThanMin.into()
+                                FilterValidationResult::LessThanMin
 
                             } else if max > column_max {
-                                FilterValidationResult::MoreThanMax.into()
+                                FilterValidationResult::MoreThanMax
 
                             } else if min > max {
-                                FilterValidationResult::MinLessThanMax.into()
+                                FilterValidationResult::MinLessThanMax
 
                             } else {
-                                FilterValidationResult::Ok.into()
+                                FilterValidationResult::Ok
                             }
 
                         }
-                    };
+                    }.into();
                 }
-                SummaryColumnType::String { .. } => {}
+                SummaryColumnType::String { data } => {
+                    self.msg =  if self.pattern.is_empty() {
+                        FilterValidationResult::EmptyPattern
+
+                    } else {
+                        FilterValidationResult::Ok
+                    }.into();
+                }
                 SummaryColumnType::Boolean => {}
             }
 

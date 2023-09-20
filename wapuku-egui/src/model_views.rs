@@ -206,7 +206,6 @@ impl View for Filter {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
 
-
                                     if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().min_mut())
                                         .hint_text("min")
                                         .text_color(msg_color)
@@ -229,11 +228,22 @@ impl View for Filter {
                                 ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
                             });
 
-                            // ui.add(egui::TextEdit::singleline(min_max_mut.1).hint_text("max"));
                         }
                         SummaryColumnType::String{data} => {
-                            ui.add(egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().pattern_mut()).hint_text("pattern"));
+                            let msg_color = ctx.filter_new_condition_ctx().msg().color().clone();
 
+                            ui.vertical(|ui| {
+                                if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().pattern_mut())
+                                    .hint_text("pattern")
+                                    .text_color(msg_color)
+                                    .show(ui).response.changed(){
+
+                                    debug!("pattern changed");
+                                    ctx.filter_new_condition_ctx_mut().validate();
+
+                                };
+                                ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
+                            });
                         }
                         SummaryColumnType::Boolean => {}
                     }
