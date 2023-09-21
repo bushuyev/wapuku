@@ -11,12 +11,15 @@ pub trait ValidationResult {
 #[derive(Debug)]
 pub struct FilterNewConditionCtx {
     new_condition_column:String,
+
     min:String,
     max:String,
-    pattern:String,
-    boolean:Option<bool>,
+    boolean:bool,
     selected_column:Option<SummaryColumn>,
     validation:FilterValidationResult,
+
+    pattern:String,
+
     msg:Msg
 }
 
@@ -74,7 +77,7 @@ impl FilterNewConditionCtx {
             min:String::new(),
             max:String::new(),
             pattern:String::new(),
-            boolean:None,
+            boolean:false,
             selected_column:None,
             validation:FilterValidationResult::Ok,
             msg:Msg::empty()
@@ -98,8 +101,8 @@ impl FilterNewConditionCtx {
         &mut self.pattern
     }
 
-    pub fn boolean(&self) -> Option<bool> {
-        self.boolean
+    pub fn boolean(&mut self) -> &mut bool  {
+        &mut self.boolean
     }
 
     pub fn min(&self) -> &String {
@@ -178,7 +181,9 @@ impl FilterNewConditionCtx {
                         FilterValidationResult::Ok
                     }.into();
                 }
-                SummaryColumnType::Boolean => {}
+                SummaryColumnType::Boolean => {
+
+                }
             }
 
         }

@@ -50,6 +50,11 @@ impl<T:ValidationResult> From<T> for Msg {
     }
 }
 
+#[derive(Debug)]
+pub enum LayoutRequest {
+    Center
+}
+
 pub trait View {
     fn title(&self) -> &str;
     fn ui_id(&self) -> Id;
@@ -197,7 +202,6 @@ impl View for Filter {
                 if let Some(selected_column) = ctx.filter_new_condition_ctx().selected_column() {
 
 
-
                     match selected_column.dtype() {
                         SummaryColumnType::Numeric { data } => {
 
@@ -245,7 +249,9 @@ impl View for Filter {
                                 ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
                             });
                         }
-                        SummaryColumnType::Boolean => {}
+                        SummaryColumnType::Boolean => {
+                            ui.checkbox(ctx.filter_new_condition_ctx_mut().boolean(), "");
+                        }
                     }
 
                     if ui.button("Add").clicked() {

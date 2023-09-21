@@ -12,7 +12,7 @@ use rfd;
 use wapuku_model::model::{Data, DataLump, Histogram, WaFrame, WaModelId};
 
 use crate::edit_models::FilterNewConditionCtx;
-use crate::model_views::View;
+use crate::model_views::{LayoutRequest, View};
 
 pub enum UIAction {
     WaFrame{frame_id: u128, action: Box<dyn FnMut(&mut WaFrame)>}
@@ -70,6 +70,26 @@ impl ModelCtx {
 static mut model_counter:usize = 0;
 
 
+pub struct LayoutManager {
+    pending_frame_actions:HashMap<u128, LayoutRequest>
+}
+
+impl LayoutManager {
+
+    pub fn new() -> Self {
+        Self {
+            pending_frame_actions: HashMap::new()
+        }
+    }
+
+    pub fn place_new_frame(&mut self, frame_id:u128) {
+        self.pending_frame_actions.insert(frame_id, LayoutRequest::Center);
+    }
+
+    pub fn actions_for_frame(&mut self, frame_id:&u128) -> Option<LayoutRequest> {
+        self.pending_frame_actions.remove(frame_id)
+    }
+}
 
 
 pub struct WapukuAppModel {
@@ -79,7 +99,8 @@ pub struct WapukuAppModel {
     messages: Vec<String>,
     memory_allocated:f32,
 
-    lock:Arc<Mutex<usize>>
+    lock:Arc<Mutex<usize>>,
+    layout_manager:LayoutManager
 }
 
 unsafe impl Sync for WapukuAppModel {}
@@ -98,7 +119,8 @@ impl WapukuAppModel {
             frames: HashMap::new(),
             messages: vec![],
             memory_allocated: 0.0,
-            lock: Arc::new(Mutex::new(0))
+            lock: Arc::new(Mutex::new(0)),
+            layout_manager: LayoutManager::new()
         }
     }
 
@@ -120,7 +142,10 @@ impl WapukuAppModel {
         let result = model_lock_arc.try_lock();
 
         if let Ok(lock) = result {
-            self.frames.insert(frame.id(), frame);
+            let new_frame_id = frame.id();
+            self.frames.insert(new_frame_id, frame);
+
+            self.layout_manager.place_new_frame(new_frame_id);
 
             debug!("wapuku:add_frame: Ok");
         } else {
@@ -191,22 +216,21 @@ impl WapukuAppModel {
         self.ctx.pending_actions.push_back(action)
     }
 
-    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, &dyn View) {
+    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, &dyn View, &mut LayoutManager) {
 
         self.frames.values().for_each(|frame| {
-            (f)(&mut self.ctx, frame.summary());
+            (f)(&mut self.ctx, frame.summary(), &mut self.layout_manager);
 
             if let Some(filter) = frame.filter(){
-                (f)(&mut self.ctx, filter);
+                (f)(&mut self.ctx, filter, &mut self.layout_manager);
             }
 
-
             for hist in frame.histograms() {
-                (f)(&mut self.ctx, hist);
+                (f)(&mut self.ctx, hist, &mut self.layout_manager);
             }
 
             if let Some(lump) = frame.data_lump() {
-                (f)(&mut self.ctx, lump);
+                (f)(&mut self.ctx, lump, &mut self.layout_manager);
             }
 
         })
@@ -384,17 +408,27 @@ impl eframe::App for WapukuApp {
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
             let mut frame_to_close: Option<WaModelId> = None;
 
-            model_borrowed_mut.on_each_frame( |model_ctx, view| {
+            model_borrowed_mut.on_each_frame( |model_ctx, view, layout_manager| {
                 let mut is_open = true;
 
-                let frame = egui::Window::new(view.title())
+                let mut frame_win = egui::Window::new(view.title())
                     .id(view.ui_id())
                     .default_width(600.)
                     .default_height(300.)
                     .vscroll(true)
                     .resizable(true)
                     .collapsible(true)
-                    .default_pos([0., 0.])
+                    .default_pos([0., 0.]);
+
+                if let Some(layout_rq) = layout_manager.actions_for_frame(view.model_id().id()) {
+                    match layout_rq {
+                        LayoutRequest::Center => {
+                            frame_win = frame_win.current_pos(ctx.available_rect().center());
+                        }
+                    }
+                }
+
+                let frame_win = frame_win
                     .open(&mut is_open)
                     .show(ctx, |ui| {
                         view.ui(ui, model_ctx)
@@ -402,10 +436,10 @@ impl eframe::App for WapukuApp {
 
 
                 // connections.push(frame.response.rect.min);
-                connections.insert(*view.model_id().id(), vec![frame.response.rect.min]);
+                connections.insert(*view.model_id().id(), vec![frame_win.response.rect.min]);
 
                 if let Some(parent_connections) = view.model_id().parent_id().and_then(|parent_id|connections.get_mut(parent_id)) {
-                    parent_connections.push(frame.response.rect.min);
+                    parent_connections.push(frame_win.response.rect.min);
                 }
 
                 // if frame.response.double_clicked() {
