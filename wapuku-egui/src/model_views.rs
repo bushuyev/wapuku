@@ -255,7 +255,17 @@ impl View for Filter {
                     }
 
                     if ui.button("Add").clicked() {
-                        debug!("add filter: {:?}", ctx.filter_new_condition_ctx())
+                        debug!("add filter: {:?}", ctx.filter_new_condition_ctx());
+                        if let Some(condition) = ctx.filter_new_condition_ctx().to_condition().take() {
+                            ctx.ui_action(
+                                UIAction::WaFrame {
+                                    frame_id: self.frame_id(),
+                                    action: Box::new( |mut frame| {
+                                        frame.add_filter_condition(condition);
+                                    }),
+                                }
+                            );
+                        }
                     }
                 }
                /* ui.group(|ui| {

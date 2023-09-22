@@ -92,6 +92,12 @@ impl WaFrame {
         ));
     }
 
+    pub fn add_filter_condition(&mut self, condition:Condition) {
+        if let Some(mut filter) = self.filter.as_mut() {
+            // filter.conditions.push(condition);
+        }
+    }
+
     pub fn filter(&self) -> Option<&Filter> {
         self.filter.as_ref()
     }
@@ -760,7 +766,7 @@ impl Filter {
             frame_id,
             columns,
             title: format!("filter/{}", "some"),//TODO name
-            conditions:Conditions::AND(vec![])
+            conditions:Conditions::new()
         }
     }
 
@@ -784,13 +790,25 @@ impl Filter {
 }
 
 #[derive(Debug)]
-enum Conditions {
-    AND(Vec<Condition>),
-    OR(Vec<Condition>)
+enum ConditionType {
+    AND,
+    OR
 }
 
 #[derive(Debug)]
-enum  Condition {
+pub struct  Conditions {
+    kind:ConditionType,
+    conditions:Vec<Condition>
+}
+
+impl Conditions {
+    pub fn new() -> Self {
+        Self { kind: ConditionType::AND, conditions: vec![] }
+    }
+}
+
+#[derive(Debug)]
+pub enum  Condition {
     Numeric{min:f32, max:f32},
     String{pattern:String},
     Boolean{val:bool}

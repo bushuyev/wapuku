@@ -15,7 +15,7 @@ use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::{LayoutRequest, View};
 
 pub enum UIAction {
-    WaFrame{frame_id: u128, action: Box<dyn FnMut(&mut WaFrame)>}
+    WaFrame{frame_id: u128, action: Box<dyn FnOnce(&mut WaFrame)>}
 }
 
 

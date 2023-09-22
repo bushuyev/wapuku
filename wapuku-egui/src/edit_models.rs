@@ -1,4 +1,4 @@
-use wapuku_model::model::{SummaryColumn, SummaryColumnType};
+use wapuku_model::model::{Condition, SummaryColumn, SummaryColumnType};
 use crate::model_views::Msg;
 
 
@@ -187,11 +187,28 @@ impl FilterNewConditionCtx {
             }
 
         }
-
-
     }
 
     pub fn msg(&self) -> &Msg {
         &self.msg
+    }
+
+    pub fn to_condition(&self) -> Option<Condition> {
+        self.selected_column.as_ref().map(|c|{
+            match c.dtype() {
+                SummaryColumnType::Numeric { .. } => {
+                    Condition::Numeric {
+                        min: self.min.parse().unwrap_or(0.0),//TODO handle parse error
+                        max: self.max.parse().unwrap_or(0.0),
+                    }
+                }
+                SummaryColumnType::String { .. } => {
+                    Condition::String {pattern: self.pattern.clone()}
+                }
+                SummaryColumnType::Boolean => {
+                    Condition::Boolean {val: self.boolean}
+                }
+            }
+        })
     }
 }
