@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::{error, fmt, iter};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use log::debug;
+use log::{debug, error};
 use uuid::Uuid;
 
 
@@ -92,13 +92,11 @@ impl WaFrame {
         ));
     }
 
-    pub fn add_filter_condition(&mut self, condition:Condition) {
-        if let Some(mut filter) = self.filter.as_mut() {
-            // filter.conditions.push(condition);
-
-            filter.conditions.replace(ConditionType::Single { condition});
-
-            debug!("condition={:?}", filter.conditions);
+    pub fn add_filter_condition(&mut self,  new_condition:ConditionType) {
+        if let Some(filter) = self.filter.as_mut() {
+            filter.add_condition(new_condition);
+        } else {
+            error!("Not filter for condition {:?} in frame {:?}", new_condition, self)
         }
     }
 
@@ -791,17 +789,58 @@ impl Filter {
         &self.columns
     }
 
+
+    pub fn conditions(&self) -> Option<&ConditionType> {
+        self.conditions.as_ref()
+    }
+
+    pub fn add_condition(&mut self, new_condition:ConditionType) {
+        match self.conditions.take() {
+            None => {
+                self.conditions.replace(new_condition);
+            }
+            Some(mut condition_type) => {
+                match condition_type {
+                    ConditionType::Single { .. } => {
+                        self.conditions.replace(ConditionType::Compoiste { conditions: vec![condition_type.clone(), new_condition ], ctype: CompositeType::AND});
+                    }
+                    ConditionType::Compoiste {  ref mut conditions, .. } => {
+                        conditions.push(new_condition);
+                        self.conditions.replace(condition_type);
+                    }
+                }
+            }
+        }
+    }
 }
 
-#[derive(Debug)]
-enum ConditionType {
-    Single{condition:Condition},
-    AND{conditions:Vec<ConditionType>},
-    OR{conditions:Vec<ConditionType>}
+#[derive(Debug, Clone)]
+pub enum ConditionType {
+    Single{column_name:String, condition:Condition},
+    Compoiste {conditions:Vec<ConditionType>, ctype:CompositeType},
+}
+
+impl ConditionType {
+    fn is_single(&self) -> bool {
+        match self {
+            ConditionType::Single { .. } => {
+                true
+            }
+            ConditionType::Compoiste { .. } => {
+                false
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CompositeType {
+    AND,
+    OR
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum  Condition {
     Numeric{min:f32, max:f32},
     String{pattern:String},
