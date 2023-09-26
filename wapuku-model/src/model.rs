@@ -92,9 +92,9 @@ impl WaFrame {
         ));
     }
 
-    pub fn add_filter_condition(&mut self,  new_condition:ConditionType) {
+    pub fn add_filter_condition(&mut self,  new_condition:ConditionType, target_condition:Option<*const ConditionType>) {
         if let Some(filter) = self.filter.as_mut() {
-            filter.add_condition(new_condition);
+            filter.add_condition(new_condition, target_condition);
         } else {
             error!("Not filter for condition {:?} in frame {:?}", new_condition, self)
         }
@@ -794,23 +794,64 @@ impl Filter {
         self.conditions.as_ref()
     }
 
-    pub fn add_condition(&mut self, new_condition:ConditionType) {
+    pub fn add_condition(&mut self, new_condition:ConditionType, target_condition:Option<*const ConditionType>) {
+        debug!("add_condition target_condition={:?}", target_condition);
+
         match self.conditions.take() {
             None => {
                 self.conditions.replace(new_condition);
             }
             Some(mut condition_type) => {
+                let parent_addr = &condition_type as *const _;
+
                 match condition_type {
                     ConditionType::Single { .. } => {
                         self.conditions.replace(ConditionType::Compoiste { conditions: vec![condition_type.clone(), new_condition ], ctype: CompositeType::AND});
                     }
                     ConditionType::Compoiste {  ref mut conditions, .. } => {
-                        conditions.push(new_condition);
+                        debug!("add_condition Compoiste target_condition={:?} parent_addr={:?}", target_condition, parent_addr);
+
+                        if target_condition.is_none() || target_condition.map(|t| t == parent_addr).unwrap_or(false) {
+                            debug!("add_condition 1");
+
+                            conditions.push(new_condition.clone());
+
+                        } else {
+                            debug!("add_condition 2");
+
+                            if !Self::push_child_condition(new_condition.clone(), conditions, target_condition.expect("target_condition")) {
+                                conditions.push(new_condition.clone());
+                            }
+                        }
+
+
                         self.conditions.replace(condition_type);
                     }
                 }
             }
         }
+    }
+
+    fn push_child_condition(new_condition: ConditionType, parent_conditions: &mut Vec<ConditionType>, target_addr:*const ConditionType) -> bool{
+        for condition in parent_conditions {
+            let parent_addr = condition as *const _;
+            match condition {
+                ConditionType::Single { .. } => {}
+                ConditionType::Compoiste {  ref mut conditions, .. } => {
+                    debug!("push_child_condition parent_addr={:?} target_addr={:?}", parent_addr, target_addr);
+                    if parent_addr == target_addr {
+                        conditions.push(new_condition);
+                        return true;
+                    } else {
+                        Self::push_child_condition(new_condition.clone(), conditions, target_addr);
+                    }
+
+                }
+            }
+        }
+
+        return false;
+
     }
 }
 

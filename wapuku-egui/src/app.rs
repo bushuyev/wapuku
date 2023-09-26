@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Stroke, Vec2};
 use log::{debug, error};
 use rfd;
-use wapuku_model::model::{Data, DataLump, Histogram, WaFrame, WaModelId};
+use wapuku_model::model::{ConditionType, Data, DataLump, Histogram, WaFrame, WaModelId};
 
 use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::{LayoutRequest, View};
@@ -38,7 +38,8 @@ pub enum ActionRs {
 pub struct ModelCtx {
     pending_actions: VecDeque<ActionRq>,
     uid_actions: Vec<UIAction>,
-    filter_new_condition_ctx:FilterNewConditionCtx
+    filter_new_condition_ctx:FilterNewConditionCtx,
+    selected_condition: Option<*const ConditionType>
 }
 
 impl ModelCtx {
@@ -46,7 +47,8 @@ impl ModelCtx {
         Self {
             pending_actions: VecDeque::new(),
             uid_actions: vec![],
-            filter_new_condition_ctx:FilterNewConditionCtx::new()
+            filter_new_condition_ctx:FilterNewConditionCtx::new(),
+            selected_condition: None
         }
     }
 
@@ -64,6 +66,18 @@ impl ModelCtx {
 
     pub fn filter_new_condition_ctx_mut(&mut self) -> &mut FilterNewConditionCtx {
         &mut self.filter_new_condition_ctx
+    }
+
+    pub fn set_selected_condition(&mut self, condition_ptr:*const ConditionType ) {
+        self.selected_condition.replace(condition_ptr);
+    }
+
+    pub fn take_selected_condition(&mut self ) -> Option<*const ConditionType> {
+        self.selected_condition.take()
+    }
+
+    pub fn selected_condition(&self) -> Option<*const ConditionType> {
+        self.selected_condition
     }
 }
 

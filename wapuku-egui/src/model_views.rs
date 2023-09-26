@@ -1,4 +1,5 @@
-use egui::{Color32, Frame, InnerResponse, Ui, WidgetText};
+use std::any::Any;
+use egui::{Color32, Frame, InnerResponse, Sense, Stroke, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
 use egui_plot::{
@@ -250,7 +251,7 @@ impl View for Filter {
                                     UIAction::WaFrame {
                                         frame_id: self.frame_id(),
                                         action: Box::new(|mut frame| {
-                                            frame.add_filter_condition(ConditionType::Single { column_name, condition });
+                                            frame.add_filter_condition(ConditionType::Single { column_name, condition }, None);
                                         }),
                                     }
                                 );
@@ -261,7 +262,13 @@ impl View for Filter {
                 });
 
                 if let Some(conditions) = self.conditions() {
-                    add_conditions(conditions, ui, ctx, self.frame_id());
+                    let prev_selected_condition = ctx.take_selected_condition();
+                    if !add_conditions(conditions, ui, ctx, self.frame_id(), self.ui_id(), prev_selected_condition) {
+                        // if let Some(prev_selected_condition) = prev_selected_condition {
+                        //     ctx.set_selected_condition(prev_selected_condition)
+                        // }
+
+                    }
                 }
             });
         });
@@ -274,11 +281,24 @@ impl View for Filter {
 }
 
 
-fn add_conditions(conditions: &ConditionType, ui: &mut Ui, ctx: &mut ModelCtx, frame_id:u128) {
+fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCtx, frame_id:u128, ui_id:Id, prev_selected_condition: Option<*const ConditionType>) -> bool {
     // crate::Frame::group(self.style()).show(self, add_contents)
 
-    ui.group(|ui| {
-        match conditions {
+    let style = ui.style();
+
+    let condition_frame = if prev_selected_condition.map(|c|c == condition_type as * const ConditionType ).unwrap_or(false) {
+        Frame::group(style).stroke(egui::Stroke {
+            width: 2.,
+            color: egui::Color32::GREEN,
+        })
+    } else {
+        Frame::group(style)
+    };
+
+    let response =  condition_frame.show(ui, |ui|{
+        let current_selected = condition_type as *const _;
+
+        match condition_type {
             ConditionType::Single { column_name, condition } => {
                 ui.horizontal(|ui| {
                     ui.label(column_name);
@@ -308,21 +328,27 @@ fn add_conditions(conditions: &ConditionType, ui: &mut Ui, ctx: &mut ModelCtx, f
                             }
                         }
                         if ui.button("AND+").clicked() {
+                            debug!("condition_type AND {:?} clicked", condition_type);
+                            ctx.set_selected_condition(condition_type as *const _);
+
                             ctx.ui_action(
                                 UIAction::WaFrame {
                                     frame_id,
-                                    action: Box::new(|mut frame| {
-                                        frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::AND});
+                                    action: Box::new(move |mut frame| {
+                                        frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::AND}, Some(current_selected));
                                     }),
                                 }
                             );
                         }
                         if ui.button("OR+").clicked() {
+                            debug!("condition_type OR {:?} clicked", condition_type);
+                            ctx.set_selected_condition(condition_type as *const _);
+
                             ctx.ui_action(
                                 UIAction::WaFrame {
                                     frame_id,
-                                    action: Box::new(|mut frame| {
-                                        frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::OR});
+                                    action: Box::new(move |mut frame| {
+                                        frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::OR}, Some(current_selected));
                                     }),
                                 }
                             );
@@ -330,12 +356,27 @@ fn add_conditions(conditions: &ConditionType, ui: &mut Ui, ctx: &mut ModelCtx, f
                     });
 
                     for condition in conditions {
-                        add_conditions(condition, ui, ctx, frame_id);
+                        add_conditions(condition, ui, ctx, frame_id, ui_id, prev_selected_condition);
                     }
                 });
             }
         }
-    });
+    }).response;
+
+    // if ctx.selected_condition().is_none() && ui.interact(response.rect, ui_id, Sense::click()).clicked() {
+    //     ctx.set_selected_condition(condition_type as *const _);
+    //     debug!("condition_type {:?} clicked", condition_type);
+    //     true
+    // } else {
+    //     false
+    // }
+
+    false
+
+
+    // if ctx.selected_condition().is_none() && ui.ctx().pointer_interact_pos().map(|p| response.rect.contains(p)).unwrap_or(false){
+    //     ctx.set_selected_condition(condition_type as *const _);
+    // }
 }
 
 impl View for Histogram {
