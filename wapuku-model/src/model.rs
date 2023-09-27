@@ -100,6 +100,14 @@ impl WaFrame {
         }
     }
 
+    pub fn change_condition_type(&mut self, target_condition:*const ConditionType) {
+        if let Some(filter) = self.filter.as_mut() {
+            filter.change_condition_type(target_condition);
+        } else {
+            error!("Not filter for target_condition {:?} in frame {:?}", target_condition, self)
+        }
+    }
+
     pub fn filter(&self) -> Option<&Filter> {
         self.filter.as_ref()
     }
@@ -639,6 +647,7 @@ pub trait Data:Debug {
     fn build_summary(&self, frame_id: u128) -> Summary;
     fn build_histogram(&self, frame_id: u128, column:String) -> Result<Histogram, WapukuError>;
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
+    fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<Self, WapukuError> where Self: Sized;
 }
 
 #[derive(Debug)]
@@ -745,7 +754,7 @@ impl FilterColumn {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Filter {
     id:u128,
     frame_id: u128,
@@ -792,6 +801,38 @@ impl Filter {
 
     pub fn conditions(&self) -> Option<&ConditionType> {
         self.conditions.as_ref()
+    }
+
+    pub fn change_condition_type(&mut self, target_condition:*const ConditionType) {
+        if let Some(condition) = self.conditions.as_mut() {
+            Self::in_sub_conditions_mut(target_condition, condition);
+        }
+    }
+
+    fn in_sub_conditions_mut(target_condition: *const ConditionType, condition: &mut ConditionType) {
+        let current_addr = condition as *const _;
+
+        match condition {
+            ConditionType::Compoiste { conditions, ctype } => {
+
+                if current_addr == target_condition {
+                    *ctype = match ctype {
+                        CompositeType::AND => {
+                            CompositeType::OR
+                        }
+                        CompositeType::OR => {
+                            CompositeType::AND
+                        }
+                    };
+                } else {
+                    for child_condition in conditions {
+                        Self::in_sub_conditions_mut(target_condition, child_condition);
+                    }
+
+                }
+            }
+            _ => {}
+        }
     }
 
     pub fn add_condition(&mut self, new_condition:ConditionType, target_condition:Option<*const ConditionType>) {

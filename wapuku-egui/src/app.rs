@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Stroke, Vec2};
 use log::{debug, error};
 use rfd;
-use wapuku_model::model::{ConditionType, Data, DataLump, Histogram, WaFrame, WaModelId};
+use wapuku_model::model::{ConditionType, Data, DataLump, Filter, Histogram, WaFrame, WaModelId};
 
 use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::{LayoutRequest, View};
@@ -23,7 +23,8 @@ pub enum UIAction {
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
-    DataLump { frame_id:u128, offset:usize, limit:usize}
+    DataLump { frame_id:u128, offset:usize, limit:usize},
+    ApplyFilter { frame_id:u128, filter:Filter}
 }
 
 #[derive(Debug)]
@@ -31,7 +32,8 @@ pub enum ActionRs {
     LoadFrame {frame: WaFrame},
     Histogram {frame_id:u128, histogram:Histogram},
     DataLump { frame_id:u128, lump:DataLump},
-    Err { msg:String}
+    ApplyFilter { frame_id:u128, frame:WaFrame},
+    Err { msg:String},
 }
 
 

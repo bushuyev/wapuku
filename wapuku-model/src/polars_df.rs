@@ -401,6 +401,10 @@ impl Data for PolarsData {
             Ok(a)
         })
     }
+
+    fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<Self, WapukuError> {
+        self.df.clone().lazy().filter(col("country").is_not_null()).collect().map(|df|PolarsData::new(df, String::from("filtered"))).map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
+    }
 }
 
 // impl Drop for PolarsData {

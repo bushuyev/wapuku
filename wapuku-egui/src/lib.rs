@@ -189,6 +189,22 @@ pub async fn run() {
                             }
                         });
                     }
+                    ActionRq::ApplyFilter { frame_id, filter } => {
+                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+                        pool_worker.run_in_pool( move || {
+
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).apply_filter(frame_id, filter);
+                            match result {
+                                Ok(data_lump) => {
+                                    debug!("wapuku: running in pool, sending data lump");
+                                }
+                                Err(e) => {
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                                }
+                            }
+                        });
+                    }
                 }
             }
             model_borrowed.run_ui_actions();
@@ -209,6 +225,10 @@ pub async fn run() {
                         debug!("wapuku: running in pool, got data lump");
 
                         model_borrowed.add_data_lump(frame_id, lump);
+                    }
+
+                    ActionRs::ApplyFilter { frame_id, frame} => {
+                        model_borrowed.add_frame(frame);
                     }
 
                     ActionRs::Err { msg } => {
