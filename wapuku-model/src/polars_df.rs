@@ -402,9 +402,35 @@ impl Data for PolarsData {
         })
     }
 
-    fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<Self, WapukuError> {
-        self.df.clone().lazy().filter(col("country").is_not_null()).collect().map(|df|PolarsData::new(df, String::from("filtered"))).map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
+    fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<FilteredFame, WapukuError> {
+        debug!("apply_filter filter={:?}", filter);
+        self.df.clone()
+            .lazy()
+            .filter(filter.into())
+            .collect()
+            .map(|df| FilteredFame::new(Box::new(PolarsData::new(df, String::from("filtered")))))
+            .map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
     }
+}
+
+impl From<Filter> for Expr {
+    fn from(filter: Filter) -> Self {
+
+        col("country").is_not_null()
+    }
+}
+
+#[cfg(test)]
+mod filter_test{
+    use polars::prelude::Expr;
+    use crate::model::Filter;
+    use crate::polars_df::tests::dummy_filter;
+
+    #[test]
+    pub fn test_string_pattern(){
+        let expr:Expr = dummy_filter().into();
+    }
+
 }
 
 // impl Drop for PolarsData {
@@ -423,24 +449,6 @@ fn map_to_wapuku(d_type: &DataType) -> WapukuDataType {
     }
 }
 
-pub fn fake_df() -> DataFrame {
-    // df!(
-    //     "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-    //     "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), //
-    //     "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
-    // ).unwrap()
-    // df!(
-    //     "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
-    //     "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
-    //     "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
-    // ).unwrap()
-
-    df!(
-       "property_1" => &(0..10_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-       "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), //
-       "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
-    ).unwrap()
-}
 
 pub fn load_zip(data: Box<Vec<u8>>) -> Result<Vec<(DataFrame, String)>, WapukuError> {
     let mut archive = ZipArchive::new(Cursor::new(data.as_slice()))?;
@@ -587,7 +595,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use std::collections::HashSet;
     use std::fs::File;
     use std::iter;
@@ -595,10 +603,11 @@ mod tests {
     use log::debug;
     use polars::datatypes::AnyValue::List;
     use polars::df;
+    use polars::export::arrow::compute::filter::filter;
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType, WapukuDataValues};
-    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary};
+    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary};
     use crate::polars_df::{group_by_2, PolarsData};
     use crate::tests::init_log;
 
@@ -682,6 +691,30 @@ mod tests {
 
         check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
 
+    }
+
+    #[test]
+    fn test_apply_filter() {
+        let mut df = df!(
+            "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
+            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
+            "property_3" => &["A",  "B",  "C",  "D",  "E",  "F",  "G",  "H", "I"]
+        ).unwrap();
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let filter = dummy_filter();
+
+        let filtered_frame = data.apply_filter(0u128, filter);
+
+
+    }
+
+    pub(crate) fn dummy_filter() -> Filter {
+        Filter::empty(
+            0u128,
+            vec![
+                SummaryColumn::new("property_1", SummaryColumnType::Numeric { data: NumericColumnSummary::new("0", "1", "2") })
+            ])
     }
 
     #[test]
@@ -1181,4 +1214,24 @@ mod tests {
 
          debug!("wapuku: parquet_scan: df={:?}", df);*/
     }
+
+    pub fn fake_df() -> DataFrame {
+        // df!(
+        //     "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+        //     "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), //
+        //     "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+        // ).unwrap()
+        // df!(
+        //     "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
+        //     "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
+        //     "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
+        // ).unwrap()
+
+        df!(
+       "property_1" => &(0..10_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+       "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), //
+       "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+    ).unwrap()
+    }
+
 }

@@ -128,7 +128,7 @@ pub async fn run() {
 
                                         for df in frames {
                                             let frame_id = wa_id();
-                                            // model_borrowed.add_frame(df.name().clone(), Box::new(df));
+
                                             to_main_rc_1_1.send(ActionRs::LoadFrame {
                                                 frame: WaFrame::new(
                                                     frame_id,
@@ -192,12 +192,25 @@ pub async fn run() {
                     ActionRq::ApplyFilter { frame_id, filter } => {
                         let mut data_map_rc_1 = Rc::clone(&data_map_rc);
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+
                         pool_worker.run_in_pool( move || {
 
-                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).apply_filter(frame_id, filter);
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).apply_filter(frame_id, filter.clone());
                             match result {
-                                Ok(data_lump) => {
+                                Ok(wiltered_fame) => {
                                     debug!("wapuku: running in pool, sending data lump");
+
+                                    let frame_id = wa_id();
+
+                                    to_main_rc_1_1.send(ActionRs::LoadFrame {
+                                        frame: WaFrame::new(
+                                            frame_id,
+                                            format!("{} filtered", wiltered_fame.data().name()),
+                                            wiltered_fame.data().build_summary(frame_id),
+                                        )
+                                    }).expect("send");
+
+                                    data_map_rc_1.borrow_mut().insert(frame_id, wiltered_fame.into());
                                 }
                                 Err(e) => {
                                     to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");

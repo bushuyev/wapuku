@@ -211,8 +211,8 @@ impl SummaryColumn {
         &self.name
     }
 
-    pub fn new(name: String, dtype: SummaryColumnType) -> Self {
-        Self { name, dtype }
+    pub fn new(name: impl Into<String>, dtype: SummaryColumnType) -> Self {
+        Self { name:name.into(), dtype }
     }
 
     pub fn dtype(&self) -> &SummaryColumnType {
@@ -239,8 +239,8 @@ impl NumericColumnSummary {
     pub fn max(&self) -> &String {
         &self.max
     }
-    pub fn new(min: String, avg: String, max: String) -> Self {
-        Self { min, avg, max }
+    pub fn new(min: impl Into<String>, avg: impl Into<String>, max: impl Into<String>) -> Self {
+        Self { min:min.into(), avg:avg.into(), max:max.into() }
     }
 }
 
@@ -637,6 +637,24 @@ impl  GroupsGrid {
 }
 
 
+pub struct FilteredFame {
+    data:Box<dyn Data>
+}
+
+impl FilteredFame {
+    pub fn new(data: Box<dyn Data>) -> Self {
+        Self { data }
+    }
+
+    pub fn into(self) -> Box<dyn Data> {
+        self.data
+    }
+
+    pub fn data(&self) -> &Box<dyn Data> {
+        &self.data
+    }
+}
+
 
 pub trait Data:Debug {
     fn load(data:Box<Vec<u8>>, name: Box<String>) -> Result<Vec<Self>, WapukuError> where Self: Sized;
@@ -647,7 +665,7 @@ pub trait Data:Debug {
     fn build_summary(&self, frame_id: u128) -> Summary;
     fn build_histogram(&self, frame_id: u128, column:String) -> Result<Histogram, WapukuError>;
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
-    fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<Self, WapukuError> where Self: Sized;
+    fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
 }
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::data_type::WapukuDataType;
-use crate::model::{Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, WapukuError};
+use crate::model::{Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, FilteredFame, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, WapukuError};
 
 #[derive(Debug)]
 pub struct TestData {
@@ -96,7 +96,7 @@ impl  Data for TestData {
         todo!()
     }
 
-    fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<Self, WapukuError> {
+    fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<FilteredFame, WapukuError> {
         todo!()
     }
 }
