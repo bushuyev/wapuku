@@ -250,8 +250,8 @@ pub struct  StringColumnSummary {
 }
 
 impl StringColumnSummary {
-    pub fn new(unique_values: String) -> Self {
-        Self { unique_values }
+    pub fn new(unique_values: impl Into<String>) -> Self {
+        Self { unique_values:unique_values.into() }
     }
 
     pub fn unique_values(&self) -> &str {

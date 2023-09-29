@@ -416,19 +416,48 @@ impl Data for PolarsData {
 impl From<Filter> for Expr {
     fn from(filter: Filter) -> Self {
 
-        col("country").is_not_null()
+        if let Some(conditions) = filter.conditions() {
+
+            match (conditions){
+
+                ConditionType::Single { column_name, condition } => {
+
+                    match condition {
+                        Condition::Numeric { .. } => {
+                            todo!()
+                        }
+                        Condition::String { pattern } => {
+                            col(column_name).str().contains_literal(lit(pattern.to_owned()))
+                        }
+                        Condition::Boolean { .. } => {
+                            todo!()
+                        }
+                    }
+                }
+                ConditionType::Compoiste { .. } => {
+                    todo!()
+                }
+            }
+        } else {
+            Expr::Wildcard
+        }
     }
 }
 
 #[cfg(test)]
 mod filter_test{
     use polars::prelude::Expr;
-    use crate::model::Filter;
+    use crate::model::{Condition, ConditionType, Filter};
     use crate::polars_df::tests::dummy_filter;
 
     #[test]
     pub fn test_string_pattern(){
-        let expr:Expr = dummy_filter().into();
+        let mut filter = dummy_filter();
+        filter.add_condition(ConditionType::Single {column_name: "property_1".into(), condition: Condition::String {pattern:"aaaa".into()}}, None);
+
+        let expr:Expr = filter.into();
+
+        println!("expr={:?}", expr)
     }
 
 }
@@ -607,7 +636,7 @@ pub(super) mod tests {
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType, WapukuDataValues};
-    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary};
+    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary, StringColumnSummary, ConditionType, Condition};
     use crate::polars_df::{group_by_2, PolarsData};
     use crate::tests::init_log;
 
@@ -702,18 +731,21 @@ pub(super) mod tests {
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let filter = dummy_filter();
+        let mut filter = dummy_filter();
+
+        filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"B".into()}}, None);
 
         let filtered_frame = data.apply_filter(0u128, filter);
-
-
+        println!("{:?}", filtered_frame.unwrap().data().build_summary(0u128))
     }
 
     pub(crate) fn dummy_filter() -> Filter {
         Filter::empty(
             0u128,
             vec![
-                SummaryColumn::new("property_1", SummaryColumnType::Numeric { data: NumericColumnSummary::new("0", "1", "2") })
+                SummaryColumn::new("property_1", SummaryColumnType::Numeric { data: NumericColumnSummary::new("0", "1", "2") }),
+                SummaryColumn::new("property_2", SummaryColumnType::String { data: StringColumnSummary::new("aaa bbb ccc") }),
+                SummaryColumn::new("property_3", SummaryColumnType::Boolean)
             ])
     }
 
