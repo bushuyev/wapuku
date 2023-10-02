@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::{error, fmt, iter};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use log::{debug, error};
+use log::{debug, error, warn};
 use uuid::Uuid;
 
 
@@ -97,6 +97,12 @@ impl WaFrame {
             filter.add_condition(new_condition, target_condition);
         } else {
             error!("Not filter for condition {:?} in frame {:?}", new_condition, self)
+        }
+    }
+
+    pub fn remove_filter_condition(&mut self,  condition_to_remove:*const ConditionType) {
+        if let Some(filter) = self.filter.as_mut() {
+            filter.remove_condition(condition_to_remove);
         }
     }
 
@@ -615,10 +621,10 @@ impl Debug for GroupsGrid {
 }
 
 impl  GroupsGrid {
+
     pub fn new(property_x: Box<dyn Property>, property_y: Box<dyn Property>, data: VecY<dyn DataGroup>) -> Self {
         Self { property_x, property_y, data }
     }
-
 
     pub fn property_x(&self) -> &Box<dyn Property> {
         &self.property_x
@@ -885,6 +891,41 @@ impl Filter {
 
 
                         self.conditions.replace(condition_type);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn remove_condition(&mut self, condition_to_remove: *const ConditionType) {
+
+        if self.conditions.is_some(){
+
+            if self.conditions.as_ref().map(|c| c as *const _ == condition_to_remove).unwrap_or(false) {
+                self.conditions.take();
+            } else {
+                Self::remove_child_condition(self.conditions.as_mut().expect("self.conditions"), condition_to_remove)
+
+            }
+
+        } else {
+            warn!("No top condition for remove_condition ")
+        }
+
+    }
+
+    fn remove_child_condition(parent_condition:&mut ConditionType, condition_to_remove: *const ConditionType){
+        match parent_condition {
+            ConditionType::Single { .. } => {
+                warn!("Parent condition can't be single")
+            }
+            ConditionType::Compoiste { conditions, .. } => {
+
+                if let Some((i, c)) = conditions.iter().enumerate().find(|(i, c)| *c as *const _ == condition_to_remove) {
+                    conditions.remove(i);
+                } else {
+                    for c in conditions {
+                        Self::remove_child_condition(c, condition_to_remove);
                     }
                 }
             }

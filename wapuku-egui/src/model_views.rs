@@ -318,6 +318,17 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                             ui.label(format!("val: {}", val));
                         }
                     }
+                    if ui.button("-").clicked() {
+                        ctx.ui_action(
+                            UIAction::WaFrame {
+                                frame_id,
+                                action: Box::new(move |mut frame| {
+                                    frame.remove_filter_condition(current_condition);
+                                }),
+                            }
+                        );
+                    }
+
                 });
             }
             ConditionType::Compoiste { conditions, ctype } => {
@@ -364,6 +375,16 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                                     frame_id,
                                     action: Box::new(move |mut frame| {
                                         frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::OR}, Some(current_condition));
+                                    }),
+                                }
+                            );
+                        }
+                        if ui.button("-").clicked() {
+                            ctx.ui_action(
+                                UIAction::WaFrame {
+                                    frame_id,
+                                    action: Box::new(move |mut frame| {
+                                        frame.remove_filter_condition(current_condition);
                                     }),
                                 }
                             );
