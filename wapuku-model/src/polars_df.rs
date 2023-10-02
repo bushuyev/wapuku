@@ -417,32 +417,53 @@ impl From<Filter> for Expr {
     fn from(filter: Filter) -> Self {
 
         if let Some(conditions) = filter.conditions() {
-
-            match (conditions){
-
-                ConditionType::Single { column_name, condition } => {
-
-                    match condition {
-                        Condition::Numeric { .. } => {
-                            todo!()
-                        }
-                        Condition::String { pattern } => {
-                            col(column_name).str().contains_literal(lit(pattern.to_owned()))
-                        }
-                        Condition::Boolean { .. } => {
-                            todo!()
-                        }
-                    }
-                }
-                ConditionType::Compoiste { .. } => {
-                    todo!()
-                }
-            }
+            conditions_to_expr(conditions)
         } else {
             Expr::Wildcard
         }
     }
 }
+
+
+fn conditions_to_expr(condition: &ConditionType) -> Expr {
+    match (condition) {
+        ConditionType::Single { column_name, condition } => {
+            match condition {
+                Condition::Numeric { min, max } => {
+                    col(column_name).gt_eq(*min).and(col(column_name).lt_eq(*max))
+                }
+                Condition::String { pattern } => {
+                    col(column_name).str().contains_literal(lit(pattern.to_owned()))
+                }
+                Condition::Boolean { val } => {
+                    col(column_name).eq(*val)
+                }
+            }
+        }
+        ConditionType::Compoiste { conditions, ctype } => {
+
+            if conditions.len() == 0 {
+                warn!("empty composit condition");
+                Expr::Wildcard
+            } else if conditions.len() == 1 {
+                conditions_to_expr(conditions.get(0).unwrap())
+
+            } else {
+                conditions.into_iter().skip(1).fold(conditions_to_expr(conditions.get(0).expect("no first condition")), |a, c|{
+                    match ctype {
+                        CompositeType::AND => {
+                            a.and(conditions_to_expr(c))
+                        }
+                        CompositeType::OR => {
+                            a.or(conditions_to_expr(c))
+                        }
+                    }
+                })
+            }
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod filter_test{
@@ -453,12 +474,54 @@ mod filter_test{
     #[test]
     pub fn test_string_pattern(){
         let mut filter = dummy_filter();
-        filter.add_condition(ConditionType::Single {column_name: "property_1".into(), condition: Condition::String {pattern:"aaaa".into()}}, None);
+        filter.add_condition(ConditionType::Single {column_name: "property_2".into(), condition: Condition::String {pattern:"aaaa".into()}}, None);
 
         let expr:Expr = filter.into();
 
-        println!("expr={:?}", expr)
+        println!("expr={:?}", expr);
+
+        assert_eq!("col(\"property_2\").str.contains([Utf8(aaaa)])", format!("{:?}", expr));
+
     }
+
+    #[test]
+    pub fn test_num_pattern(){
+        let mut filter = dummy_filter();
+        filter.add_condition(ConditionType::Single {column_name: "property_1".into(), condition: Condition::Numeric {min:-10.0, max:10.0}}, None);
+
+        let expr:Expr = filter.into();
+
+        println!("expr={:?}", expr);
+
+        assert_eq!("[([(col(\"property_1\")) >= (-10.0)]) & ([(col(\"property_1\")) <= (10.0)])]", format!("{:?}", expr));
+
+    }
+
+    #[test]
+    pub fn test_bool_pattern(){
+        let mut filter = dummy_filter();
+        filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::Boolean {val:true}}, None);
+
+        let expr:Expr = filter.into();
+
+        println!("expr={:?}", expr);
+
+        assert_eq!("[(col(\"property_3\")) == (true)]", format!("{:?}", expr));
+
+    }
+
+    #[test]
+    pub fn test_and(){
+        let mut filter = dummy_filter();
+        filter.add_condition(ConditionType::Single {column_name: "property_2".into(), condition: Condition::String {pattern:"aaaa".into()}}, None);
+        filter.add_condition(ConditionType::Single {column_name: "property_2".into(), condition: Condition::String {pattern:"bbb".into()}}, None);
+
+        let expr:Expr = filter.into();
+
+        assert_eq!("[(col(\"property_2\").str.contains([Utf8(aaaa)])) & (col(\"property_2\").str.contains([Utf8(bbb)]))]", format!("{:?}", expr));
+
+    }
+
 
 }
 
@@ -636,7 +699,7 @@ pub(super) mod tests {
     use polars::prelude::*;
 
     use crate::data_type::{WapukuDataType, WapukuDataValues};
-    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary, StringColumnSummary, ConditionType, Condition};
+    use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary, StringColumnSummary, ConditionType, Condition, CompositeType};
     use crate::polars_df::{group_by_2, PolarsData};
     use crate::tests::init_log;
 
@@ -725,18 +788,46 @@ pub(super) mod tests {
     #[test]
     fn test_apply_filter() {
         let mut df = df!(
-            "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
-            "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
-            "property_3" => &["A",  "B",  "C",  "D",  "E",  "F",  "G",  "H", "I"]
+            "property_1" => &[1i32,   2i32,    3i32,   1i32,   2i32,   3i32,    1i32,    2i32,   3i32],
+            "property_2" => &[1f32,   2f32,    3f32,   1f32,   2f32,   3f32,    1f32,    2f32,   3f32],
+            "property_3" => &["AB1",  "AB2",   "BC1",  "BC1",  "E",    "F",     "G",     "H",    "I"]
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
         let mut filter = dummy_filter();
 
-        filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"B".into()}}, None);
+        filter.add_condition(ConditionType::Compoiste {
+            conditions: vec![
+                ConditionType::Compoiste {
+                    conditions: vec![
+                        ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"A".into()}},
+                        ConditionType::Single {column_name: "property_2".into(), condition: Condition::Numeric {min: 1.0, max:1.0}},
+                    ],
+                    ctype:CompositeType::AND
+                },
+                ConditionType::Compoiste {
+                    conditions: vec![
+                        ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"C".into()}},
+                        ConditionType::Single {column_name: "property_1".into(), condition: Condition::Numeric {min: 3.0, max:3.0}},
+                    ],
+                    ctype:CompositeType::AND
+                }
+            ],
+            ctype:CompositeType::OR
+        }, None);
+
+        // filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"B".into()}}, None);
 
         let filtered_frame = data.apply_filter(0u128, filter);
-        println!("{:?}", filtered_frame.unwrap().data().build_summary(0u128))
+        let summary = filtered_frame.unwrap().data().build_summary(0u128);
+        let columns = summary.columns();
+        let property_3_column = columns.get(2).expect("property_3_column");
+        let SummaryColumnType::String { data} =  property_3_column.dtype() else {panic!("no property_3_column data")};
+
+        // debug!("data.unique_values()={:?}", data.unique_values());
+
+        assert_eq!("\"BC1\", \"AB1\"", data.unique_values())
+
     }
 
     pub(crate) fn dummy_filter() -> Filter {
@@ -787,18 +878,18 @@ pub(super) mod tests {
         /**
          property_1     1   2   3    - X
          property_2
-            1           11  12  13 
+            1           11  12  13
             2           21  22  23
             3           31  32  33
 
             Y
-         
+
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,], 
+            "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
             "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
-            "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
+            "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
         ).unwrap();
 
         debug!("wapuku: df: {:?}", df);
@@ -830,18 +921,18 @@ pub(super) mod tests {
         /**
          property_1     1   2   3    - X
          property_2
-            1           11  
-            2           21  
-            3           31  
+            1           11
+            2           21
+            3           31
 
             Y
 
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   1,   1,  ], 
+            "property_1" => &[1,   1,   1,  ],
             "property_2" => &[10,  20,  30, ],
-            "property_3" => &[11,  21,  31, ] 
+            "property_3" => &[11,  21,  31, ]
         ).unwrap();
 
         debug!("wapuku: df: {:?}", df);
@@ -873,16 +964,16 @@ pub(super) mod tests {
         /**
          property_1     1   2   3    - X
          property_2
-            1           11  12  13 
+            1           11  12  13
 
             Y
-         
+
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,  ], 
+            "property_1" => &[1,   2,   3,  ],
             "property_2" => &[10,  10,  10, ],
-            "property_3" => &[11,  12,  13, ] 
+            "property_3" => &[11,  12,  13, ]
         ).unwrap();
 
         debug!("wapuku: df: {:?}", df);
@@ -915,18 +1006,18 @@ pub(super) mod tests {
         /**
          property_1     1   2   3    - X
          property_2
-            1           11  12  13 
+            1           11  12  13
             2           21  22  23
             3           31  32  33
 
             Y
-         
+
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,    1,   2,   3,   1,   2,   3,   1,   2,   3, ], 
+            "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,    1,   2,   3,   1,   2,   3,   1,   2,   3, ],
             "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,   10,  10,  10,  20,  20,  20,  30,  30,  30,],
-            "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,   110, 120, 130, 210, 220, 230, 310, 320, 330,] 
+            "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,   110, 120, 130, 210, 220, 230, 310, 320, 330,]
         ).unwrap();
 
         debug!("wapuku: df: {:?}", df);
@@ -957,18 +1048,18 @@ pub(super) mod tests {
         /**
          property_1      2   3    - X
          property_2
-            1            12  13 
+            1            12  13
             2            22  23
             3            32  33
 
             Y
-         
+
         **/
 
         let mut df = df!(
-            "property_1" => &[2,   3,   2,   3,   2,   3,], 
+            "property_1" => &[2,   3,   2,   3,   2,   3,],
             "property_2" => &[10,   20,   30,   10,   20,   30,],
-            "property_3" => &[12,  13,  22,  23,  32,  33,] 
+            "property_3" => &[12,  13,  22,  23,  32,  33,]
         ).unwrap();
 
 
@@ -1005,9 +1096,9 @@ pub(super) mod tests {
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   1,   2,   3,], 
+            "property_1" => &[1,   2,   3,   1,   2,   3,],
             "property_2" => &[20,  20,  20,   30,   30,   30,],
-            "property_3" => &[21,  22,  23,  31,  32,  33,] 
+            "property_3" => &[21,  22,  23,  31,  32,  33,]
         ).unwrap();
 
 
@@ -1040,13 +1131,13 @@ pub(super) mod tests {
             3           31  32  33  24
 
             Y
-         
+
         **/
 
         let mut df = df!(
-            "property_1" => &[1,   2,   3,   4,   1,   2,   3,   4,  1,   2,   3,  4], 
+            "property_1" => &[1,   2,   3,   4,   1,   2,   3,   4,  1,   2,   3,  4],
             "property_2" => &[10,  10,  10,  10,  20,  20,  20,  20, 30,  30,  30, 30],
-            "property_3" => &[11,  12,  13,  14,  21,  22,  23,  24, 31,  32,  33, 34] 
+            "property_3" => &[11,  12,  13,  14,  21,  22,  23,  24, 31,  32,  33, 34]
         ).unwrap();
 
 
@@ -1094,7 +1185,7 @@ pub(super) mod tests {
     fn test_polars_data() {
         let df = df!(
             "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-            "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+            "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), //
             "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
         ).unwrap();
 
@@ -1127,7 +1218,7 @@ pub(super) mod tests {
     #[test]
     fn test_build_grid_with_more_properties() {
         let mut df = df!(
-            "property_1" => &[10,      20,     30,     40,    50,      60,      70,      80,      90, 100], 
+            "property_1" => &[10,      20,     30,     40,    50,      60,      70,      80,      90, 100],
             "property_2" => &[1,       1,      1,      1,     2,       2,       2,       2,       2,    2],
             "property_3" => &["a",     "b",    "c",    "d",   "e",     "f",     "g",     "h",     "i",  "j"],
             "property_4" => &[100,     200,    300,    400,   500,     600,     700,     800,     900,  1000],
@@ -1165,7 +1256,7 @@ pub(super) mod tests {
     #[test]
     fn test_group_by_same_order() {
         let mut df = df!(
-            "field_1" => &[10,      20,     30,     40,   41,    50,     60,     70,     80,     90], 
+            "field_1" => &[10,      20,     30,     40,   41,    50,     60,     70,     80,     90],
             "field_2" => &[1,       1,      1,      1,    3,     2,      2,      2,      2,      2],
             "field_3" => &["a",     "b",    "c",    "d",  "dd",  "e",   "f",    "g",    "h",    "ii"]
         ).unwrap();
@@ -1177,7 +1268,7 @@ pub(super) mod tests {
          4-6 |
          6-8 |
          8-10|
-        
+
          */
         let df = group_by_2(
             &df, "field_2", 2, "field_1", 20, [col("field_3").alias("field_3_value")],
@@ -1204,15 +1295,15 @@ pub(super) mod tests {
     fn test_simp() {
         let df = df!(
             // "property_1" => &(0..10_000_000).into_iter().map(|i|i / 10).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-            // "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), // 
+            // "property_2" => &(0..10_000_000).into_iter().map(|i|i - (i/10)*10 ).collect::<Vec<i64>>(), //
             // "property_3" => &(0..10_000_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
-            
-            // "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,], 
+
+            // "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
             // "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
-            // "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,] 
-            
+            // "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
+
             "property_1" => &(0..10000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-            "property_2" => &(0..10000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), // 
+            "property_2" => &(0..10000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), //
             "property_3" => &(0..10000).into_iter().map(|i|i).collect::<Vec<i32>>(),
         ).unwrap();
 
