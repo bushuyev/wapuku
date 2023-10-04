@@ -891,7 +891,7 @@ impl Filter {
                         } else {
                             debug!("add_condition 2");
 
-                            if Self::push_child_condition(new_condition.clone(), conditions, target_condition.expect("target_condition")) {
+                            if !Self::push_child_condition(new_condition.clone(), conditions, target_condition.expect("target_condition")) {
                                 debug!("add_condition 3");
 
                                 conditions.push(new_condition);
@@ -948,17 +948,21 @@ impl Filter {
             match condition {
                 ConditionType::Single { condition, .. } => {
                     debug!("push_child_condition: 2");
+                    if parent_addr == target_addr {
+                        let found_condition = condition;
+                        match new_condition {
+                            ConditionType::Single { ref condition, .. } => {
+                                debug!("push_child_condition: 3");
 
-                    let found_condition = condition;
-                    match new_condition {
-                        ConditionType::Single {ref condition, .. } => {
-                            debug!("push_child_condition: 3");
-
-                            *found_condition = condition.clone();
+                                *found_condition = condition.clone();
+                            }
+                            ConditionType::Compoiste { .. } => {
+                                warn!("trying to replace single condition with composite");
+                            }
                         }
-                        ConditionType::Compoiste { .. } => {
-                            warn!("trying to replace single condition with composite");
-                        }
+                        return true;
+                    } else {
+                        return false;
                     }
 
                 }
@@ -968,7 +972,7 @@ impl Filter {
                         conditions.push(new_condition);
                         return true;
                     } else {
-                        Self::push_child_condition(new_condition.clone(), conditions, target_addr);
+                        return Self::push_child_condition(new_condition.clone(), conditions, target_addr);
                     }
 
                 }
