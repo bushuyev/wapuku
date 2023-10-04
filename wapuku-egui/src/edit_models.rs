@@ -1,4 +1,4 @@
-use wapuku_model::model::{Condition, SummaryColumn, SummaryColumnType};
+use wapuku_model::model::{Condition, ConditionType, SummaryColumn, SummaryColumnType};
 use crate::model_views::Msg;
 
 
@@ -12,15 +12,17 @@ pub trait ValidationResult {
 pub struct FilterNewConditionCtx {
     new_condition_column:String,
 
+    pattern:String,
     min:String,
     max:String,
     boolean:bool,
+
     selected_column:Option<SummaryColumn>,
+
     validation:FilterValidationResult,
 
-    pattern:String,
-
-    msg:Msg
+    msg:Msg,
+    selected_condition: Option<*const ConditionType>
 }
 
 #[derive(Debug)]
@@ -80,7 +82,8 @@ impl FilterNewConditionCtx {
             boolean:false,
             selected_column:None,
             validation:FilterValidationResult::Ok,
-            msg:Msg::empty()
+            msg:Msg::empty(),
+            selected_condition: None
         }
     }
 
@@ -91,7 +94,6 @@ impl FilterNewConditionCtx {
     pub fn new_condition_column_mut(&mut self) -> &mut String {
         &mut self.new_condition_column
     }
-
 
     pub fn pattern(&self) -> &str {
         &self.pattern
@@ -121,8 +123,50 @@ impl FilterNewConditionCtx {
         &mut self.max
     }
 
+    pub fn reset(&mut self) {
+        self.pattern = "".into();
+        self.min = "".into();
+        self.max = "".into();
+        self.boolean = false;
+        self.selected_column = None;
+        self.selected_condition = None;
+    }
+
+    pub fn set_selected_condition(&mut self, condition_ptr:*const ConditionType, column_condition:Option<(SummaryColumn, Condition)> ) { //only Simple conditions to init fields, Composites highlight border
+        self.reset();
+        self.selected_condition.replace(condition_ptr);
+
+        if let Some((column, condition)) = column_condition {
+
+            self.new_condition_column = column.name().clone();
+            self.selected_column = Some(column);
+
+            match condition {
+                Condition::Numeric { min, max } => {
+                    self.min = format!("{}", min);
+                    self.max = format!("{}", max);
+                }
+                Condition::String { pattern } => {
+                    self.pattern = pattern.clone();
+                }
+                Condition::Boolean { val } => {
+                    self.boolean = val;
+                }
+            }
+        }
+    }
+
+    pub fn take_selected_condition(&mut self ) -> Option<*const ConditionType> {
+        self.selected_condition.take()
+    }
+
+    pub fn selected_condition(&self) -> Option<*const ConditionType> {
+        self.selected_condition
+    }
+
     pub fn init(&mut self, column: &SummaryColumn) {
         let column = column.clone();
+
         match column.dtype() {
             SummaryColumnType::Numeric { data } => {
                 self.min = data.min().clone();

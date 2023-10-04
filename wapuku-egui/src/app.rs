@@ -41,7 +41,7 @@ pub struct ModelCtx {
     pending_actions: VecDeque<ActionRq>,
     uid_actions: Vec<UIAction>,
     filter_new_condition_ctx:FilterNewConditionCtx,
-    selected_condition: Option<*const ConditionType>
+
 }
 
 impl ModelCtx {
@@ -50,7 +50,7 @@ impl ModelCtx {
             pending_actions: VecDeque::new(),
             uid_actions: vec![],
             filter_new_condition_ctx:FilterNewConditionCtx::new(),
-            selected_condition: None
+
         }
     }
 
@@ -68,18 +68,6 @@ impl ModelCtx {
 
     pub fn filter_new_condition_ctx_mut(&mut self) -> &mut FilterNewConditionCtx {
         &mut self.filter_new_condition_ctx
-    }
-
-    pub fn set_selected_condition(&mut self, condition_ptr:*const ConditionType ) {
-        self.selected_condition.replace(condition_ptr);
-    }
-
-    pub fn take_selected_condition(&mut self ) -> Option<*const ConditionType> {
-        self.selected_condition.take()
-    }
-
-    pub fn selected_condition(&self) -> Option<*const ConditionType> {
-        self.selected_condition
     }
 }
 

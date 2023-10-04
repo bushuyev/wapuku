@@ -8,7 +8,7 @@ use egui_plot::{
 };
 use log::debug;
 use wapuku_model::messages::OK;
-use wapuku_model::model::{CompositeType, Condition, ConditionType, DataLump, Filter, Histogram, Summary, SummaryColumnType, WaModelId};
+use wapuku_model::model::{CompositeType, Condition, ConditionType, DataLump, Filter, Histogram, Summary, SummaryColumn, SummaryColumnType, WaModelId};
 use wapuku_model::utils::val_or_na;
 
 use crate::app::{ActionRq, ModelCtx, UIAction};
@@ -181,7 +181,7 @@ impl View for Filter {
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    if let InnerResponse { inner: Some(r), response } = egui::ComboBox::from_label(">>")
+                    if let InnerResponse { inner: Some(r), response } = egui::ComboBox::from_label(":")
                         .selected_text(ctx.filter_new_condition_ctx().new_condition_column())
                         .show_ui(ui, |ui| {
                             ui.style_mut().wrap = Some(false);
@@ -199,13 +199,6 @@ impl View for Filter {
                         // debug!("combo result={:?} response={:?}", r, response);
                     };
 
-                    if ui.button("Apply").clicked() {
-
-                        ctx.queue_action(ActionRq::ApplyFilter {
-                            frame_id: self.frame_id(),
-                            filter: self.clone()
-                        });
-                    }
 
                     if let Some(selected_column) = ctx.filter_new_condition_ctx().selected_column() {
                         match selected_column.dtype() {
@@ -252,17 +245,21 @@ impl View for Filter {
                             }
                         }
 
-                        if ui.button("Add").clicked() {
-                            debug!("add filter: {:?}", ctx.filter_new_condition_ctx());
-                            if let Some((column_name, condition)) = ctx.filter_new_condition_ctx_mut().to_condition().take() {
-                                let selected_condition = ctx.selected_condition();
+                        let selected_condition = ctx.filter_new_condition_ctx().selected_condition();
 
+                        if ui.button( if selected_condition.is_some() {"Edit"} else { "Add"}).clicked() {
+
+                            debug!("add filter: {:?}", ctx.filter_new_condition_ctx());
+
+                            if let Some((column_name, condition)) = ctx.filter_new_condition_ctx_mut().to_condition().take() {
+
+                                ctx.filter_new_condition_ctx_mut().reset();
                                 ctx.ui_action(
                                     UIAction::WaFrame {
                                         frame_id: self.frame_id(),
                                         action: Box::new(move |mut frame| {
-
                                             frame.add_filter_condition(ConditionType::Single { column_name, condition }, selected_condition);
+
                                         }),
                                     }
                                 );
@@ -272,8 +269,16 @@ impl View for Filter {
 
                 });
 
+                if ui.button("Apply filter").clicked() {
+
+                    ctx.queue_action(ActionRq::ApplyFilter {
+                        frame_id: self.frame_id(),
+                        filter: self.clone()
+                    });
+                }
+
                 if let Some(conditions) = self.conditions() {
-                    add_conditions(conditions, ui, ctx, self.frame_id(), self.ui_id())
+                    add_conditions(conditions, ui, ctx, self.frame_id(), self.ui_id(), self.columns())
                 }
             });
         });
@@ -286,12 +291,12 @@ impl View for Filter {
 }
 
 
-fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCtx, frame_id:u128, ui_id:Id) {
+fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCtx, frame_id:u128, ui_id:Id, columns:&Vec<SummaryColumn>) {
     let current_condition = condition_type as *const _;
 
     let style = ui.style();
 
-    let condition_frame = if ctx.selected_condition().map(|c|c == current_condition ).unwrap_or(false) {
+    let condition_frame = if ctx.filter_new_condition_ctx().selected_condition().map(|c|c == current_condition ).unwrap_or(false) {
         Frame::group(style).stroke(egui::Stroke {
             width: 2.,
             color: egui::Color32::GREEN,
@@ -304,7 +309,16 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
 
         match condition_type {
             ConditionType::Single { column_name, condition } => {
+
                 ui.horizontal(|ui| {
+
+                    if ui.button(">>").clicked() {
+                        debug!("condition_type Single {:?} clicked", current_condition);
+                        ctx.filter_new_condition_ctx_mut().set_selected_condition(
+                            current_condition,
+                            columns.iter().find(|c|c.name().eq(column_name)).map(|c|(c.clone(), condition.clone()))
+                        );
+                    }
                     ui.label(column_name);
                     match condition {
                         Condition::Numeric { min, max } => {
@@ -328,7 +342,6 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                             }
                         );
                     }
-
                 });
             }
             ConditionType::Compoiste { conditions, ctype } => {
@@ -336,7 +349,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                     ui.horizontal(|ui| {
                         if ui.button(">>").clicked() {
                             debug!("condition_type AND {:?} clicked", current_condition);
-                            ctx.set_selected_condition(current_condition);
+                            ctx.filter_new_condition_ctx_mut().set_selected_condition(current_condition, None);
                         }
 
                         if ui.button(
@@ -392,7 +405,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                     });
 
                     for condition in conditions {
-                        add_conditions(condition, ui, ctx, frame_id, ui_id);
+                        add_conditions(condition, ui, ctx, frame_id, ui_id, columns);
                     }
                 });
             }

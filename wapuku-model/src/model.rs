@@ -860,7 +860,8 @@ impl Filter {
     }
 
     pub fn add_condition(&mut self, new_condition:ConditionType, target_condition:Option<*const ConditionType>) {
-        debug!("add_condition target_condition={:?}", target_condition);
+        debug!("add_condition 1 target_condition={:?} addr={:?}", target_condition, &new_condition as * const _);
+        let old_addr  =  self.conditions.as_ref().map(|c| c as * const _);
 
         match self.conditions.take() {
             None => {
@@ -869,23 +870,31 @@ impl Filter {
             Some(mut condition_type) => {
                 let parent_addr = &condition_type as *const _;
 
+                debug!("add_condition replace single parent target_condition={:?} old_addr={:?}", target_condition, old_addr);
+
                 match condition_type {
                     ConditionType::Single { .. } => {
-                        self.conditions.replace(ConditionType::Compoiste { conditions: vec![condition_type.clone(), new_condition ], ctype: CompositeType::AND});
+                        if target_condition.eq(&old_addr) {
+                            self.conditions.replace(new_condition);
+
+                        } else {
+                            self.conditions.replace(ConditionType::Compoiste { conditions: vec![condition_type, new_condition], ctype: CompositeType::AND });
+                        }
                     }
-                    ConditionType::Compoiste {  ref mut conditions, .. } => {
+                    ConditionType::Compoiste { ref mut conditions, .. } => {
                         debug!("add_condition Compoiste target_condition={:?} parent_addr={:?}", target_condition, parent_addr);
 
-                        if target_condition.is_none() || target_condition.map(|t| t == parent_addr).unwrap_or(false) {
+                        if target_condition.is_none() || target_condition.eq(&old_addr) {
                             debug!("add_condition 1");
 
-                            conditions.push(new_condition.clone());
-
+                            conditions.push(new_condition);
                         } else {
                             debug!("add_condition 2");
 
-                            if !Self::push_child_condition(new_condition.clone(), conditions, target_condition.expect("target_condition")) {
-                                conditions.push(new_condition.clone());
+                            if Self::push_child_condition(new_condition.clone(), conditions, target_condition.expect("target_condition")) {
+                                debug!("add_condition 3");
+
+                                conditions.push(new_condition);
                             }
                         }
 
@@ -893,6 +902,7 @@ impl Filter {
                         self.conditions.replace(condition_type);
                     }
                 }
+
             }
         }
     }
@@ -936,7 +946,22 @@ impl Filter {
         for condition in parent_conditions {
             let parent_addr = condition as *const _;
             match condition {
-                ConditionType::Single { .. } => {}
+                ConditionType::Single { condition, .. } => {
+                    debug!("push_child_condition: 2");
+
+                    let found_condition = condition;
+                    match new_condition {
+                        ConditionType::Single {ref condition, .. } => {
+                            debug!("push_child_condition: 3");
+
+                            *found_condition = condition.clone();
+                        }
+                        ConditionType::Compoiste { .. } => {
+                            warn!("trying to replace single condition with composite");
+                        }
+                    }
+
+                }
                 ConditionType::Compoiste {  ref mut conditions, .. } => {
                     debug!("push_child_condition parent_addr={:?} target_addr={:?}", parent_addr, target_addr);
                     if parent_addr == target_addr {
@@ -953,7 +978,61 @@ impl Filter {
         return false;
 
     }
-}
+
+
+    /*    fn push_child_condition(new_condition: Option<ConditionType>, parent_conditions: &mut Vec<ConditionType>, target_addr:*const ConditionType) -> Option<ConditionType>{
+            if parent_conditions.is_empty(){
+                return new_condition;
+            }
+
+            match parent_conditions.iter_mut().find(|condition|{
+                debug!("push_child_condition: condition={:?} target_addr={:?}", *condition as *const _,  target_addr);
+                *condition as *const _ == target_addr
+                // match condition {
+                //     ConditionType::Single { .. } => {
+                //         false
+                //     }
+                //     ConditionType::Compoiste { ref conditions, .. } => {
+                //         *condition as *const _ == target_addr
+                //     }
+                // }
+            }){
+                None => {
+                    debug!("push_child_condition: 1");
+                    for c in parent_conditions {
+                        Self::push_child_condition(new_condition, parent_conditions, target_addr)
+                    }
+
+                }
+                Some(found_condition_type) => {
+                    match found_condition_type {
+                        ConditionType::Single { condition, .. } => {
+                            debug!("push_child_condition: 2");
+
+                            let found_condition = condition;
+                            match new_condition.unwrap() {
+                                ConditionType::Single { condition, .. } => {
+                                    debug!("push_child_condition: 3");
+
+                                    *found_condition = condition;
+                                }
+                                ConditionType::Compoiste { .. } => {
+                                    warn!("trying to replace single condition with composite");
+                                }
+                            }
+
+                        }
+                        ConditionType::Compoiste { ref mut conditions, .. } => {
+                            debug!("push_child_condition: 4");
+
+                            conditions.push(new_condition.unwrap());
+                        }
+                    }
+                    None
+                }
+            }
+        }
+    */}
 
 #[derive(Debug, Clone)]
 pub enum ConditionType {
