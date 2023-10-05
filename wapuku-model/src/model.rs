@@ -859,8 +859,13 @@ impl Filter {
         }
     }
 
+    #[cfg(test)]
+    pub fn top_condition_ptr(&self)->Option<*const ConditionType> {
+        self.conditions.as_ref().map(|c| c as * const _)
+    }
+
     pub fn add_condition(&mut self, new_condition:ConditionType, target_condition:Option<*const ConditionType>) {
-        debug!("add_condition 1 target_condition={:?} addr={:?}", target_condition, &new_condition as * const _);
+        debug!("add_condition 1 target_condition={:?} new_condition_ptr={:?}", target_condition, &new_condition as * const _);
         let old_addr  =  self.conditions.as_ref().map(|c| c as * const _);
 
         match self.conditions.take() {
@@ -870,10 +875,11 @@ impl Filter {
             Some(mut condition_type) => {
                 let parent_addr = &condition_type as *const _;
 
-                debug!("add_condition replace single parent target_condition={:?} old_addr={:?}", target_condition, old_addr);
 
                 match condition_type {
                     ConditionType::Single { .. } => {
+                        debug!("add_condition replace single parent target_condition={:?} old_addr={:?}", target_condition, old_addr);
+
                         if target_condition.eq(&old_addr) {
                             self.conditions.replace(new_condition);
 
@@ -947,7 +953,7 @@ impl Filter {
             let parent_addr = condition as *const _;
             match condition {
                 ConditionType::Single { condition, .. } => {
-                    debug!("push_child_condition: 2");
+                    debug!("push_child_condition: 2 parent_addr={:?} target_addr={:?}", parent_addr, target_addr);
                     if parent_addr == target_addr {
                         let found_condition = condition;
                         match new_condition {
@@ -961,13 +967,11 @@ impl Filter {
                             }
                         }
                         return true;
-                    } else {
-                        return false;
                     }
 
                 }
                 ConditionType::Compoiste {  ref mut conditions, .. } => {
-                    debug!("push_child_condition parent_addr={:?} target_addr={:?}", parent_addr, target_addr);
+                    debug!("push_child_condition: 3 parent_addr={:?} target_addr={:?}", parent_addr, target_addr);
                     if parent_addr == target_addr {
                         conditions.push(new_condition);
                         return true;

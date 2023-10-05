@@ -467,6 +467,7 @@ fn conditions_to_expr(condition: &ConditionType) -> Expr {
 
 #[cfg(test)]
 mod filter_test{
+    use log::debug;
     use polars::prelude::Expr;
     use crate::model::{Condition, ConditionType, Filter};
     use crate::polars_df::tests::dummy_filter;
@@ -519,6 +520,61 @@ mod filter_test{
         let expr:Expr = filter.into();
 
         assert_eq!("[(col(\"property_2\").str.contains([Utf8(aaaa)])) & (col(\"property_2\").str.contains([Utf8(bbb)]))]", format!("{:?}", expr));
+
+    }
+
+    #[test]
+    pub fn test_edit_top(){
+        let mut filter = dummy_filter();
+        let condition_type_0 = ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "aaaa".into() } };
+
+        filter.add_condition(condition_type_0, None);
+
+        let condition_type_0_ptr = filter.top_condition_ptr().expect("top_condition_ptr");
+
+        let Some(ConditionType::Single{column_name, condition:Condition::String{pattern}}) = filter.conditions() else {panic!("no conditions")};
+
+        assert_eq!(column_name, "property_2");
+        assert_eq!(pattern, "aaaa");
+
+        let condition_type_1 = ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "bbb".into() } };
+
+        filter.add_condition(condition_type_1, Some(condition_type_0_ptr));
+
+        let Some(ConditionType::Single{column_name, condition:Condition::String{pattern}}) = filter.conditions() else {panic!("no conditions")};
+
+        assert_eq!(column_name, "property_2");
+        assert_eq!(pattern, "bbb");
+
+    }
+
+    #[test]
+    pub fn test_edit_sub_1(){
+        let mut filter = dummy_filter();
+        let condition_type_0 = ConditionType::Single { column_name: "property_1".into(), condition: Condition::String { pattern: "aaaa".into() } };
+        let condition_type_1 = ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "bbbb".into() } };
+
+
+        filter.add_condition(condition_type_0, None);
+        filter.add_condition(condition_type_1, None);
+
+
+        let Some(ConditionType::Compoiste{conditions, ctype}) = filter.conditions() else {panic!("no conditions")};
+        let condition_type_0_f = conditions.get(0).expect("condition_type_1");
+        let condition_type_0_f_ptr = condition_type_0_f as *const _;
+        let condition_type_1_f = conditions.get(1).expect("condition_type_1");
+        let condition_type_1_f_ptr = condition_type_1_f as *const _;
+
+        let condition_type_1 = ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "cccc".into() } };
+
+        filter.add_condition(condition_type_1, Some(condition_type_1_f_ptr));
+
+
+        let Some(ConditionType::Compoiste{conditions, ctype}) = filter.conditions() else {panic!("no conditions")};
+        let ConditionType::Single{column_name, condition:Condition::String{pattern}} = conditions.get(1).expect("condition_type_1").clone() else {panic!("no condition_type_1")};
+
+        assert_eq!(column_name, "property_2");
+        assert_eq!(pattern, "cccc");
 
     }
 
