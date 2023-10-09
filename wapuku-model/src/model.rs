@@ -17,7 +17,7 @@ pub fn wa_id() -> u128 {
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum WaModelId {
     Summary{ frame_id: u128},
     Filter{ frame_id: u128, filter_id:u128},
@@ -987,60 +987,7 @@ impl Filter {
 
     }
 
-
-    /*    fn push_child_condition(new_condition: Option<ConditionType>, parent_conditions: &mut Vec<ConditionType>, target_addr:*const ConditionType) -> Option<ConditionType>{
-            if parent_conditions.is_empty(){
-                return new_condition;
-            }
-
-            match parent_conditions.iter_mut().find(|condition|{
-                debug!("push_child_condition: condition={:?} target_addr={:?}", *condition as *const _,  target_addr);
-                *condition as *const _ == target_addr
-                // match condition {
-                //     ConditionType::Single { .. } => {
-                //         false
-                //     }
-                //     ConditionType::Compoiste { ref conditions, .. } => {
-                //         *condition as *const _ == target_addr
-                //     }
-                // }
-            }){
-                None => {
-                    debug!("push_child_condition: 1");
-                    for c in parent_conditions {
-                        Self::push_child_condition(new_condition, parent_conditions, target_addr)
-                    }
-
-                }
-                Some(found_condition_type) => {
-                    match found_condition_type {
-                        ConditionType::Single { condition, .. } => {
-                            debug!("push_child_condition: 2");
-
-                            let found_condition = condition;
-                            match new_condition.unwrap() {
-                                ConditionType::Single { condition, .. } => {
-                                    debug!("push_child_condition: 3");
-
-                                    *found_condition = condition;
-                                }
-                                ConditionType::Compoiste { .. } => {
-                                    warn!("trying to replace single condition with composite");
-                                }
-                            }
-
-                        }
-                        ConditionType::Compoiste { ref mut conditions, .. } => {
-                            debug!("push_child_condition: 4");
-
-                            conditions.push(new_condition.unwrap());
-                        }
-                    }
-                    None
-                }
-            }
-        }
-    */}
+}
 
 #[derive(Debug, Clone)]
 pub enum ConditionType {

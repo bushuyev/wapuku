@@ -96,12 +96,12 @@ impl View for Summary {
                 ctx.ui_action(
                     UIAction::WaFrame{frame_id : frame_id, action: Box::new(|mut frame|{
                         frame.add_filter();
+
+                        // ctx.ui_action(UIAction::Layout {model_id:WaModelId::Filter {filter_id: 0, frame_id}, action: Box::new(|mut lm|{
+                        //
+                        // })});
                     })}
                 );
-
-                // ctx.ui_action(UIAction::WaFrame{frame_id : frame_id, action: Box::new(|mut summary|{
-                //     summary.add_filter();
-                // })));
 
             };
         });

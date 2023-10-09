@@ -15,7 +15,8 @@ use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::{LayoutRequest, View};
 
 pub enum UIAction {
-    WaFrame{frame_id: u128, action: Box<dyn FnOnce(&mut WaFrame)>}
+    WaFrame{frame_id: u128, action: Box<dyn FnOnce(&mut WaFrame)>},
+    Layout{model_id: WaModelId, action: Box<dyn FnOnce(&mut LayoutManager)>}
 }
 
 
@@ -59,7 +60,7 @@ impl ModelCtx {
     }
 
     pub fn ui_action(&mut self, action: UIAction) {
-        self.uid_actions.push(action)
+        self.uid_actions.push(action);
     }
 
     pub fn filter_new_condition_ctx(&self) -> &FilterNewConditionCtx {
@@ -75,7 +76,7 @@ static mut model_counter:usize = 0;
 
 
 pub struct LayoutManager {
-    pending_frame_actions:HashMap<u128, LayoutRequest>
+    pending_frame_actions:HashMap<WaModelId, LayoutRequest>
 }
 
 impl LayoutManager {
@@ -86,11 +87,11 @@ impl LayoutManager {
         }
     }
 
-    pub fn place_new_frame(&mut self, frame_id:u128) {
+    pub fn place_new_frame(&mut self, frame_id:WaModelId) {
         self.pending_frame_actions.insert(frame_id, LayoutRequest::Center);
     }
 
-    pub fn actions_for_frame(&mut self, frame_id:&u128) -> Option<LayoutRequest> {
+    pub fn actions_for_frame(&mut self, frame_id:&WaModelId) -> Option<LayoutRequest> {
         self.pending_frame_actions.remove(frame_id)
     }
 }
@@ -147,9 +148,12 @@ impl WapukuAppModel {
 
         if let Ok(lock) = result {
             let new_frame_id = frame.id();
+
+            self.layout_manager.place_new_frame(frame.summary().model_id());
+
             self.frames.insert(new_frame_id, frame);
 
-            self.layout_manager.place_new_frame(new_frame_id);
+
 
             debug!("wapuku:add_frame: Ok");
         } else {
@@ -259,6 +263,9 @@ impl WapukuAppModel {
                    } else {
                        error!("frame {} not found", frame_id)
                    }
+                }
+                UIAction::Layout { model_id, action } => {
+
                 }
             }
         }
@@ -424,7 +431,7 @@ impl eframe::App for WapukuApp {
                     .collapsible(true)
                     .default_pos([0., 0.]);
 
-                if let Some(layout_rq) = layout_manager.actions_for_frame(view.model_id().id()) {
+                if let Some(layout_rq) = layout_manager.actions_for_frame(&view.model_id()) {
                     match layout_rq {
                         LayoutRequest::Center => {
                             frame_win = frame_win.current_pos(ctx.available_rect().center());
