@@ -1,5 +1,4 @@
-use std::any::Any;
-use egui::{Color32, Frame, InnerResponse, Sense, Stroke, Ui, WidgetText};
+use egui::{Color32, Frame, InnerResponse, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
 use egui_plot::{
@@ -94,7 +93,7 @@ pub trait View {
                 let frame_id = self.frame_id();
 
                 ctx.ui_action(
-                    UIAction::WaFrame{frame_id : frame_id, action: Box::new(|mut frame|{
+                    UIAction::WaFrame{frame_id : frame_id, action: Box::new(|frame|{
                        Some(UIAction::Layout {frame_id: WaModelId::Filter {frame_id:frame.id(), filter_id:frame.add_filter()}, request: LayoutRequest::Center })
                     })}
                 );
@@ -102,7 +101,7 @@ pub trait View {
             };
         });
 
-        let mut table = TableBuilder::new(ui)
+        let table = TableBuilder::new(ui)
             .striped(true)
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT))
@@ -121,7 +120,7 @@ pub trait View {
                 ui.strong("Actions");
             });
 
-        }).body(|mut body| {
+        }).body(|body| {
 
             body.rows(2. * text_height, self.columns().len(), |row_index, mut row| {
                 let column_summary = &self.columns()[row_index];
@@ -133,11 +132,11 @@ pub trait View {
                 match column_summary.dtype() {
                     SummaryColumnType::Numeric { data} => {
 
-                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), ctx, self.frame_id(), column_summary.name());
+                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), column_summary.name());
 
                     }
                     SummaryColumnType::String {data}=> {
-                        label_cell(&mut row, data.unique_values(), ctx, self.frame_id(), column_summary.name());
+                        label_cell(&mut row, data.unique_values(), column_summary.name());
                     }
 
                     SummaryColumnType::Boolean => {
@@ -177,7 +176,7 @@ impl View for Filter {
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    if let InnerResponse { inner: Some(r), response } = egui::ComboBox::from_label(":")
+                    if let InnerResponse { inner: Some(_), response:_ } = egui::ComboBox::from_label(":")
                         .selected_text(ctx.filter_new_condition_ctx().new_condition_column())
                         .show_ui(ui, |ui| {
                             ui.style_mut().wrap = Some(false);
@@ -198,7 +197,7 @@ impl View for Filter {
 
                     if let Some(selected_column) = ctx.filter_new_condition_ctx().selected_column() {
                         match selected_column.dtype() {
-                            SummaryColumnType::Numeric { data } => {
+                            SummaryColumnType::Numeric { data:_ } => {
                                 let msg_color = ctx.filter_new_condition_ctx().msg().color().clone();
 
                                 ui.vertical(|ui| {
@@ -222,7 +221,7 @@ impl View for Filter {
                                     ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
                                 });
                             }
-                            SummaryColumnType::String { data } => {
+                            SummaryColumnType::String { data:_ } => {
                                 let msg_color = ctx.filter_new_condition_ctx().msg().color().clone();
 
                                 ui.vertical(|ui| {
@@ -253,7 +252,7 @@ impl View for Filter {
                                 ctx.ui_action(
                                     UIAction::WaFrame {
                                         frame_id: self.frame_id(),
-                                        action: Box::new(move |mut frame| {
+                                        action: Box::new(move |frame| {
                                             frame.add_filter_condition(ConditionType::Single { column_name, condition }, selected_condition);
 
                                             None
@@ -333,7 +332,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                         ctx.ui_action(
                             UIAction::WaFrame {
                                 frame_id,
-                                action: Box::new(move |mut frame| {
+                                action: Box::new(move |frame| {
                                     frame.remove_filter_condition(current_condition);
 
                                     None
@@ -364,7 +363,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                             ctx.ui_action(
                                 UIAction::WaFrame {
                                     frame_id,
-                                    action: Box::new(move |mut frame| {
+                                    action: Box::new(move |frame| {
                                         frame.change_condition_type(current_condition);
 
                                         None
@@ -377,7 +376,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                             ctx.ui_action(
                                 UIAction::WaFrame {
                                     frame_id,
-                                    action: Box::new(move |mut frame| {
+                                    action: Box::new(move |frame| {
                                         frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::AND}, Some(current_condition));
 
                                         None
@@ -389,7 +388,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                             ctx.ui_action(
                                 UIAction::WaFrame {
                                     frame_id,
-                                    action: Box::new(move |mut frame| {
+                                    action: Box::new(move |frame| {
                                         frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::OR}, Some(current_condition));
 
                                         None
@@ -401,7 +400,7 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                             ctx.ui_action(
                                 UIAction::WaFrame {
                                     frame_id,
-                                    action: Box::new(move |mut frame| {
+                                    action: Box::new(move |frame| {
                                         frame.remove_filter_condition(current_condition);
 
                                         None
@@ -432,20 +431,18 @@ impl View for Histogram {
         Id::new(self.id())
     }
 
-    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
+    fn ui(&self, ui: &mut Ui, _ctx: &mut ModelCtx) {
 
-        let max_height = ui.available_height() * 0.8;
+        let _max_height = ui.available_height() * 0.8;
         let max_width = ui.available_width() * 0.8;
 
         let values = self.values();
         let width = max_width/ values.len() as f32;
-
-
         // let max = values.iter().map(|v|v.1).max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(0);
 
         let y_ratio = 1.; // (max_height / max as f32) as f64;
 
-        let mut bars  = values.iter().enumerate().map(|(i, (k, v))|{
+        let bars  = values.iter().enumerate().map(|(i, (k, v))|{
 
             Bar::new((i as f32 * width) as f64, *v as f64 * y_ratio )
                 .width(width as f64)
@@ -456,15 +453,15 @@ impl View for Histogram {
         let chart = BarChart::new(
             bars
         )
-        .element_formatter(Box::new(move |b, c|{
+        .element_formatter(Box::new(move |b, _c|{
                 format!("{}, {}", b.name, (b.value/y_ratio) as u32)
             }))
         .color(Color32::LIGHT_BLUE)
         .name(self._title());
 
-        let r = Plot::new("Normal Distribution Demo")
+        Plot::new("Normal Distribution Demo")
 
-            .label_formatter(|name, value| {
+            .label_formatter(|name, _value| {
                     // debug!("wapuku: name={:?}, value={:?}", name, value);
 
                     if !name.is_empty() {
@@ -535,7 +532,7 @@ impl View for DataLump {
 
         let columns = self.columns();
 
-        table = columns.iter().fold(table, |t, c|{
+        table = columns.iter().fold(table, |t, _c|{
             t.column(Column::auto().at_least(20.0).resizable(true).clip(true))
         });
             // .column(Column::auto().at_least(200.0).resizable(true).clip(true))
@@ -551,10 +548,10 @@ impl View for DataLump {
             });
 
 
-        }).body(|mut body| {
+        }).body(|body| {
             let mut data_iter = self.data().iter();
 
-            body.rows(2. * text_height, self.data().len(), |row_index, mut row| {
+            body.rows(2. * text_height, self.data().len(), |_row_index, mut row| {
                 // let column_summary = &self.data()[row_index];
 
                 if let Some(row_data) = data_iter.next(){
@@ -576,7 +573,7 @@ impl View for DataLump {
 }
 
 
-fn label_cell<'a>(mut row: &mut TableRow, label: impl Into<WidgetText>, ctx: &mut ModelCtx, frame_id:u128, name: &str) {
+fn label_cell<'a>(row: &mut TableRow, label: impl Into<WidgetText>, _name: &str) {
 
     row.col(|ui| {
         ui.horizontal_centered(|ui| {

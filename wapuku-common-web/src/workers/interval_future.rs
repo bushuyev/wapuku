@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use log::debug;
 use web_sys::*;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::closure::*;
+
 
 pub struct IntervalFuture {
     stop_cl: Rc<Box<dyn Fn()->bool>>

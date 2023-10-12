@@ -4,15 +4,15 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use log::{debug, log, trace};
-use uuid::Uuid;
+use log::{debug, trace};
+
 pub use wapuku_common_web::allocator::tracing::*;
 pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
-use wapuku_model::model::{Data, Histogram, wa_id, WaFrame, WapukuError};
+use wapuku_model::model::{Data, wa_id, WaFrame};
 use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
 
@@ -37,22 +37,26 @@ static TOTAL_MEM:f32 = 50000.0 * 65536.0;
 static ALLOCATED:AtomicUsize = AtomicUsize::new(0);
 
 #[no_mangle]
+#[allow(unused)]
 pub extern "C" fn on_alloc(size: usize, align: usize, pointer: *mut u8) {
     ALLOCATED.fetch_add(size, Ordering::Relaxed);
 }
 
 #[no_mangle]
+#[allow(unused)]
 pub extern "C" fn on_dealloc(size: usize, align: usize, pointer: *mut u8) {
     ALLOCATED.fetch_sub(size, Ordering::Relaxed);
 }
 
 
 #[no_mangle]
+#[allow(unused)]
 pub extern "C" fn on_alloc_zeroed(size: usize, align: usize, pointer: *mut u8) {
     ALLOCATED.fetch_add(size, Ordering::Relaxed);
 }
 
 #[no_mangle]
+#[allow(unused)]
 pub extern "C" fn on_realloc(
     old_pointer: *mut u8,
     new_pointer: *mut u8,
@@ -76,12 +80,12 @@ pub async fn run() {
 
     let runner_rc = Rc::new(eframe::WebRunner::new());
     let runner_rc_1 = Rc::clone(&runner_rc);
-    let runner_rc_2 = Rc::clone(&runner_rc);
+
 
     let (to_main, from_worker) = std::sync::mpsc::channel::<ActionRs>();
     let to_main_rc = Rc::new(to_main);
     let to_main_rc_1 = Rc::clone(&to_main_rc);
-    let to_main_rc_2 = Rc::clone(&to_main_rc);
+
     let from_worker_rc = Rc::new(from_worker);
     let from_worker_rc1 = Rc::clone(&from_worker_rc);
 
@@ -91,15 +95,16 @@ pub async fn run() {
 
     let model = WapukuAppModel::new();
     let model_box = Box::pin(model);
+
     debug!("wapuku: model_box_ptr={:p}", &model_box);
     model_box.debug_ptr();
 
-    let mut wapuku_app_model = Rc::new(RefCell::new(model_box));
-    let mut wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
-    let mut wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
+    let wapuku_app_model = Rc::new(RefCell::new(model_box));
+    let wapuku_app_model_rc1 = Rc::clone(&wapuku_app_model);
+    let wapuku_app_model_rc2 = Rc::clone(&wapuku_app_model);
 
-    let mut data_map:HashMap<u128, Box<dyn Data>> = HashMap::new();
-    let mut data_map_rc = Rc::new(RefCell::new(data_map));
+    let data_map:HashMap<u128, Box<dyn Data>> = HashMap::new();
+    let data_map_rc = Rc::new(RefCell::new(data_map));
 
 
     let timer_closure = Closure::wrap(Box::new(move || {
@@ -112,7 +117,7 @@ pub async fn run() {
                     ActionRq::LoadFrame {name_ptr, data_ptr} => {
 
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
-                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let data_map_rc_1 = Rc::clone(&data_map_rc);
 
                         pool_worker.run_in_pool( move || {
 
@@ -149,7 +154,7 @@ pub async fn run() {
                         });
                     }
                     ActionRq::Histogram { frame_id, name_ptr} => {
-                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let data_map_rc_1 = Rc::clone(&data_map_rc);
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
                         pool_worker.run_in_pool( move || {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
@@ -170,7 +175,7 @@ pub async fn run() {
                         });
                     }
                     ActionRq::DataLump { frame_id , offset, limit} => {
-                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let data_map_rc_1 = Rc::clone(&data_map_rc);
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
                         pool_worker.run_in_pool( move || {
                             let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).fetch_data(frame_id, offset, limit);
@@ -190,7 +195,7 @@ pub async fn run() {
                         });
                     }
                     ActionRq::ApplyFilter { frame_id, filter } => {
-                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let data_map_rc_1 = Rc::clone(&data_map_rc);
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
 
                         pool_worker.run_in_pool( move || {
@@ -238,10 +243,6 @@ pub async fn run() {
                         debug!("wapuku: running in pool, got data lump");
 
                         model_borrowed.add_data_lump(frame_id, lump);
-                    }
-
-                    ActionRs::ApplyFilter { frame_id, frame} => {
-                        model_borrowed.add_frame(frame);
                     }
 
                     ActionRs::Err { msg } => {

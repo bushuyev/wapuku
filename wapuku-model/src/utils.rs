@@ -27,8 +27,8 @@ pub fn val_or_na(v: &String) -> impl ToString + Sized + '_{
     }
 }
 
+#[cfg(test)]
 mod util_tests {
-    use regex::Regex;
     use crate::utils::FloatReformatter;
 
     #[test]

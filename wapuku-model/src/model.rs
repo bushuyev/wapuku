@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::{error, fmt, iter};
+use std::{error, fmt};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use log::{debug, error, warn};
@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 
 use crate::data_type::*;
-use crate::messages::*;
+
 
 ///////////////Data management model////////////////
 
@@ -31,13 +31,13 @@ impl WaModelId {
             WaModelId::Summary { frame_id } => {
                 frame_id
             }
-            WaModelId::Histogram { frame_id, histogram_id } => {
+            WaModelId::Histogram { frame_id:_, histogram_id } => {
                 histogram_id
             }
-            WaModelId::DataLump { frame_id , lump_id} => {
+            WaModelId::DataLump { frame_id:_ , lump_id} => {
                 lump_id
             }
-            WaModelId::Filter { frame_id, filter_id } => {
+            WaModelId::Filter { frame_id:_, filter_id } => {
                 filter_id
             }
         }
@@ -134,11 +134,11 @@ impl WaFrame {
         self.id
     }
 
-    pub fn add_histogram(&mut self, mut histogram:Histogram) {
+    pub fn add_histogram(&mut self, histogram:Histogram) {
         self.histograms.insert(*histogram.id(), histogram);
     }
 
-    pub fn add_data_lump(&mut self, mut data_lump:DataLump) {
+    pub fn add_data_lump(&mut self, data_lump:DataLump) {
         if let Some(lump) = self.data_lump.as_mut() {
             lump.replace_data(data_lump);
         } else {
@@ -156,13 +156,13 @@ impl WaFrame {
 
     pub fn purge(&mut self, id: WaModelId) {
         match id {
-            WaModelId::Histogram{frame_id, histogram_id} => {
+            WaModelId::Histogram{frame_id:_, histogram_id} => {
                 self.histograms.remove(&histogram_id);
             },
-            WaModelId::DataLump {frame_id, lump_id} => {
+            WaModelId::DataLump {frame_id:_, lump_id:_} => {
                 self.data_lump.take();
             },
-            WaModelId::Filter {frame_id, filter_id} => {
+            WaModelId::Filter {frame_id:_, filter_id:_} => {
                 self.filter.take();
             },
             _=>{}
@@ -942,7 +942,8 @@ impl Filter {
             }
             ConditionType::Compoiste { conditions, .. } => {
 
-                if let Some((i, c)) = conditions.iter().enumerate().find(|(i, c)| *c as *const _ == condition_to_remove) {
+                #[allow(unused)]
+                if let Some((i, _c)) = conditions.iter().enumerate().find(|(i, c)| *c as *const _ == condition_to_remove) {
                     conditions.remove(i);
                 } else {
                     for c in conditions {
@@ -998,19 +999,6 @@ impl Filter {
 pub enum ConditionType {
     Single{column_name:String, condition:Condition},
     Compoiste {conditions:Vec<ConditionType>, ctype:CompositeType},
-}
-
-impl ConditionType {
-    fn is_single(&self) -> bool {
-        match self {
-            ConditionType::Single { .. } => {
-                true
-            }
-            ConditionType::Compoiste { .. } => {
-                false
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

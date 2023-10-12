@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::io::Read;
+
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Stroke, Vec2};
 use log::{debug, error};
 use rfd;
-use wapuku_model::model::{ConditionType, Data, DataLump, Filter, Histogram, WaFrame, WaModelId};
+use wapuku_model::model::{DataLump, Filter, Histogram, WaFrame, WaModelId};
 
 use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::{LayoutRequest, View};
@@ -33,7 +33,6 @@ pub enum ActionRs {
     LoadFrame {frame: WaFrame},
     Histogram {frame_id:u128, histogram:Histogram},
     DataLump { frame_id:u128, lump:DataLump},
-    ApplyFilter { frame_id:u128, frame:WaFrame},
     Err { msg:String},
 }
 
@@ -71,8 +70,6 @@ impl ModelCtx {
         &mut self.filter_new_condition_ctx
     }
 }
-
-static mut model_counter:usize = 0;
 
 
 pub struct LayoutQueue {
@@ -113,10 +110,6 @@ unsafe impl Sync for WapukuAppModel {}
 impl WapukuAppModel {
     pub fn new() -> Self {
         debug!("wapuku: WapukuAppModel::new");
-        let test = unsafe {
-            model_counter = model_counter + 1;
-            String::from(format!("aaa: {}", model_counter))
-        };
 
         Self {
             data_name: String::from("nope"),
@@ -146,7 +139,7 @@ impl WapukuAppModel {
         let model_lock_arc = Arc::clone(&self.lock);
         let result = model_lock_arc.try_lock();
 
-        if let Ok(lock) = result {
+        if let Ok(_) = result {
             let new_frame_id = frame.id();
 
             self.layout_queue.place_new_frame(frame.summary().model_id(), LayoutRequest::Center);
@@ -188,17 +181,17 @@ impl WapukuAppModel {
             WaModelId::Summary{frame_id} => {
                 self.frames.remove(&frame_id);
             }
-            WaModelId::Histogram{frame_id, histogram_id} => {
+            WaModelId::Histogram{frame_id, histogram_id:_} => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
             }
-            WaModelId::DataLump { frame_id, lump_id } => {
+            WaModelId::DataLump { frame_id, lump_id:_ } => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
             }
-            WaModelId::Filter { frame_id, filter_id } => {
+            WaModelId::Filter { frame_id, filter_id:_ } => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
@@ -262,7 +255,7 @@ impl WapukuAppModel {
 
     fn run_ui_action(action: UIAction, frames:&mut HashMap<u128, WaFrame>, layout_queue: &mut LayoutQueue) {
         match action {
-            UIAction::WaFrame { frame_id, mut action } => {
+            UIAction::WaFrame { frame_id, action } => {
 
                 if let Some(frame) = frames.get_mut(&frame_id) {
                     if let Some(next_action) = (action)(frame) {
@@ -288,28 +281,11 @@ pub struct WapukuApp {
 }
 
 impl WapukuApp {
-    fn bar_contents(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        egui::widgets::global_dark_light_mode_switch(ui);
-
-        ui.separator();
-
-
-        ui.separator();
-    }
 }
 
-// impl Default for WapukuApp {
-//     fn default() -> Self {
-//         debug!("Default for WapukuApp::default");
-//         Self {
-//             // Example stuff:
-//             model: Rc::new(RefCell::new(Box::new(WapukuAppModel::new()))),
-//         }
-//     }
-// }
 
 impl WapukuApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Pin<Box<WapukuAppModel>>>>) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>, model: Rc<RefCell<Pin<Box<WapukuAppModel>>>>) -> Self {
 
         Self {
             model
@@ -318,11 +294,11 @@ impl WapukuApp {
 }
 
 impl eframe::App for WapukuApp {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
         // eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -488,7 +464,7 @@ impl eframe::App for WapukuApp {
 
                     let (_id, rect) = ui.allocate_space(Vec2::new(ui.available_width(), ui.available_height()));
 
-                    let to_screen = emath::RectTransform::from_to(Rect::from_x_y_ranges(0.0..=1.0, -1.0..=1.0), rect);
+                    let _to_screen = emath::RectTransform::from_to(Rect::from_x_y_ranges(0.0..=1.0, -1.0..=1.0), rect);
 
                     // let connections_in_screen = connections.iter().map(|p| to_screen * *p).collect::<Vec<Pos2>>();
 

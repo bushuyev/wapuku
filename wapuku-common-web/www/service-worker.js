@@ -22,6 +22,7 @@ if (typeof window === 'undefined') {
                     }
 
                     const newHeaders = new Headers(response.headers);
+                    newHeaders.set("Access-Control-Allow-Origin", "https://bushuyev.github.io");
                     newHeaders.set("Cross-Origin-Embedder-Policy", "credentialless");
                     newHeaders.set("Cross-Origin-Resource-Policy", "same-site");
                     newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");

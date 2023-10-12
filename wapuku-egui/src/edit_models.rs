@@ -19,8 +19,6 @@ pub struct FilterNewConditionCtx {
 
     selected_column:Option<SummaryColumn>,
 
-    validation:FilterValidationResult,
-
     msg:Msg,
     selected_condition: Option<*const ConditionType>
 }
@@ -81,7 +79,6 @@ impl FilterNewConditionCtx {
             pattern:String::new(),
             boolean:false,
             selected_column:None,
-            validation:FilterValidationResult::Ok,
             msg:Msg::empty(),
             selected_condition: None
         }
@@ -217,7 +214,7 @@ impl FilterNewConditionCtx {
                         }
                     }.into();
                 }
-                SummaryColumnType::String { data } => {
+                SummaryColumnType::String { data:_ } => {
                     self.msg =  if self.pattern.is_empty() {
                         FilterValidationResult::EmptyPattern
 

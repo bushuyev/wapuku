@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use crate::data_type::WapukuDataType;
 use crate::model::{Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, FilteredFame, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, WapukuError};
 
+
 #[derive(Debug)]
 pub struct TestData {
     property_sets: Vec<SimplePropertiesSet>,
@@ -39,6 +40,7 @@ impl  TestData {
 
 }
 
+#[allow(unused_variables)]
 impl  Data for TestData {
 
 

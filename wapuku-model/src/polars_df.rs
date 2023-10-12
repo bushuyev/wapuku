@@ -1,17 +1,17 @@
 use std::collections::HashSet;
 use std::io::{Cursor, Read};
-use std::iter::Skip;
+
 
 use ::zip::*;
 use ::zip::result::*;
-use log::{debug, error, warn};
+use log::{debug, warn};
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::StartBy::WindowBound;
-use polars::series::SeriesIter;
+
 use polars::time::Duration;
 
-use crate::data_type::{WapukuDataType, WapukuDataValues};
+use crate::data_type::{WapukuDataType};
 use crate::model::*;
 use crate::utils::*;
 
@@ -32,6 +32,12 @@ pub struct PolarsData {
 
 impl From<ZipError> for WapukuError {
     fn from(value: ZipError) -> Self {
+        WapukuError::DataLoad { msg: value.to_string() }
+    }
+}
+
+impl From<std::io::Error> for WapukuError {
+    fn from(value: std::io::Error) -> Self {
         WapukuError::DataLoad { msg: value.to_string() }
     }
 }
@@ -101,7 +107,7 @@ impl PolarsData {
                 val_count.next().expect("property_2_count").iter()
             ).fold(Vec::new(), |mut vec, vv| {
 
-                if let (AnyValue::Categorical(a, RevMapping::Local(b), c), AnyValue::UInt32(count)) = vv {
+                if let (AnyValue::Categorical(a, RevMapping::Local(b), _c), AnyValue::UInt32(count)) = vv {
                     warn!("a={:?}, count={:?}", b.value(a as usize), count);
                     vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
                 } else {
@@ -402,7 +408,7 @@ impl Data for PolarsData {
         })
     }
 
-    fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<FilteredFame, WapukuError> {
+    fn apply_filter(&self, _frame_id: u128, filter: Filter) -> Result<FilteredFame, WapukuError> {
         debug!("apply_filter filter={:?}", filter);
         self.df.clone()
             .lazy()
@@ -426,7 +432,7 @@ impl From<Filter> for Expr {
 
 
 fn conditions_to_expr(condition: &ConditionType) -> Expr {
-    match (condition) {
+    match condition {
         ConditionType::Single { column_name, condition } => {
             match condition {
                 Condition::Numeric { min, max } => {
@@ -602,7 +608,7 @@ pub fn load_zip(data: Box<Vec<u8>>) -> Result<Vec<(DataFrame, String)>, WapukuEr
     let mut archive = ZipArchive::new(Cursor::new(data.as_slice()))?;
     archive.file_names().map(|s| String::from(s)).collect::<Vec<String>>().into_iter().map(|file| {
         let mut bytes = Vec::new();
-        archive.by_name(file.as_str())?.read_to_end(&mut bytes);
+        archive.by_name(file.as_str())?.read_to_end(&mut bytes)?;
 
         if file.ends_with("csv") {
             load_csv(Box::new(bytes)).map(|df| (df, file))
