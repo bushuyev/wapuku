@@ -64,7 +64,7 @@ pub trait View {
     fn model_id(&self) -> WaModelId;
 }
 
-impl View for Summary {
+    impl View for Summary {
     fn title(&self) -> &str {
         self._title()
     }
@@ -95,11 +95,7 @@ impl View for Summary {
 
                 ctx.ui_action(
                     UIAction::WaFrame{frame_id : frame_id, action: Box::new(|mut frame|{
-                        frame.add_filter();
-
-                        // ctx.ui_action(UIAction::Layout {model_id:WaModelId::Filter {filter_id: 0, frame_id}, action: Box::new(|mut lm|{
-                        //
-                        // })});
+                       Some(UIAction::Layout {frame_id: WaModelId::Filter {frame_id:frame.id(), filter_id:frame.add_filter()}, request: LayoutRequest::Center })
                     })}
                 );
 
@@ -260,6 +256,7 @@ impl View for Filter {
                                         action: Box::new(move |mut frame| {
                                             frame.add_filter_condition(ConditionType::Single { column_name, condition }, selected_condition);
 
+                                            None
                                         }),
                                     }
                                 );
@@ -338,6 +335,8 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                                 frame_id,
                                 action: Box::new(move |mut frame| {
                                     frame.remove_filter_condition(current_condition);
+
+                                    None
                                 }),
                             }
                         );
@@ -367,6 +366,8 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                                     frame_id,
                                     action: Box::new(move |mut frame| {
                                         frame.change_condition_type(current_condition);
+
+                                        None
                                     }),
                                 }
                             );
@@ -378,6 +379,8 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                                     frame_id,
                                     action: Box::new(move |mut frame| {
                                         frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::AND}, Some(current_condition));
+
+                                        None
                                     }),
                                 }
                             );
@@ -388,6 +391,8 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                                     frame_id,
                                     action: Box::new(move |mut frame| {
                                         frame.add_filter_condition(ConditionType::Compoiste {conditions: vec![], ctype: CompositeType::OR}, Some(current_condition));
+
+                                        None
                                     }),
                                 }
                             );
@@ -398,6 +403,8 @@ fn add_conditions(condition_type: &ConditionType, ui: &mut Ui, ctx: &mut ModelCt
                                     frame_id,
                                     action: Box::new(move |mut frame| {
                                         frame.remove_filter_condition(current_condition);
+
+                                        None
                                     }),
                                 }
                             );

@@ -84,12 +84,17 @@ impl WaFrame {
         }
     }
 
-    pub fn add_filter(&mut self) {
-        self.filter.replace(Filter::empty(
+    pub fn add_filter(&mut self) -> u128 {
+
+        let new_filter = Filter::empty(
             self.id,
             self.summary.columns().iter().map(|cs| cs.clone()).collect()
             // self.summary.columns().iter().map(|cs| cs.into()).collect()
-        ));
+        );
+        let filter_id = new_filter.id;
+        self.filter.replace(new_filter);
+
+        filter_id
     }
 
     pub fn add_filter_condition(&mut self,  new_condition:ConditionType, target_condition:Option<*const ConditionType>) {

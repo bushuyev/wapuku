@@ -15,8 +15,8 @@ use crate::edit_models::FilterNewConditionCtx;
 use crate::model_views::{LayoutRequest, View};
 
 pub enum UIAction {
-    WaFrame{frame_id: u128, action: Box<dyn FnOnce(&mut WaFrame)>},
-    Layout{model_id: WaModelId, action: Box<dyn FnOnce(&mut LayoutManager)>}
+    WaFrame{frame_id: u128, action: Box<dyn FnOnce(&mut WaFrame)->Option<UIAction>>},
+    Layout{frame_id:WaModelId, request: LayoutRequest}
 }
 
 
@@ -75,11 +75,11 @@ impl ModelCtx {
 static mut model_counter:usize = 0;
 
 
-pub struct LayoutManager {
+pub struct LayoutQueue {
     pending_frame_actions:HashMap<WaModelId, LayoutRequest>
 }
 
-impl LayoutManager {
+impl LayoutQueue {
 
     pub fn new() -> Self {
         Self {
@@ -87,8 +87,8 @@ impl LayoutManager {
         }
     }
 
-    pub fn place_new_frame(&mut self, frame_id:WaModelId) {
-        self.pending_frame_actions.insert(frame_id, LayoutRequest::Center);
+    pub fn place_new_frame(&mut self, frame_id:WaModelId, request: LayoutRequest) {
+        self.pending_frame_actions.insert(frame_id, request);
     }
 
     pub fn actions_for_frame(&mut self, frame_id:&WaModelId) -> Option<LayoutRequest> {
@@ -105,7 +105,7 @@ pub struct WapukuAppModel {
     memory_allocated:f32,
 
     lock:Arc<Mutex<usize>>,
-    layout_manager:LayoutManager
+    layout_queue: LayoutQueue
 }
 
 unsafe impl Sync for WapukuAppModel {}
@@ -125,7 +125,7 @@ impl WapukuAppModel {
             messages: vec![],
             memory_allocated: 0.0,
             lock: Arc::new(Mutex::new(0)),
-            layout_manager: LayoutManager::new()
+            layout_queue: LayoutQueue::new()
         }
     }
 
@@ -149,7 +149,7 @@ impl WapukuAppModel {
         if let Ok(lock) = result {
             let new_frame_id = frame.id();
 
-            self.layout_manager.place_new_frame(frame.summary().model_id());
+            self.layout_queue.place_new_frame(frame.summary().model_id(), LayoutRequest::Center);
 
             self.frames.insert(new_frame_id, frame);
 
@@ -224,21 +224,21 @@ impl WapukuAppModel {
         self.ctx.pending_actions.push_back(action)
     }
 
-    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, &dyn View, &mut LayoutManager) {
+    pub fn on_each_frame<F>(&mut self, mut f: F) where F: FnMut(&mut ModelCtx, &dyn View, &mut LayoutQueue) {
 
         self.frames.values().for_each(|frame| {
-            (f)(&mut self.ctx, frame.summary(), &mut self.layout_manager);
+            (f)(&mut self.ctx, frame.summary(), &mut self.layout_queue);
 
             if let Some(filter) = frame.filter(){
-                (f)(&mut self.ctx, filter, &mut self.layout_manager);
+                (f)(&mut self.ctx, filter, &mut self.layout_queue);
             }
 
             for hist in frame.histograms() {
-                (f)(&mut self.ctx, hist, &mut self.layout_manager);
+                (f)(&mut self.ctx, hist, &mut self.layout_queue);
             }
 
             if let Some(lump) = frame.data_lump() {
-                (f)(&mut self.ctx, lump, &mut self.layout_manager);
+                (f)(&mut self.ctx, lump, &mut self.layout_queue);
             }
 
         })
@@ -256,17 +256,25 @@ impl WapukuAppModel {
 
     pub fn run_ui_actions(&mut self) {
         for action in self.ctx.uid_actions.drain(..) {
-            match action {
-                UIAction::WaFrame{frame_id, mut action} => {
-                   if let Some(frame) = self.frames.get_mut(&frame_id) {
-                       (action)(frame)
-                   } else {
-                       error!("frame {} not found", frame_id)
-                   }
-                }
-                UIAction::Layout { model_id, action } => {
+            Self::run_ui_action(action, &mut self.frames, &mut self.layout_queue);
+        }
+    }
 
+    fn run_ui_action(action: UIAction, frames:&mut HashMap<u128, WaFrame>, layout_queue: &mut LayoutQueue) {
+        match action {
+            UIAction::WaFrame { frame_id, mut action } => {
+
+                if let Some(frame) = frames.get_mut(&frame_id) {
+                    if let Some(next_action) = (action)(frame) {
+                        Self::run_ui_action(next_action, frames, layout_queue);
+                    }
+                } else {
+                    error!("frame {} not found", frame_id);
                 }
+            }
+
+            UIAction::Layout {frame_id, request } => {
+                layout_queue.place_new_frame(frame_id, request);
             }
         }
     }
@@ -419,7 +427,7 @@ impl eframe::App for WapukuApp {
         if let Ok(mut model_borrowed_mut) = self.model.try_borrow_mut() {
             let mut frame_to_close: Option<WaModelId> = None;
 
-            model_borrowed_mut.on_each_frame( |model_ctx, view, layout_manager| {
+            model_borrowed_mut.on_each_frame( |model_ctx, view, layout_queue| {
                 let mut is_open = true;
 
                 let mut frame_win = egui::Window::new(view.title())
@@ -431,7 +439,7 @@ impl eframe::App for WapukuApp {
                     .collapsible(true)
                     .default_pos([0., 0.]);
 
-                if let Some(layout_rq) = layout_manager.actions_for_frame(&view.model_id()) {
+                if let Some(layout_rq) = layout_queue.actions_for_frame(&view.model_id()) {
                     match layout_rq {
                         LayoutRequest::Center => {
                             frame_win = frame_win.current_pos(ctx.available_rect().center());
