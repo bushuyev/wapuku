@@ -5,15 +5,48 @@ use std::io::{Cursor, Read};
 use ::zip::*;
 use ::zip::result::*;
 use log::{debug, warn};
+use polars::datatypes::TimeUnit::Milliseconds;
+use polars::export::chrono::NaiveDateTime;
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::StartBy::WindowBound;
+use polars::series::IsSorted;
+
 
 use polars::time::Duration;
 
 use crate::data_type::{WapukuDataType};
 use crate::model::*;
 use crate::utils::*;
+
+pub fn format_date_str<E: AsRef<[Expr]>>(format: &str, args: E) -> PolarsResult<Expr> {
+    let mut args: std::collections::VecDeque<Expr> = args.as_ref().to_vec().into();
+
+    // Parse the format string, and separate substrings between placeholders
+    let segments: Vec<&str> = format.split("{}").collect();
+
+    polars_ensure!(
+        segments.len() - 1 == args.len(),
+        ShapeMismatch: "number of placeholders should equal the number of arguments"
+    );
+
+    let mut exprs: Vec<Expr> = Vec::new();
+
+    for (i, s) in segments.iter().enumerate() {
+        if i > 0 {
+            if let Some(arg) = args.pop_front() {
+                exprs.push(arg);
+            }
+        }
+
+        if !s.is_empty() {
+            exprs.push(lit(s.to_string()))
+            // exprs.push(lit("zzz"))
+        }
+    }
+
+    Ok(concat_str(exprs, ""))
+}
 
 impl From<PolarsError> for WapukuError {
     fn from(value: PolarsError) -> Self {
@@ -79,6 +112,137 @@ impl PolarsData {
                 }
                 vec
             })
+        ))
+    }
+
+    fn group_by_datetime(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+        let df = self.df.clone().lazy()
+            .filter(col(column.as_str()).is_not_null())
+            .collect()?;
+        let s =  df.column(column.as_str())?.sort(false);
+
+        // let mut min = NaiveDateTime::MIN.timestamp_millis();
+        // let mut max = NaiveDateTime::MAX.timestamp_millis();
+
+        debug!("s.dtype()={:?} s.min()={:?}, s.max()={:?}", s.dtype(), s.min::<i64>(), s.max::<i64>());
+
+        let (mut min_value, mut max_value) = (
+            s.min().unwrap_or(0), s.max().unwrap_or(0)
+        );
+
+        match s.dtype(){
+            DataType::Date => {}
+            DataType::Datetime(unit, _) => {
+                match unit {
+                    TimeUnit::Nanoseconds => {
+                        min_value /= 1_000_000;
+                        max_value /= 1_000_000;
+                    }
+                    TimeUnit::Microseconds => {
+                        min_value /= 1_000;
+                        max_value /= 1_000;
+                    }
+                    Milliseconds => {}
+                }
+            }
+            DataType::Duration(_) => {}
+            DataType::Time => {}
+            _=>{
+                warn!("Unexpected datatype"); //TODO
+            }
+        }
+        debug!("min_value={:?} max_value={:?}", min_value, max_value);
+
+        // let start = s.min::<f64>().unwrap().floor() - 1.0;
+        // let stop = s.max::<f64>().unwrap().ceil() + 1.0;
+
+        let bin_count = 10;
+
+        let interval = (max_value - min_value) / bin_count;
+        let breaks: Vec<i64> = (0..(bin_count))
+            .map(|b| min_value + b * interval)
+            .collect();
+
+        let breakpoint_str = &"break_point";
+        let bins = Series::new(breakpoint_str, breaks);
+
+
+
+        let mut bins = bins.extend_constant(AnyValue::Datetime(max_value, Milliseconds, &None), 1)?;
+        bins.set_sorted_flag(IsSorted::Ascending);
+
+        let cuts_df = df![
+            breakpoint_str => bins
+        ]?;
+
+        let category_str = "category";
+
+        let cuts_df = cuts_df
+            .lazy()
+            .with_column(
+                format_date_str(
+                    "({}, {}]",
+                    [
+                        col(breakpoint_str)
+                            .shift_and_fill(1, lit(min_value))
+                            .cast(DataType::Datetime(Milliseconds, None))
+                        ,
+                        col(breakpoint_str)
+                        .cast(DataType::Datetime(Milliseconds, None)),
+                    ],
+                )?
+                    .alias(category_str),
+            )
+            .collect()?;
+
+        debug!("cuts_df={:?}", cuts_df);
+
+        let cuts = cuts_df
+            .lazy()
+            .with_columns([
+                col(category_str).cast(DataType::Categorical(None)),
+                col(breakpoint_str)
+                    .cast(s.dtype().to_owned())
+                    .set_sorted_flag(IsSorted::Ascending),
+            ])
+            .collect()?;
+
+        let out = s.clone().into_frame().join_asof(
+            &cuts,
+            s.name(),
+            breakpoint_str,
+            AsofStrategy::Forward,
+            None,
+            None,
+        )?;
+
+        let out = out
+            .select(["category", s.name()])?
+            .groupby(["category"])?
+            .count()?;
+
+        let groupby_df = cuts.left_join(&out, [category_str], [category_str])?
+            .fill_null(FillNullStrategy::Zero)?
+            .sort(["category"], false, false)?;
+
+        debug!("hist_df={:?}", groupby_df);
+
+        let mut val_count = groupby_df.iter();
+        val_count.next(); //skip break_point
+
+        Ok(Histogram::new(frame_id, column,  std::iter::zip(
+            val_count.next().expect("cat").iter(),
+            val_count.next().expect("property_2_count").iter()
+        ).fold(Vec::new(), |mut vec, vv| {
+
+            if let (AnyValue::Categorical(a, RevMapping::Local(b), _c), AnyValue::UInt32(count)) = vv {
+                warn!("a={:?}, count={:?}", b.value(a as usize), count);
+                vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
+            } else {
+                warn!("unexpected values in build_histogram: {:?}", vv);
+            }
+            vec
+        })
         ))
     }
 
@@ -285,9 +449,9 @@ impl Data for PolarsData {
             frame_id,
             self.name.clone(),
             desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)| {
-                if i % 1000 == 0 {
+                // if i % 1000 == 0 {
                     debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
-                }
+                // }
 
                 let data_type = map_to_wapuku(c.dtype());
                 match data_type {
@@ -358,7 +522,9 @@ impl Data for PolarsData {
                 Ok(self.group_by_categoric(frame_id, column)?)
             }
             // DataType::Binary => {}
-            // DataType::Datetime(_, _) => {}
+            DataType::Datetime(_, _) => {
+                Ok(self.group_by_datetime(frame_id, column)?)
+            }
             // DataType::Duration(_) => {}
             // DataType::Array(_, _) => {}
             // DataType::List(_) => {}
@@ -758,7 +924,13 @@ pub(super) mod tests {
     use polars::datatypes::AnyValue::List;
     use polars::df;
     use polars::export::arrow::compute::filter::filter;
+    use polars::export::arrow::io::ipc::read::FileReader;
+    use polars::export::chrono;
+    use polars::export::chrono::NaiveDateTime;
     use polars::prelude::*;
+    use polars::prelude::LiteralValue::DateTime;
+    // use polars::io::prelude::utils::
+    use polars::io::mmap::MmapBytesReader;
 
     use crate::data_type::{WapukuDataType, WapukuDataValues};
     use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary, StringColumnSummary, ConditionType, Condition, CompositeType};
@@ -775,7 +947,7 @@ pub(super) mod tests {
 
     #[test]
     fn test_build_summary_ints() {
-        let mut df = df!(
+        let df = df!(
             "property_1" => &[1,   2,   3,   1,   2,   3,   1,   2,   3,],
             "property_2" => &[10,  10,  10,  20,  20,  20,  30,  30,  30,],
             "property_3" => &[11,  12,  13,  21,  22,  23,  31,  32,  33,]
@@ -791,7 +963,7 @@ pub(super) mod tests {
 
     #[test]
     fn test_build_histogram_str() {
-        let mut df = df!(
+        let df = df!(
             "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
             "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
             "property_3" => &["A",  "B",  "C",  "A",  "B",  "C",  "C",  "B", "C"]
@@ -810,8 +982,35 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn test_build_date_histogram_f32() {
+
+
+        let df = DataFrame::new(vec![
+            DatetimeChunked::from_naive_datetime("days", vec![
+                chrono::NaiveDateTime::parse_from_str("2023-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
+                chrono::NaiveDateTime::parse_from_str("2023-01-15 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
+                chrono::NaiveDateTime::parse_from_str("2023-02-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
+                chrono::NaiveDateTime::parse_from_str("2023-02-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
+                chrono::NaiveDateTime::parse_from_str("2023-03-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
+                chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap()
+            ], TimeUnit::Milliseconds).into_series()
+        ]).unwrap();
+
+        // let df = ParquetReader::new(File::open("../wapuku-egui/www/data/userdata1.parquet").unwrap()).finish().unwrap();
+
+        println!("{:?}", df);
+
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let histogram = data.build_histogram(0u128, String::from("days")).expect("build_histogram");
+        // let histogram = data.build_histogram(0u128, String::from("registration_dttm")).expect("build_histogram");
+
+        println!("histogram={:?}", histogram);
+    }
+
+    #[test]
     fn test_build_histogram_f32() {
-        let mut df = df!(
+        let df = df!(
             "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
             "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
             "property_3" => &["A",  "B",  "C",  "A",  "B",  "C",  "C",  "B", "C"]
@@ -834,7 +1033,7 @@ pub(super) mod tests {
 
     #[test]
     fn test_build_summary_str() {
-        let mut df = df!(
+        let df = df!(
             "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
             "property_2" => &[1f32,   2f32,    3f32,  1f32,    2f32,   3f32,    1f32,    2f32,   3f32],
             "property_3" => &["A",  "B",  "C",  "D",  "E",  "F",  "G",  "H", "I"]
@@ -849,7 +1048,7 @@ pub(super) mod tests {
 
     #[test]
     fn test_apply_filter() {
-        let mut df = df!(
+        let df = df!(
             "property_1" => &[1i32,   2i32,    3i32,   1i32,   2i32,   3i32,    1i32,    2i32,   3i32],
             "property_2" => &[1f32,   2f32,    3f32,   1f32,   2f32,   3f32,    1f32,    2f32,   3f32],
             "property_3" => &["AB1",  "AB2",   "BC1",  "BC1",  "E",    "F",     "G",     "H",    "I"]
