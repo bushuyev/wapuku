@@ -246,13 +246,13 @@ impl PolarsData {
         ))
     }
 
-    fn group_by_numeric(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+    fn group_by_numeric(&self, frame_id: u128, column: String, bins:Option<usize>) -> Result<Histogram, WapukuError> {
         let groupby_df = hist(
             self.df.clone().lazy()
               .filter(col(column.as_str()).is_not_null())
               .collect()?.column(column.as_str())?,
             None,
-            Some(100)
+            bins
         )?;
         // debug!("wapuku:group_by_numeric rs={:?}", groupby_df);
         //
@@ -323,13 +323,14 @@ impl Data for PolarsData {
         let properties_df = self.df.select([property_x_name, property_y_name]).unwrap();
         let min_df = properties_df.min();
         let max_df = properties_df.max();
+        debug!("min_df={:?}, max_df={:?}", min_df, max_df);
 
-        let min_x = property_x.min().unwrap_or(min_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
-        let max_x = property_x.max().unwrap_or(max_df.column(property_x_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
+        let min_x = property_x.min().unwrap_or(min_df.column(property_x_name).expect(property_x_name).get(0).expect("0").try_extract::<f32>().expect("min_x") as i64) as f32;
+        let max_x = property_x.max().unwrap_or(max_df.column(property_x_name).expect(property_x_name).get(0).expect("0").try_extract::<f32>().expect("max_x") as i64) as f32;
 
 
-        let min_y = property_y.min().unwrap_or(min_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
-        let max_y = property_y.max().unwrap_or(max_df.column(property_y_name).unwrap().get(0).unwrap().try_extract::<f32>().unwrap() as i64) as f32;
+        let min_y = property_y.min().unwrap_or(min_df.column(property_y_name).expect(property_y_name).get(0).expect("0").try_extract::<f32>().expect("min_y") as i64) as f32;
+        let max_y = property_y.max().unwrap_or(max_df.column(property_y_name).expect(property_y_name).get(0).expect("0").try_extract::<f32>().expect("max_y") as i64) as f32;
 
         let property_x_step = (((max_x - min_x) / x_n as f32).ceil()) as i64;
 
@@ -444,11 +445,13 @@ impl Data for PolarsData {
         )*/
 
         let desc = self.df.describe(None).unwrap();
+        debug!("desc={:?}", desc);
         Summary::new(
             wa_id(),
             frame_id,
             self.name.clone(),
             desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)| {
+            // self.df.get_columns().into_iter().enumerate().map(|(i, c)| {
                 // if i % 1000 == 0 {
                     debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
                 // }
@@ -496,6 +499,19 @@ impl Data for PolarsData {
                             SummaryColumnType::Boolean,
                         )
                     }
+                    WapukuDataType::Datetime => {
+                        SummaryColumn::new(
+                            String::from(c.name()),
+                            SummaryColumnType::Numeric {
+                                data: NumericColumnSummary::new(
+                                    desc.get(4).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
+                                    desc.get(2).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
+                                    desc.get(8).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
+                                )
+                            },
+                        )
+
+                    }
                 }
             }).collect(),
             format!("{:?}", self.df.shape())
@@ -503,7 +519,7 @@ impl Data for PolarsData {
 
     }
 
-    fn build_histogram(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+    fn build_histogram(&self, frame_id: u128, column: String, bins: Option<usize>) -> Result<Histogram, WapukuError> {
         debug!("wapuku: build_histogram={:?}", column);
 
         match self.df.column(column.as_str())?.dtype() {
@@ -515,7 +531,7 @@ impl Data for PolarsData {
             DataType::Date | DataType::Time
 
             => {
-                Ok(self.group_by_numeric(frame_id, column)?)
+                Ok(self.group_by_numeric(frame_id, column, bins)?)
             }
             // DataType::Decimal(_, _) => {}
             DataType::Utf8 => {
@@ -765,6 +781,7 @@ fn map_to_wapuku(d_type: &DataType) -> WapukuDataType {
         DataType::Utf8 => WapukuDataType::String,
         DataType::Float64 => WapukuDataType::Numeric,
         DataType::Boolean => WapukuDataType::Boolean,
+        DataType::Datetime(..) | DataType::Date => WapukuDataType::Datetime,
         _ => WapukuDataType::String
     }
 }
@@ -962,6 +979,38 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn test_build_summary_dates() {
+        let date_series = DatetimeChunked::from_naive_datetime("days", vec![
+            chrono::NaiveDateTime::parse_from_str("2023-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-01-15 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-02-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-02-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-03-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap()
+        ], TimeUnit::Milliseconds).into_series();
+        let int_series = Int64Chunked::from_vec("ints", vec![1, 2, 3, 4, 5, 6]).into_series();
+
+        debug!("int_series={:?} date_series={:?}", int_series.dtype(), date_series.dtype());
+
+        let df = DataFrame::new(vec![
+            date_series,
+            int_series
+        ]).unwrap();
+
+        // let df = ParquetReader::new(File::open("../wapuku-egui/www/data/userdata1.parquet").unwrap()).finish().unwrap();
+
+        let mut data = PolarsData::new(df, String::from("test"));
+
+        let summary = data.build_summary(0);
+
+        println!("summary={:?}", summary)
+
+        // check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
+        // check_numeric_column(&summary, 1, "10.0", "20.0", "30.0");
+
+    }
+
+    #[test]
     fn test_build_histogram_str() {
         let df = df!(
             "property_1" => &[1i32,   2i32,    3i32,  1i32,   2i32,    3i32,    1i32,    2i32,   3i32],
@@ -971,7 +1020,7 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let histogram = data.build_histogram(0u128, String::from("property_3")).expect("build_histogram");
+        let histogram = data.build_histogram(0u128, String::from("property_3"), None).expect("build_histogram");
 
         let y = histogram.values();
         println!("y={:?}", y);
@@ -983,7 +1032,6 @@ pub(super) mod tests {
 
     #[test]
     fn test_build_date_histogram_f32() {
-
 
         let df = DataFrame::new(vec![
             DatetimeChunked::from_naive_datetime("days", vec![
@@ -1002,7 +1050,7 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let histogram = data.build_histogram(0u128, String::from("days")).expect("build_histogram");
+        let histogram = data.build_histogram(0u128, String::from("days"), None).expect("build_histogram");
         // let histogram = data.build_histogram(0u128, String::from("registration_dttm")).expect("build_histogram");
 
         println!("histogram={:?}", histogram);
@@ -1018,7 +1066,7 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let histogram = data.build_histogram(0u128, String::from("property_2")).expect("build_histogram");
+        let histogram = data.build_histogram(0u128, String::from("property_2"), Some(10)).expect("build_histogram");
 
         println!("histogram={:?}", histogram);
 
@@ -1026,7 +1074,7 @@ pub(super) mod tests {
         println!("y={:?}", y);
         assert_eq!(y.get(0).unwrap().0, "(-inf, 0.00]");
         assert_eq!(y.get(0).unwrap().1, 0);
-        assert_eq!(y.get(3).unwrap().0, "(0.08, 0.12]");
+        assert_eq!(y.get(3).unwrap().0, "(0.80, 1.20]");
         assert_eq!(y.get(3).unwrap().1, 3);
 
     }
@@ -1499,10 +1547,15 @@ pub(super) mod tests {
         let all_properties = polars_data.all_properties();
         assert_eq!(all_properties.len(), 5);
 
-        let (property_1, property_2, property_3) = {
-            let mut all_properties_iter = all_properties.into_iter();
+        debug!("all_properties={:?}", all_properties);
 
-            (all_properties_iter.next().expect("property_1"), all_properties_iter.next().expect("property_2"), all_properties_iter.next().expect("property_3"))
+        let (property_1, property_2, property_3) = {
+
+            (
+             *all_properties.iter().find(|p|p.name().eq("property_1")).expect("property_1"),
+             *all_properties.iter().find(|p|p.name().eq("property_2")).expect("property_2"),
+             *all_properties.iter().find(|p|p.name().eq("property_3")).expect("property_3")
+            )
         };
 
         let mut data_grid = polars_data.build_grid(

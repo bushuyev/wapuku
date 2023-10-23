@@ -174,6 +174,7 @@ impl WaFrame {
 pub enum SummaryColumnType {
     Numeric{data:NumericColumnSummary},
     String{data:StringColumnSummary},
+    Datetime{data:NumericColumnSummary},
     Boolean
 }
 
@@ -188,6 +189,9 @@ impl From<SummaryColumnType> for WapukuDataType {
             }
             SummaryColumnType::Boolean => {
                 WapukuDataType::Boolean
+            }
+            SummaryColumnType::Datetime { .. } => {
+                WapukuDataType::Datetime
             }
         }
     }
@@ -204,6 +208,9 @@ impl From<&SummaryColumnType> for WapukuDataType {
             }
             SummaryColumnType::Boolean => {
                 WapukuDataType::Boolean
+            }
+            SummaryColumnType::Datetime { .. } => {
+                WapukuDataType::Datetime
             }
         }
     }
@@ -674,7 +681,7 @@ pub trait Data:Debug {
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
     fn build_summary(&self, frame_id: u128) -> Summary;
-    fn build_histogram(&self, frame_id: u128, column:String) -> Result<Histogram, WapukuError>;
+    fn build_histogram(&self, frame_id: u128, column:String, bins: Option<usize>) -> Result<Histogram, WapukuError>;
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
 }

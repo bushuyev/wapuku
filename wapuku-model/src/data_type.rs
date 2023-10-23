@@ -6,7 +6,8 @@ use std::fmt::Debug;
 pub enum WapukuDataType {
     Numeric,
     String,
-    Boolean
+    Boolean,
+    Datetime
 }
 
 #[derive(Debug, PartialEq)]
