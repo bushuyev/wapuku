@@ -142,6 +142,7 @@ pub trait View {
                     SummaryColumnType::Boolean => {
 
                     }
+                    SummaryColumnType::Datetime { .. } => {}
                 }
                 row.col(|ui| {
                     if ui.button("H").clicked() {
@@ -238,6 +239,7 @@ impl View for Filter {
                             SummaryColumnType::Boolean => {
                                 ui.checkbox(ctx.filter_new_condition_ctx_mut().boolean(), "");
                             }
+                            SummaryColumnType::Datetime { .. } => {}
                         }
 
                         let selected_condition = ctx.filter_new_condition_ctx().selected_condition();

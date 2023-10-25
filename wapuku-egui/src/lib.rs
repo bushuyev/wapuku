@@ -160,7 +160,7 @@ pub async fn run() {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, ::ListUnique name={}", name);
 
-                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name);
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).build_histogram(frame_id, name, None);
                             match result {
                                 Ok(histogram) => {
                                     to_main_rc_1_1.send(ActionRs::Histogram {

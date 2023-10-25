@@ -91,6 +91,8 @@ impl PolarsData {
     }
 
     fn group_by_categoric(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+        debug!("group_by_categoric column={:?}", column);
+
         let groupby_df = self.df.clone().lazy()
             .groupby([col(column.as_str())])
             .agg([count().alias("count")])
@@ -98,6 +100,10 @@ impl PolarsData {
             .collect()?;
 
         debug!("groupby_df={:?}", groupby_df);
+
+        if groupby_df.shape().0 > 1000 {
+            return Err(WapukuError::DataLoad {msg: "Tooo big".into()}) //TODO
+        }
 
         let mut val_count = groupby_df.iter();
 
@@ -116,6 +122,8 @@ impl PolarsData {
     }
 
     fn group_by_datetime(&self, frame_id: u128, column: String) -> Result<Histogram, WapukuError> {
+        debug!("group_by_datetime column={:?}", column);
+
         let df = self.df.clone().lazy()
             .filter(col(column.as_str()).is_not_null())
             .collect()?;
@@ -247,6 +255,8 @@ impl PolarsData {
     }
 
     fn group_by_numeric(&self, frame_id: u128, column: String, bins:Option<usize>) -> Result<Histogram, WapukuError> {
+        debug!("group_by_numeric column={:?}", column);
+
         let groupby_df = hist(
             self.df.clone().lazy()
               .filter(col(column.as_str()).is_not_null())
@@ -453,10 +463,12 @@ impl Data for PolarsData {
             desc.get_columns().into_iter().enumerate().skip(1).map(|(i, c)| {
             // self.df.get_columns().into_iter().enumerate().map(|(i, c)| {
                 // if i % 1000 == 0 {
-                    debug!("column={:?} type={:?} mean={:?}", c.name(), c.dtype(), desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+                let dtype = self.df.column(c.name()).expect(c.name()).dtype();
+                debug!("column={:?} type={:?} mean={:?}", c.name(), dtype, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
                 // }
 
-                let data_type = map_to_wapuku(c.dtype());
+
+                let data_type = map_to_wapuku(dtype);
                 match data_type {
                     WapukuDataType::Numeric { .. } => {
                         // let min = desc.get(4).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(String::from("n/a"));
@@ -502,7 +514,7 @@ impl Data for PolarsData {
                     WapukuDataType::Datetime => {
                         SummaryColumn::new(
                             String::from(c.name()),
-                            SummaryColumnType::Numeric {
+                            SummaryColumnType::Datetime {
                                 data: NumericColumnSummary::new(
                                     desc.get(4).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
                                     desc.get(2).and_then(|row| row.get(i).map(|v| ToString::to_string(v))).unwrap_or(NA.into()),
@@ -779,8 +791,13 @@ fn map_to_wapuku(d_type: &DataType) -> WapukuDataType {
     //TODO
     match d_type {
         DataType::Utf8 => WapukuDataType::String,
-        DataType::Float64 => WapukuDataType::Numeric,
+
+        DataType::Float64 | DataType::Float32 |
+        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 |
+        DataType:: UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64  => WapukuDataType::Numeric,
+
         DataType::Boolean => WapukuDataType::Boolean,
+
         DataType::Datetime(..) | DataType::Date => WapukuDataType::Datetime,
         _ => WapukuDataType::String
     }
@@ -988,13 +1005,12 @@ pub(super) mod tests {
             chrono::NaiveDateTime::parse_from_str("2023-03-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
             chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap()
         ], TimeUnit::Milliseconds).into_series();
-        let int_series = Int64Chunked::from_vec("ints", vec![1, 2, 3, 4, 5, 6]).into_series();
+        // let int_series = Int64Chunked::from_vec("ints", vec![1, 2, 3, 4, 5, 6]).into_series();
 
-        debug!("int_series={:?} date_series={:?}", int_series.dtype(), date_series.dtype());
+        debug!("date_series={:?}",  date_series.dtype());
 
         let df = DataFrame::new(vec![
             date_series,
-            int_series
         ]).unwrap();
 
         // let df = ParquetReader::new(File::open("../wapuku-egui/www/data/userdata1.parquet").unwrap()).finish().unwrap();
@@ -1003,7 +1019,13 @@ pub(super) mod tests {
 
         let summary = data.build_summary(0);
 
-        println!("summary={:?}", summary)
+        println!("summary={:?}", summary);
+
+        if let SummaryColumnType::Datetime { data } = summary.columns()[0].dtype() {
+
+        } else {
+            panic!("column is not date: {:?}", summary.columns()[0].dtype())
+        }
 
         // check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
         // check_numeric_column(&summary, 1, "10.0", "20.0", "30.0");
@@ -1077,6 +1099,11 @@ pub(super) mod tests {
         assert_eq!(y.get(3).unwrap().0, "(0.80, 1.20]");
         assert_eq!(y.get(3).unwrap().1, 3);
 
+
+        let histogram = data.build_histogram(0u128, String::from("property_3"), Some(10)).expect("build_histogram");
+
+        println!("histogram={:?}", histogram);
+
     }
 
     #[test]
@@ -1135,7 +1162,7 @@ pub(super) mod tests {
 
         // debug!("data.unique_values()={:?}", data.unique_values());
 
-        assert_eq!("\"BC1\", \"AB1\"", data.unique_values())
+        assert_eq!("\"AB1\", \"BC1\"", data.unique_values())
 
     }
 
@@ -1178,7 +1205,7 @@ pub(super) mod tests {
             assert_eq!(data.avg(), avg);
             assert_eq!(data.max(), max);
         } else {
-            panic!("column {} is not numeric", i)
+            panic!("column {} is not numeric: {:?}", i, summary.columns()[i].dtype())
         }
     }
 

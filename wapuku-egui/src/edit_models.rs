@@ -171,6 +171,7 @@ impl FilterNewConditionCtx {
             }
             SummaryColumnType::String { .. } => {}
             SummaryColumnType::Boolean => {}
+            SummaryColumnType::Datetime { .. } => {}
         }
         self.selected_column.replace(column);
     }
@@ -225,6 +226,7 @@ impl FilterNewConditionCtx {
                 SummaryColumnType::Boolean => {
 
                 }
+                SummaryColumnType::Datetime { .. } => {}
             }
 
         }
@@ -251,6 +253,13 @@ impl FilterNewConditionCtx {
                     }
                     SummaryColumnType::Boolean => {
                         Condition::Boolean {val: self.boolean}
+                    }
+                    SummaryColumnType::Datetime { .. } => {
+                        //TODO
+                        Condition::Numeric {
+                            min: self.min.parse().unwrap_or(0.0),
+                            max: self.max.parse().unwrap_or(0.0),
+                        }
                     }
                 }
             )
