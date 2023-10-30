@@ -11,7 +11,7 @@ use log::{debug, error};
 use rfd;
 use wapuku_model::model::{DataLump, Filter, Histogram, WaFrame, WaModelId};
 
-use crate::edit_models::FilterNewConditionCtx;
+use crate::edit_models::{FilterNewConditionCtx, SummaryActionsCtx};
 use crate::model_views::{LayoutRequest, View};
 
 pub enum UIAction {
@@ -24,6 +24,7 @@ pub enum UIAction {
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
+    Convert { frame_id:u128, name_ptr: u32 },
     DataLump { frame_id:u128, offset:usize, limit:usize},
     ApplyFilter { frame_id:u128, filter:Filter}
 }
@@ -41,7 +42,7 @@ pub struct ModelCtx {
     pending_actions: VecDeque<ActionRq>,
     uid_actions: Vec<UIAction>,
     filter_new_condition_ctx:FilterNewConditionCtx,
-
+    summary_actions_ctx:SummaryActionsCtx
 }
 
 impl ModelCtx {
@@ -50,9 +51,11 @@ impl ModelCtx {
             pending_actions: VecDeque::new(),
             uid_actions: vec![],
             filter_new_condition_ctx:FilterNewConditionCtx::new(),
-
+            summary_actions_ctx: SummaryActionsCtx::new()
         }
     }
+
+
 
     pub fn queue_action(&mut self, action: ActionRq) {
         self.pending_actions.push_back(action)
@@ -68,6 +71,14 @@ impl ModelCtx {
 
     pub fn filter_new_condition_ctx_mut(&mut self) -> &mut FilterNewConditionCtx {
         &mut self.filter_new_condition_ctx
+    }
+    pub fn summary_actions_ctx_mut(&mut self) -> &mut SummaryActionsCtx {
+        &mut self.summary_actions_ctx
+    }
+
+
+    pub fn summary_actions_ctx(&self) -> &SummaryActionsCtx {
+        &self.summary_actions_ctx
     }
 }
 
@@ -426,7 +437,7 @@ impl eframe::App for WapukuApp {
                 let frame_win = frame_win
                     .open(&mut is_open)
                     .show(ctx, |ui| {
-                        view.ui(ui, model_ctx)
+                        view.ui(ui, ctx, model_ctx)
                     }).expect("show frame");
 
 

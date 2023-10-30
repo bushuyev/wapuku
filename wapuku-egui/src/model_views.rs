@@ -1,4 +1,4 @@
-use egui::{Color32, Frame, InnerResponse, Ui, WidgetText};
+use egui::{Color32, Context, Frame, InnerResponse, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
 use egui_plot::{
@@ -58,7 +58,7 @@ pub enum LayoutRequest {
 pub trait View {
     fn title(&self) -> &str;
     fn ui_id(&self) -> Id;
-    fn ui(&self, ui: &mut egui::Ui, ctx: &mut ModelCtx);
+    fn ui(&self, ui: &mut egui::Ui, ctx: &Context, model_ctx: &mut ModelCtx);
 
     fn model_id(&self) -> WaModelId;
 }
@@ -72,7 +72,7 @@ pub trait View {
         Id::new(self.id())
     }
 
-    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx){
+    fn ui(&self, ui: &mut egui::Ui, ctx: &Context, model_ctx: &mut ModelCtx){
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
         ui.horizontal(|ui| {
@@ -81,7 +81,7 @@ pub trait View {
 
             ui.separator();
             if ui.button("Data").clicked() {
-                ctx.queue_action(ActionRq::DataLump {
+                model_ctx.queue_action(ActionRq::DataLump {
                     frame_id: self.frame_id(),
                     offset: 0,
                     limit: 100
@@ -92,7 +92,7 @@ pub trait View {
             if ui.button("Filter").clicked() {
                 let frame_id = self.frame_id();
 
-                ctx.ui_action(
+                model_ctx.ui_action(
                     UIAction::WaFrame{frame_id : frame_id, action: Box::new(|frame|{
                        Some(UIAction::Layout {frame_id: WaModelId::Filter {frame_id:frame.id(), filter_id:frame.add_filter()}, request: LayoutRequest::Center })
                     })}
@@ -122,6 +122,7 @@ pub trait View {
 
         }).body(|body| {
 
+
             body.rows(2. * text_height, self.columns().len(), |row_index, mut row| {
                 let column_summary = &self.columns()[row_index];
 
@@ -136,7 +137,34 @@ pub trait View {
 
                     }
                     SummaryColumnType::String {data}=> {
-                        label_cell(&mut row, data.unique_values(), column_summary.name());
+                        row.col(|ui| {
+                            ui.vertical(|ui|{
+                                ui.add(egui::Label::new(data.unique_values()).wrap(true));
+
+                                if ui.button("->").clicked() {
+
+                                    model_ctx.summary_actions_ctx_mut().is_convret_dialog_open = Some(column_summary.name().clone());
+                                }
+                                if model_ctx.summary_actions_ctx().is_convret_dialog_open.as_ref().map(|c|c.eq(column_summary.name())).unwrap_or(false) {
+                                    egui::Window::new("Modal Window").current_pos(ui.clip_rect().center())/*.open(&mut model_ctx.summary_actions_ctx_mut().is_convret_dialog_open)*/.show(ctx, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.add(egui::TextEdit::singleline(model_ctx.filter_new_condition_ctx_mut().max_mut()).hint_text("max"));
+                                            if ui.button("Cancel").clicked() {
+                                                model_ctx.summary_actions_ctx_mut().is_convret_dialog_open = None;
+                                            }
+                                            if ui.button("Convert").clicked() {
+                                                model_ctx.summary_actions_ctx_mut().is_convret_dialog_open = None;
+
+                                                model_ctx.queue_action(ActionRq::Convert {
+                                                    frame_id: self.frame_id(),
+                                                    name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
+                                                });
+                                            }
+                                        });
+                                    });
+                                }
+                            });
+                        });
                     }
 
                     SummaryColumnType::Boolean => {
@@ -146,7 +174,7 @@ pub trait View {
                 }
                 row.col(|ui| {
                     if ui.button("H").clicked() {
-                        ctx.queue_action(ActionRq::Histogram {
+                        model_ctx.queue_action(ActionRq::Histogram {
                             frame_id: self.frame_id(),
                             name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
                         });
@@ -172,22 +200,22 @@ impl View for Filter {
         Id::new(self.id())
     }
 
-    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
+    fn ui(&self, ui: &mut egui::Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
         Frame::canvas(ui.style()).show(ui, |ui| {
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     if let InnerResponse { inner: Some(_), response:_ } = egui::ComboBox::from_label(":")
-                        .selected_text(ctx.filter_new_condition_ctx().new_condition_column())
+                        .selected_text(model_ctx.filter_new_condition_ctx().new_condition_column())
                         .show_ui(ui, |ui| {
                             ui.style_mut().wrap = Some(false);
                             ui.set_min_width(60.0);
 
                             for c in self.columns() {
-                                if ui.selectable_value(ctx.filter_new_condition_ctx_mut().new_condition_column_mut(), c.name().clone(), c.name()).clicked() {
+                                if ui.selectable_value(model_ctx.filter_new_condition_ctx_mut().new_condition_column_mut(), c.name().clone(), c.name()).clicked() {
                                     debug!("combo Selected");
-                                    if let Some(selected_column) = self.columns().iter().find(|c| c.name().eq(ctx.filter_new_condition_ctx().new_condition_column())) {
-                                        ctx.filter_new_condition_ctx_mut().init(selected_column);
+                                    if let Some(selected_column) = self.columns().iter().find(|c| c.name().eq(model_ctx.filter_new_condition_ctx().new_condition_column())) {
+                                        model_ctx.filter_new_condition_ctx_mut().init(selected_column);
                                     }
                                 }
                             }
@@ -196,62 +224,62 @@ impl View for Filter {
                     };
 
 
-                    if let Some(selected_column) = ctx.filter_new_condition_ctx().selected_column() {
+                    if let Some(selected_column) = model_ctx.filter_new_condition_ctx().selected_column() {
                         match selected_column.dtype() {
                             SummaryColumnType::Numeric { data:_ } => {
-                                let msg_color = ctx.filter_new_condition_ctx().msg().color().clone();
+                                let msg_color = model_ctx.filter_new_condition_ctx().msg().color().clone();
 
                                 ui.vertical(|ui| {
                                     ui.horizontal(|ui| {
-                                        if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().min_mut())
+                                        if egui::TextEdit::singleline(model_ctx.filter_new_condition_ctx_mut().min_mut())
                                             .hint_text("min")
                                             .text_color(msg_color)
                                             .show(ui).response.changed() {
                                             debug!("min changed");
-                                            ctx.filter_new_condition_ctx_mut().validate();
+                                            model_ctx.filter_new_condition_ctx_mut().validate();
                                         }
 
-                                        if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().max_mut())
+                                        if egui::TextEdit::singleline(model_ctx.filter_new_condition_ctx_mut().max_mut())
                                             .hint_text("max")
                                             .text_color(msg_color)
                                             .show(ui).response.changed() {
                                             debug!("max changed");
-                                            ctx.filter_new_condition_ctx_mut().validate();
+                                            model_ctx.filter_new_condition_ctx_mut().validate();
                                         }
                                     });
-                                    ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
+                                    ui.label(model_ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
                                 });
                             }
                             SummaryColumnType::String { data:_ } => {
-                                let msg_color = ctx.filter_new_condition_ctx().msg().color().clone();
+                                let msg_color = model_ctx.filter_new_condition_ctx().msg().color().clone();
 
                                 ui.vertical(|ui| {
-                                    if egui::TextEdit::singleline(ctx.filter_new_condition_ctx_mut().pattern_mut())
+                                    if egui::TextEdit::singleline(model_ctx.filter_new_condition_ctx_mut().pattern_mut())
                                         .hint_text("pattern")
                                         .text_color(msg_color)
                                         .show(ui).response.changed() {
                                         debug!("pattern changed");
-                                        ctx.filter_new_condition_ctx_mut().validate();
+                                        model_ctx.filter_new_condition_ctx_mut().validate();
                                     };
-                                    ui.label(ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
+                                    ui.label(model_ctx.filter_new_condition_ctx_mut().msg().text().clone())/*.text_color(msg_color)*/;
                                 });
                             }
                             SummaryColumnType::Boolean => {
-                                ui.checkbox(ctx.filter_new_condition_ctx_mut().boolean(), "");
+                                ui.checkbox(model_ctx.filter_new_condition_ctx_mut().boolean(), "");
                             }
                             SummaryColumnType::Datetime { .. } => {}
                         }
 
-                        let selected_condition = ctx.filter_new_condition_ctx().selected_condition();
+                        let selected_condition = model_ctx.filter_new_condition_ctx().selected_condition();
 
                         if ui.button( if selected_condition.is_some() {"Edit"} else { "Add"}).clicked() {
 
-                            debug!("add filter: {:?}", ctx.filter_new_condition_ctx());
+                            debug!("add filter: {:?}", model_ctx.filter_new_condition_ctx());
 
-                            if let Some((column_name, condition)) = ctx.filter_new_condition_ctx_mut().to_condition().take() {
+                            if let Some((column_name, condition)) = model_ctx.filter_new_condition_ctx_mut().to_condition().take() {
 
-                                ctx.filter_new_condition_ctx_mut().reset();
-                                ctx.ui_action(
+                                model_ctx.filter_new_condition_ctx_mut().reset();
+                                model_ctx.ui_action(
                                     UIAction::WaFrame {
                                         frame_id: self.frame_id(),
                                         action: Box::new(move |frame| {
@@ -269,14 +297,14 @@ impl View for Filter {
 
                 if ui.button("Apply filter").clicked() {
 
-                    ctx.queue_action(ActionRq::ApplyFilter {
+                    model_ctx.queue_action(ActionRq::ApplyFilter {
                         frame_id: self.frame_id(),
                         filter: self.clone()
                     });
                 }
 
                 if let Some(conditions) = self.conditions() {
-                    add_conditions(conditions, ui, ctx, self.frame_id(), self.ui_id(), self.columns())
+                    add_conditions(conditions, ui, model_ctx, self.frame_id(), self.ui_id(), self.columns())
                 }
             });
         });
@@ -433,7 +461,7 @@ impl View for Histogram {
         Id::new(self.id())
     }
 
-    fn ui(&self, ui: &mut Ui, _ctx: &mut ModelCtx) {
+    fn ui(&self, ui: &mut egui::Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
 
         let _max_height = ui.available_height() * 0.8;
         let max_width = ui.available_width() * 0.8;
@@ -496,7 +524,7 @@ impl View for DataLump {
         Id::new(self.id())
     }
 
-    fn ui(&self, ui: &mut Ui, ctx: &mut ModelCtx) {
+    fn ui(&self, ui: &mut egui::Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
 
         ui.horizontal(|ui| {
@@ -505,7 +533,7 @@ impl View for DataLump {
 
                 if ui.button("Prev").clicked() {
 
-                    ctx.queue_action(ActionRq::DataLump {
+                    model_ctx.queue_action(ActionRq::DataLump {
                         frame_id: *self.frame_id(),
                         offset: if self.offset() > &100 {*self.offset() - 100} else {0},
                         limit: 100
@@ -517,7 +545,7 @@ impl View for DataLump {
 
             if ui.button("Next").clicked() {
 
-                ctx.queue_action(ActionRq::DataLump {
+                model_ctx.queue_action(ActionRq::DataLump {
                     frame_id: *self.frame_id(),
                     offset: *self.offset() + 100,
                     limit: 100

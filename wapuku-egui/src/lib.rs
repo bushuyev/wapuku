@@ -174,6 +174,27 @@ pub async fn run() {
                             }
                         });
                     }
+                    ActionRq::Convert { frame_id, name_ptr} => {
+                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
+                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+                        pool_worker.run_in_pool( move || {
+                            let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
+                            debug!("wapuku: running in pool, ::ListUnique name={}", name);
+
+                            let result = data_map_rc_1.borrow_mut().get_mut(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).convert_column(frame_id, name, None);
+                            match result {
+                                Ok(histogram) => {
+                                    // to_main_rc_1_1.send(ActionRs::Histogram {
+                                    //     frame_id,
+                                    //     histogram,
+                                    // }).expect("send");
+                                }
+                                Err(e) => {
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                                }
+                            }
+                        });
+                    }
                     ActionRq::DataLump { frame_id , offset, limit} => {
                         let data_map_rc_1 = Rc::clone(&data_map_rc);
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);

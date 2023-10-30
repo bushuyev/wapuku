@@ -101,6 +101,10 @@ impl  Data for TestData {
     fn apply_filter(&self, frame_id: u128, filter: Filter) -> Result<FilteredFame, WapukuError> {
         todo!()
     }
+
+    fn convert_column(&mut self, frame_id: u128, column:String, bins: Option<usize>) -> Result<bool, WapukuError> {
+        todo!()
+    }
 }
 
 

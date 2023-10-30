@@ -24,6 +24,17 @@ pub struct FilterNewConditionCtx {
 }
 
 #[derive(Debug)]
+pub struct SummaryActionsCtx {
+    pub is_convret_dialog_open:Option<String>
+}
+
+impl SummaryActionsCtx {
+    pub fn new() -> Self {
+        Self { is_convret_dialog_open:None }
+    }
+}
+
+#[derive(Debug)]
 pub enum FilterValidationResult {
     EmptyPattern,
     WrongFormat,

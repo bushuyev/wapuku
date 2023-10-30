@@ -684,6 +684,7 @@ pub trait Data:Debug {
     fn build_histogram(&self, frame_id: u128, column:String, bins: Option<usize>) -> Result<Histogram, WapukuError>;
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
+    fn convert_column(&mut self, frame_id: u128, column:String, bins: Option<usize>) -> Result<bool, WapukuError>;
 }
 
 #[derive(Debug)]
