@@ -102,7 +102,7 @@ impl  Data for TestData {
         todo!()
     }
 
-    fn convert_column(&mut self, frame_id: u128, column:String, bins: Option<usize>) -> Result<bool, WapukuError> {
+    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<bool, WapukuError> {
         todo!()
     }
 }

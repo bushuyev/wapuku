@@ -7,7 +7,7 @@ use ::zip::result::*;
 use log::{debug, warn};
 use polars::datatypes::TimeUnit::Milliseconds;
 use polars::export::chrono;
-use polars::export::chrono::NaiveDateTime;
+use polars::export::chrono::{NaiveDate, NaiveDateTime, NaiveTime, ParseResult};
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::AnyValue::Null;
@@ -613,9 +613,9 @@ impl Data for PolarsData {
             .map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
     }
 
-    fn convert_column(&mut self, frame_id: u128, column:String, bins: Option<usize>) -> Result<bool, WapukuError> {
-        // self.df.column(column.as_str()).
-        fn str_to_len(str_val: &Series) -> Series {
+    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<bool, WapukuError> {
+
+        let res = self.df.apply(column.as_str(), move |str_val:&Series|{
             str_val.utf8()
                 .unwrap()
                 .into_iter()
@@ -623,16 +623,19 @@ impl Data for PolarsData {
                     // opt_name.map(|v|chrono::NaiveDateTime::parse_from_str(v, "%Y-%m-%d %H:%M:%S").unwrap().timestamp_millis())
                     opt_name.and_then(|v| {
                         debug!("convert_column: v={:?}", v);
-                        NaiveDateTime::parse_from_str(format!("{} 00:00:00", v).as_str(), "%m/%d/%Y %T").ok()
+                        match NaiveDateTime::parse_from_str(v, pattern.as_str()) {
+                            Ok(v) => Some(v),
+
+                            Err(_) => {
+                                NaiveDate::parse_from_str(v, pattern.as_str()).map(|v|NaiveDateTime::new(v, NaiveTime::parse_from_str("00:00","%H:%M").unwrap())).ok()
+                            }
+                        }
                     }).map(|v|v.timestamp_millis())
-                 })
+                })
                 .collect::<Int64Chunked>().into_datetime(TimeUnit::Milliseconds, None)
                 .into_series()
-        }
-
-        // Replace the names column by the length of the names.
-        self.df.apply(column.as_str(), str_to_len);
-        Ok(true)
+        });
+        Ok(res.is_ok())
     }
 }
 
@@ -983,7 +986,7 @@ pub(super) mod tests {
     use polars::export::arrow::compute::filter::filter;
     use polars::export::arrow::io::ipc::read::FileReader;
     use polars::export::chrono;
-    use polars::export::chrono::NaiveDateTime;
+    use polars::export::chrono::{NaiveDate, NaiveDateTime};
     use polars::prelude::*;
     use polars::prelude::LiteralValue::DateTime;
     // use polars::io::prelude::utils::
@@ -1107,38 +1110,48 @@ pub(super) mod tests {
     fn test_convert_date(){
         let v = NaiveDateTime::parse_from_str("7/9/1972 00:00:00", "%m/%d/%Y %T");
         debug!("v={:?}", v);
+
+        let v = NaiveDate::parse_from_str("7/9/1972", "%m/%d/%Y");
+        debug!("v={:?}", v);
     }
 
     #[test]
-    fn test_convert_column_utf8_to_date() {
-
-        // let df = DataFrame::new(vec![
-        //     DatetimeChunked::from_naive_datetime("days", vec![
-        //         chrono::NaiveDateTime::parse_from_str("2023-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
-        //         chrono::NaiveDateTime::parse_from_str("2023-01-15 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
-        //         chrono::NaiveDateTime::parse_from_str("2023-02-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
-        //         chrono::NaiveDateTime::parse_from_str("2023-02-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
-        //         chrono::NaiveDateTime::parse_from_str("2023-03-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
-        //         chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap()
-        //     ], TimeUnit::Milliseconds).into_series()
-        // ]).unwrap();
+    fn test_convert_column_utf8_to_date_time() {
 
         let df = df!(
             "days" => &["2023-01-01 00:00:01",  "2023-01-15 00:00:01",  "2023-02-01 00:00:02"]
         ).unwrap();
 
-        // let df = ParquetReader::new(File::open("../wapuku-egui/www/data/userdata1.parquet").unwrap()).finish().unwrap();
+        let mut data = PolarsData::new(df, String::from("test"));
 
+        println!("1. {:?}", data.build_summary(0).columns()[0].dtype());
+
+        let ok = data.convert_column(0u128, "days".into(), "%Y-%m-%d %T".into()).expect("convert_column");
+        println!("ok={:?}", ok);
+        println!("2. {:?}", data.build_summary(0).columns()[0].dtype());
+
+        assert!(ok);
+    }
+
+    #[test]
+    fn test_convert_column_utf8_to_date() {
+
+        let df = df!(
+            "days" => &["01/01/2023",  "01/15/2023",  "02/01/2023"]
+        ).unwrap();
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        println!("{:?}", data.build_summary(0).columns()[0].dtype());
+        println!("1. {:?}", data.build_summary(0).columns()[0].dtype());
 
-        let ok = data.convert_column(0u128, String::from("days"), None).expect("build_histogram");
-        // let histogram = data.build_histogram(0u128, String::from("registration_dttm")).expect("build_histogram");
+        let ok = data.convert_column(0u128, "days".into(), "%m/%d/%Y".into()).expect("convert_column");
 
-        println!("{:?}", data.build_summary(0).columns()[0].dtype());
+        println!("ok={:?}", ok);
+        println!("2. {:?}", data.build_summary(0).columns()[0].dtype());
+
+        assert!(ok);
     }
+
 
 
     #[test]

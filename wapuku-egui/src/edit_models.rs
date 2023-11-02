@@ -25,12 +25,24 @@ pub struct FilterNewConditionCtx {
 
 #[derive(Debug)]
 pub struct SummaryActionsCtx {
-    pub is_convret_dialog_open:Option<String>
+    pub is_convret_dialog_open:Option<String>,
+    pattern:String
 }
 
 impl SummaryActionsCtx {
     pub fn new() -> Self {
-        Self { is_convret_dialog_open:None }
+        Self { 
+            is_convret_dialog_open:None,
+            pattern: "%m/%d/%Y %T".into()
+        }
+    }
+
+    pub fn pattern(&self) -> &String {
+        &self.pattern
+    }
+
+    pub fn pattern_mut(&mut self) -> &mut String {
+        &mut self.pattern
     }
 }
 

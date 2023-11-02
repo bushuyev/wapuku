@@ -148,7 +148,7 @@ pub trait View {
                                 if model_ctx.summary_actions_ctx().is_convret_dialog_open.as_ref().map(|c|c.eq(column_summary.name())).unwrap_or(false) {
                                     egui::Window::new("Modal Window").current_pos(ui.clip_rect().center())/*.open(&mut model_ctx.summary_actions_ctx_mut().is_convret_dialog_open)*/.show(ctx, |ui| {
                                         ui.horizontal(|ui| {
-                                            ui.add(egui::TextEdit::singleline(model_ctx.filter_new_condition_ctx_mut().max_mut()).hint_text("max"));
+                                            ui.add(egui::TextEdit::singleline(model_ctx.summary_actions_ctx_mut().pattern_mut()).hint_text("pattern"));
                                             if ui.button("Cancel").clicked() {
                                                 model_ctx.summary_actions_ctx_mut().is_convret_dialog_open = None;
                                             }
