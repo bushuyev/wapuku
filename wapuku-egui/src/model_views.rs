@@ -158,6 +158,7 @@ pub trait View {
                                                 model_ctx.queue_action(ActionRq::Convert {
                                                     frame_id: self.frame_id(),
                                                     name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
+                                                    pattern_ptr: Box::into_raw(Box::new(Box::new(String::from(model_ctx.summary_actions_ctx().pattern())))) as u32,
                                                 });
                                             }
                                         });

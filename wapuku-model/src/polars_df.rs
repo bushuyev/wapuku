@@ -5,6 +5,7 @@ use std::io::{Cursor, Read};
 use ::zip::*;
 use ::zip::result::*;
 use log::{debug, warn};
+use polars::datatypes::DataType::Datetime;
 use polars::datatypes::TimeUnit::Milliseconds;
 use polars::export::chrono;
 use polars::export::chrono::{NaiveDate, NaiveDateTime, NaiveTime, ParseResult};
@@ -129,30 +130,38 @@ impl PolarsData {
         let df = self.df.clone().lazy()
             .filter(col(column.as_str()).is_not_null())
             .collect()?;
-        let s =  df.column(column.as_str())?.sort(false);
+        let column_series =  df.column(column.as_str())?.sort(false);
 
         // let mut min = NaiveDateTime::MIN.timestamp_millis();
         // let mut max = NaiveDateTime::MAX.timestamp_millis();
 
-        debug!("s.dtype()={:?} s.min()={:?}, s.max()={:?}", s.dtype(), s.min::<i64>(), s.max::<i64>());
+        debug!("s.dtype()={:?}", column_series.dtype());
 
         let (mut min_value, mut max_value) = (
-            s.min().unwrap_or(0), s.max().unwrap_or(0)
+            column_series.min().unwrap_or(0), column_series.max().unwrap_or(0)
         );
 
-        match s.dtype(){
+        let mut time_unit = TimeUnit::Milliseconds;
+
+        match column_series.dtype(){
             DataType::Date => {}
             DataType::Datetime(unit, _) => {
                 match unit {
                     TimeUnit::Nanoseconds => {
-                        min_value /= 1_000_000;
-                        max_value /= 1_000_000;
+                        time_unit = TimeUnit::Nanoseconds;
+                        // min_value /= 1_000_000;
+                        // max_value /= 1_000_000;
+                        debug!("nanos min_value={:?} max_value={:?} min_dt={:?}, max_dt={:?}", min_value, max_value, chrono::NaiveDateTime::from_timestamp_millis(min_value/1_000_000), chrono::NaiveDateTime::from_timestamp_millis(max_value/1_000_000));
                     }
                     TimeUnit::Microseconds => {
-                        min_value /= 1_000;
-                        max_value /= 1_000;
+                        time_unit = TimeUnit::Microseconds;
+                        // min_value /= 1_000;
+                        // max_value /= 1_000;
+                        debug!("micros min_value={:?} max_value={:?} min_dt={:?}, max_dt={:?}", min_value, max_value, chrono::NaiveDateTime::from_timestamp_micros(min_value), chrono::NaiveDateTime::from_timestamp_millis(max_value));
                     }
-                    Milliseconds => {}
+                    Milliseconds => {
+                        debug!("millis: min_value={:?} max_value={:?} min_dt={:?}, max_dt={:?}", min_value, max_value, chrono::NaiveDateTime::from_timestamp_millis(min_value), chrono::NaiveDateTime::from_timestamp_millis(max_value));
+                    }
                 }
             }
             DataType::Duration(_) => {}
@@ -161,7 +170,7 @@ impl PolarsData {
                 warn!("Unexpected datatype"); //TODO
             }
         }
-        debug!("min_value={:?} max_value={:?}", min_value, max_value);
+
 
         // let start = s.min::<f64>().unwrap().floor() - 1.0;
         // let stop = s.max::<f64>().unwrap().ceil() + 1.0;
@@ -178,7 +187,7 @@ impl PolarsData {
 
 
 
-        let mut bins = bins.extend_constant(AnyValue::Datetime(max_value, Milliseconds, &None), 1)?;
+        let mut bins = bins.extend_constant(AnyValue::Datetime(max_value, time_unit, &None), 1)?;
         bins.set_sorted_flag(IsSorted::Ascending);
 
         let cuts_df = df![
@@ -195,10 +204,10 @@ impl PolarsData {
                     [
                         col(breakpoint_str)
                             .shift_and_fill(1, lit(min_value))
-                            .cast(DataType::Datetime(Milliseconds, None))
+                            .cast(column_series.dtype().to_owned())
                         ,
                         col(breakpoint_str)
-                        .cast(DataType::Datetime(Milliseconds, None)),
+                        .cast(column_series.dtype().to_owned()),
                     ],
                 )?
                     .alias(category_str),
@@ -212,14 +221,15 @@ impl PolarsData {
             .with_columns([
                 col(category_str).cast(DataType::Categorical(None)),
                 col(breakpoint_str)
-                    .cast(s.dtype().to_owned())
+                    .cast(column_series.dtype().to_owned())
+                    // .cast(Datetime(Milliseconds, None))
                     .set_sorted_flag(IsSorted::Ascending),
             ])
             .collect()?;
 
-        let out = s.clone().into_frame().join_asof(
+        let out = column_series.clone().into_frame().join_asof(
             &cuts,
-            s.name(),
+            column_series.name(),
             breakpoint_str,
             AsofStrategy::Forward,
             None,
@@ -227,15 +237,17 @@ impl PolarsData {
         )?;
 
         let out = out
-            .select(["category", s.name()])?
+            .select(["category", column_series.name()])?
             .groupby(["category"])?
             .count()?;
+
+        debug!("out={:?}", out);
 
         let groupby_df = cuts.left_join(&out, [category_str], [category_str])?
             .fill_null(FillNullStrategy::Zero)?
             .sort(["category"], false, false)?;
 
-        debug!("hist_df={:?}", groupby_df);
+        debug!("groupby_df={:?}", groupby_df);
 
         let mut val_count = groupby_df.iter();
         val_count.next(); //skip break_point
@@ -1082,7 +1094,7 @@ pub(super) mod tests {
     fn test_build_date_histogram_f32() {
 
         let df = DataFrame::new(vec![
-            DatetimeChunked::from_naive_datetime("days", vec![
+            DatetimeChunked::from_naive_datetime("registration_dttm", vec![
                 chrono::NaiveDateTime::parse_from_str("2023-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
                 chrono::NaiveDateTime::parse_from_str("2023-01-15 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
                 chrono::NaiveDateTime::parse_from_str("2023-02-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
@@ -1098,8 +1110,10 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let histogram = data.build_histogram(0u128, String::from("days"), None).expect("build_histogram");
-        // let histogram = data.build_histogram(0u128, String::from("registration_dttm")).expect("build_histogram");
+        let summary = data.build_summary(0u128);
+        println!("summary={:?}", summary);
+
+        let histogram = data.build_histogram(0u128, String::from("registration_dttm"), None).expect("build_histogram");
 
         println!("histogram={:?}", histogram);
         assert_eq!(histogram.values()[0].1, 1);
@@ -1129,6 +1143,7 @@ pub(super) mod tests {
         let ok = data.convert_column(0u128, "days".into(), "%Y-%m-%d %T".into()).expect("convert_column");
         println!("ok={:?}", ok);
         println!("2. {:?}", data.build_summary(0).columns()[0].dtype());
+        println!("2. {:?}", data.build_histogram(0, "days".into(), None));
 
         assert!(ok);
     }

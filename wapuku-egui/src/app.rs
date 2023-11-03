@@ -24,7 +24,7 @@ pub enum UIAction {
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
-    Convert { frame_id:u128, name_ptr: u32 },
+    Convert { frame_id:u128, name_ptr: u32, pattern_ptr: u32 },
     DataLump { frame_id:u128, offset:usize, limit:usize},
     ApplyFilter { frame_id:u128, filter:Filter}
 }
