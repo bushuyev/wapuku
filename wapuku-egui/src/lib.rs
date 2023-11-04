@@ -139,7 +139,7 @@ pub async fn run() {
                                                 frame: WaFrame::new(
                                                     frame_id,
                                                     df.name().clone(),
-                                                    df.build_summary(frame_id),
+                                                    df.build_summary(frame_id, None),
                                                 )
                                             }).expect("send");
 
@@ -188,7 +188,6 @@ pub async fn run() {
                                 .convert_column(frame_id, name.clone(), pattern.into());
                             match result {
                                 Ok(new_type) => {
-                                    debug!("1. wapuku: running in pool, sending convert rs: b={}", b);
                                     to_main_rc_1_1.send(ActionRs::Convert {
                                         frame_id,
                                         name:name,
@@ -239,7 +238,7 @@ pub async fn run() {
                                         frame: WaFrame::new(
                                             frame_id,
                                             format!("{} filtered", wiltered_fame.data().name()),
-                                            wiltered_fame.data().build_summary(frame_id),
+                                            wiltered_fame.data().build_summary(frame_id, None),
                                         )
                                     }).expect("ActionRs::LoadFrame");
 
@@ -276,7 +275,7 @@ pub async fn run() {
 
                     ActionRs::Convert { frame_id, name, new_type } => {
                         debug!("wapuku: ActionRs::Convert frame_id={:?} name={:?} new_type={:?}", frame_id, name, new_type );
-                        model_borrowed.change_column_type(name, new_type);
+                        model_borrowed.change_column_type(frame_id, name, new_type);
                     }
 
                     ActionRs::Err { msg } => {

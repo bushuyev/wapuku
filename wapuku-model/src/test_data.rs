@@ -86,7 +86,7 @@ impl  Data for TestData {
         )
     }
 
-    fn build_summary(&self, frame_id: u128) -> Summary {
+    fn build_summary(&self, frame_id: u128, column: Option<String>) -> Summary {
         todo!()
     }
 

@@ -447,14 +447,19 @@ impl Data for PolarsData {
         )
     }
 
-    fn build_summary(&self, frame_id: u128) -> Summary {
+    fn build_summary(&self, frame_id: u128, column_op: Option<String>) -> Summary {
 
         //TODO
         // self.df.get_columns().len() < 20
         // self.df.lazy().filter()
 
 
-        let desc = self.df.describe(None).unwrap();
+        let desc = if let Some(column) = column_op {
+            self.df.column(&column).expect("").clone().into_frame().describe(None).unwrap()
+        } else {
+            self.df.describe(None).unwrap()
+        };
+
         debug!("desc={:?}", desc);
         Summary::new(
             wa_id(),
@@ -632,7 +637,7 @@ impl Data for PolarsData {
                 .collect::<Int64Chunked>().into_datetime(TimeUnit::Milliseconds, None)
                 .into_series()
         });
-        Ok(res.is_ok())
+        self.build_summary(frame_id, Some(column)).columns().first().map(|c|c.clone()).ok_or(WapukuError::DataLoad {msg:"ups".into()})
     }
 }
 
@@ -1011,7 +1016,7 @@ pub(super) mod tests {
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let summary = data.build_summary(0);
+        let summary = data.build_summary(0, None);
 
         check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
         check_numeric_column(&summary, 1, "10.0", "20.0", "30.0");
@@ -1040,7 +1045,7 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let summary = data.build_summary(0);
+        let summary = data.build_summary(0, None);
 
         println!("summary={:?}", summary);
 
@@ -1095,7 +1100,7 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let summary = data.build_summary(0u128);
+        let summary = data.build_summary(0u128, None);
         println!("summary={:?}", summary);
 
         let histogram = data.build_histogram(0u128, String::from("registration_dttm"), None).expect("build_histogram");
@@ -1123,11 +1128,11 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        println!("1. {:?}", data.build_summary(0).columns()[0].dtype());
+        println!("1. {:?}", data.build_summary(0, None).columns()[0].dtype());
 
         let ok = data.convert_column(0u128, "days".into(), "%Y-%m-%d %T".into()).expect("convert_column");
         println!("ok={:?}", ok);
-        println!("2. {:?}", data.build_summary(0).columns()[0].dtype());
+        println!("2. {:?}", data.build_summary(0, None).columns()[0].dtype());
         println!("2. {:?}", data.build_histogram(0, "days".into(), None));
 
         // assert!(ok);
@@ -1142,12 +1147,12 @@ pub(super) mod tests {
 
         let mut data = PolarsData::new(df, String::from("test"));
 
-        println!("1. {:?}", data.build_summary(0).columns()[0].dtype());
+        println!("1. {:?}", data.build_summary(0, None).columns()[0].dtype());
 
         let ok = data.convert_column(0u128, "days".into(), "%m/%d/%Y".into()).expect("convert_column");
 
         println!("ok={:?}", ok);
-        println!("2. {:?}", data.build_summary(0).columns()[0].dtype());
+        println!("2. {:?}", data.build_summary(0, None).columns()[0].dtype());
 
         // assert!(ok);
     }
@@ -1190,7 +1195,7 @@ pub(super) mod tests {
         ).unwrap();
         let mut data = PolarsData::new(df, String::from("test"));
 
-        let summary = data.build_summary(0);
+        let summary = data.build_summary(0, None);
 
         check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
 
@@ -1230,7 +1235,7 @@ pub(super) mod tests {
         // filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"B".into()}}, None);
 
         let filtered_frame = data.apply_filter(0u128, filter);
-        let summary = filtered_frame.unwrap().data().build_summary(0u128);
+        let summary = filtered_frame.unwrap().data().build_summary(0u128, None);
         let columns = summary.columns();
         let property_3_column = columns.get(2).expect("property_3_column");
         let SummaryColumnType::String { data} =  property_3_column.dtype() else {panic!("no property_3_column data")};

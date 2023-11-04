@@ -169,7 +169,7 @@ impl WaFrame {
         }
     }
 
-    pub fn change_column_type(&mut self, column_name:String, dtype:SummaryColumnType) {
+    pub fn change_column_type(&mut self, column_name:String, dtype:SummaryColumn) {
         self.summary.change_column_type(column_name, dtype);
     }
 }
@@ -323,9 +323,9 @@ impl Summary {
         &self.columns
     }
 
-    pub fn change_column_type(&mut self, column_name:String, dtype:SummaryColumnType) {
+    pub fn change_column_type(&mut self, column_name:String, dtype:SummaryColumn) {
         if let Some(column) = self.columns.iter_mut().find(|c|c.name.eq(&column_name)) {
-            column.dtype = dtype
+            column.dtype = dtype.dtype
         } else {
             error!("change_column_type: no column_name={}", column_name)
         }
@@ -692,7 +692,7 @@ pub trait Data:Debug {
     fn all_sets(&self) -> Vec<&dyn PropertiesSet>;
     fn all_properties(&self) -> HashSet<&dyn Property>;
     fn build_grid(&self, property_x: PropertyRange, property_y: PropertyRange, groups_nr_x: u8, groups_nr_y: u8, name: &str) -> GroupsGrid;
-    fn build_summary(&self, frame_id: u128) -> Summary;
+    fn build_summary(&self, frame_id: u128, column: Option<String>) -> Summary;
     fn build_histogram(&self, frame_id: u128, column:String, bins: Option<usize>) -> Result<Histogram, WapukuError>;
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
