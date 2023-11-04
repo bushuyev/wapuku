@@ -1,4 +1,4 @@
-use egui::{Color32, Context, Frame, InnerResponse, Ui, WidgetText};
+use egui::{Color32, Context, FontId, Frame, InnerResponse, RichText, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
 use egui_plot::{
@@ -6,6 +6,7 @@ use egui_plot::{
     Plot,
 };
 use log::debug;
+use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::messages::OK;
 use wapuku_model::model::{CompositeType, Condition, ConditionType, DataLump, Filter, Histogram, Summary, SummaryColumn, SummaryColumnType, WaModelId};
 use wapuku_model::utils::val_or_na;
@@ -18,6 +19,8 @@ pub struct Msg {
     text:String,
     color:Color32
 }
+
+const ICON_FONT:FontId = FontId::proportional(30.0);
 
 impl Msg {
     pub fn new(text: &str, color: Color32) -> Self {
@@ -106,12 +109,16 @@ pub trait View {
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::LEFT))
             .column(Column::auto().at_least(200.0).resizable(true).clip(true))
+            .column(Column::auto().at_least(10.0).resizable(false).clip(true))
             .column(Column::auto().at_least(200.0).resizable(true).clip(true))
             .column(Column::remainder());
 
         table.header(20.0, |mut header| {
             header.col(|ui| {
                 ui.strong("Column");
+            });
+            header.col(|ui| {
+                ui.strong("Type");
             });
             header.col(|ui| {
                 ui.strong("Data");
@@ -123,31 +130,30 @@ pub trait View {
         }).body(|body| {
 
 
-            body.rows(2. * text_height, self.columns().len(), |row_index, mut row| {
+
+            body.rows(4. * text_height, self.columns().len(), |row_index, mut row| {
                 let column_summary = &self.columns()[row_index];
 
                 row.col(|ui| {
                     ui.label(column_summary.name().clone());
+
                 });
+                row.col(|ui| {
+                    match column_summary.dtype(){
+                        SummaryColumnType::Numeric { .. } => {
+                            ui.label(RichText::new("🔢").font(ICON_FONT));
+                        }
+                        SummaryColumnType::String { .. } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("🔠").font(ICON_FONT));
 
-                match column_summary.dtype() {
-                    SummaryColumnType::Numeric { data} => {
-
-                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), column_summary.name());
-
-                    }
-                    SummaryColumnType::String {data}=> {
-                        row.col(|ui| {
-                            ui.vertical(|ui|{
-                                ui.add(egui::Label::new(data.unique_values()).wrap(true));
-
-                                if ui.button("->").clicked() {
-
+                                if ui.button("➡").clicked() {
                                     model_ctx.summary_actions_ctx_mut().is_convret_dialog_open = Some(column_summary.name().clone());
                                 }
                                 if model_ctx.summary_actions_ctx().is_convret_dialog_open.as_ref().map(|c|c.eq(column_summary.name())).unwrap_or(false) {
-                                    egui::Window::new("Modal Window").current_pos(ui.clip_rect().center())/*.open(&mut model_ctx.summary_actions_ctx_mut().is_convret_dialog_open)*/.show(ctx, |ui| {
+                                    egui::Window::new("Convert to").current_pos(ui.clip_rect().center())/*.open(&mut model_ctx.summary_actions_ctx_mut().is_convret_dialog_open)*/.show(ctx, |ui| {
                                         ui.horizontal(|ui| {
+                                            ui.label("Pattern:");
                                             ui.add(egui::TextEdit::singleline(model_ctx.summary_actions_ctx_mut().pattern_mut()).hint_text("pattern"));
                                             if ui.button("Cancel").clicked() {
                                                 model_ctx.summary_actions_ctx_mut().is_convret_dialog_open = None;
@@ -159,12 +165,32 @@ pub trait View {
                                                     frame_id: self.frame_id(),
                                                     name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
                                                     pattern_ptr: Box::into_raw(Box::new(Box::new(String::from(model_ctx.summary_actions_ctx().pattern())))) as u32,
+                                                    to_type_ptr: Box::into_raw(Box::new(Box::new(model_ctx.summary_actions_ctx().to_type().clone()))) as u32//TODO other
                                                 });
                                             }
                                         });
                                     });
                                 }
                             });
+                        }
+                        SummaryColumnType::Datetime { .. } => {
+                            ui.label(RichText::new("📆").font(ICON_FONT));
+                        }
+                        SummaryColumnType::Boolean => {
+                            ui.label(RichText::new("🌓").font(ICON_FONT));
+                        }
+                    }
+                });
+
+                match column_summary.dtype() {
+                    SummaryColumnType::Numeric { data} => {
+
+                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), column_summary.name());
+
+                    }
+                    SummaryColumnType::String {data}=> {
+                        row.col(|ui| {
+                            ui.add(egui::Label::new(data.unique_values()).wrap(true));
                         });
                     }
 

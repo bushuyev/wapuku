@@ -1,3 +1,4 @@
+use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::model::{Condition, ConditionType, SummaryColumn, SummaryColumnType};
 use crate::model_views::Msg;
 
@@ -26,14 +27,16 @@ pub struct FilterNewConditionCtx {
 #[derive(Debug)]
 pub struct SummaryActionsCtx {
     pub is_convret_dialog_open:Option<String>,
-    pattern:String
+    pattern:String,
+    to_type:WapukuDataType
 }
 
 impl SummaryActionsCtx {
     pub fn new() -> Self {
         Self { 
             is_convret_dialog_open:None,
-            pattern: "%m/%d/%Y %T".into()
+            pattern: "%m/%d/%Y %T".into(),
+            to_type:WapukuDataType::Datetime
         }
     }
 
@@ -43,6 +46,11 @@ impl SummaryActionsCtx {
 
     pub fn pattern_mut(&mut self) -> &mut String {
         &mut self.pattern
+    }
+
+
+    pub fn to_type(&self) -> &WapukuDataType {
+        &self.to_type
     }
 }
 

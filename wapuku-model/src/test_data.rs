@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::data_type::WapukuDataType;
-use crate::model::{Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, FilteredFame, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, WapukuError};
+use crate::model::{Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, FilteredFame, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, SummaryColumn, WapukuError};
 
 
 #[derive(Debug)]
@@ -102,7 +102,7 @@ impl  Data for TestData {
         todo!()
     }
 
-    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<bool, WapukuError> {
+    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<SummaryColumn, WapukuError> {
         todo!()
     }
 }

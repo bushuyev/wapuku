@@ -168,6 +168,10 @@ impl WaFrame {
             _=>{}
         }
     }
+
+    pub fn change_column_type(&mut self, column_name:String, dtype:SummaryColumnType) {
+        self.summary.change_column_type(column_name, dtype);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -215,6 +219,7 @@ impl From<&SummaryColumnType> for WapukuDataType {
         }
     }
 }
+
 
 
 #[derive(Debug, Clone)]
@@ -318,6 +323,13 @@ impl Summary {
         &self.columns
     }
 
+    pub fn change_column_type(&mut self, column_name:String, dtype:SummaryColumnType) {
+        if let Some(column) = self.columns.iter_mut().find(|c|c.name.eq(&column_name)) {
+            column.dtype = dtype
+        } else {
+            error!("change_column_type: no column_name={}", column_name)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -684,7 +696,7 @@ pub trait Data:Debug {
     fn build_histogram(&self, frame_id: u128, column:String, bins: Option<usize>) -> Result<Histogram, WapukuError>;
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
-    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<bool, WapukuError>;
+    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<SummaryColumn, WapukuError>;
 }
 
 #[derive(Debug)]

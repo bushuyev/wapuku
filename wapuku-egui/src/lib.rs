@@ -12,6 +12,7 @@ pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::workers::PoolWorker;
+use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::model::{Data, wa_id, WaFrame};
 use wapuku_model::polars_df::PolarsData;
 use wasm_bindgen::prelude::*;
@@ -174,25 +175,29 @@ pub async fn run() {
                             }
                         });
                     }
-                    ActionRq::Convert { frame_id, name_ptr, pattern_ptr} => {
+                    ActionRq::Convert { frame_id, name_ptr, pattern_ptr, to_type_ptr} => {
                         let mut data_map_rc_1 = Rc::clone(&data_map_rc);
                         let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
                         pool_worker.run_in_pool( move || {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             let pattern  = **unsafe { Box::from_raw(pattern_ptr as *mut Box<String>) };
-                            debug!("wapuku: running in pool, ::ListUnique name={}", name);
+                            let to_type  = **unsafe { Box::from_raw(to_type_ptr as *mut Box<WapukuDataType>) };
+                            debug!("wapuku: running in pool, ::ListUnique name={} to_type={:?}", name, to_type);
                             //"%m/%d/%Y"
                             let result = data_map_rc_1.borrow_mut().get_mut(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str())
-                                .convert_column(frame_id, name, pattern.into());
+                                .convert_column(frame_id, name.clone(), pattern.into());
                             match result {
-                                Ok(_) => {
-                                    // to_main_rc_1_1.send(ActionRs::Histogram {
-                                    //     frame_id,
-                                    //     histogram,
-                                    // }).expect("send");
+                                Ok(new_type) => {
+                                    debug!("1. wapuku: running in pool, sending convert rs: b={}", b);
+                                    to_main_rc_1_1.send(ActionRs::Convert {
+                                        frame_id,
+                                        name:name,
+                                        new_type,
+                                    }).expect("send ActionRs::Convert");
+                                    // to_main_rc_1_1.send(ActionRs::Err { msg: "zzzz".into() }).expect("send");
                                 }
                                 Err(e) => {
-                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: e.to_string() }).expect("send");
                                 }
                             }
                         });
@@ -209,7 +214,7 @@ pub async fn run() {
                                     to_main_rc_1_1.send(ActionRs::DataLump {
                                         frame_id,
                                         lump: data_lump,
-                                    }).expect("send");
+                                    }).expect("ActionRs::DataLump");
                                 }
                                 Err(e) => {
                                     to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
@@ -236,7 +241,7 @@ pub async fn run() {
                                             format!("{} filtered", wiltered_fame.data().name()),
                                             wiltered_fame.data().build_summary(frame_id),
                                         )
-                                    }).expect("send");
+                                    }).expect("ActionRs::LoadFrame");
 
                                     data_map_rc_1.borrow_mut().insert(frame_id, wiltered_fame.into());
                                 }
@@ -251,6 +256,7 @@ pub async fn run() {
             model_borrowed.run_ui_actions();
 
             if let Ok(data_msg) = from_worker_rc1.try_recv() {
+                debug!("wapuku: try_recv: data_msg={:?}", data_msg);
 
                 match data_msg {
 
@@ -268,11 +274,15 @@ pub async fn run() {
                         model_borrowed.add_data_lump(frame_id, lump);
                     }
 
-                    ActionRs::Err { msg } => {
-                        trace!("wapuku: error={:?}", msg);
-                        model_borrowed.set_error(msg);
+                    ActionRs::Convert { frame_id, name, new_type } => {
+                        debug!("wapuku: ActionRs::Convert frame_id={:?} name={:?} new_type={:?}", frame_id, name, new_type );
+                        model_borrowed.change_column_type(name, new_type);
                     }
 
+                    ActionRs::Err { msg } => {
+                        debug!("wapuku: error={:?}", msg);
+                        model_borrowed.set_error(msg);
+                    }
                 }
             }
 

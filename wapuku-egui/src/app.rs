@@ -9,7 +9,8 @@ use std::sync::{Arc, Mutex};
 use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Stroke, Vec2};
 use log::{debug, error};
 use rfd;
-use wapuku_model::model::{DataLump, Filter, Histogram, WaFrame, WaModelId};
+use wapuku_model::data_type::WapukuDataType;
+use wapuku_model::model::{DataLump, Filter, Histogram, SummaryColumnType, WaFrame, WaModelId};
 
 use crate::edit_models::{FilterNewConditionCtx, SummaryActionsCtx};
 use crate::model_views::{LayoutRequest, View};
@@ -24,7 +25,7 @@ pub enum UIAction {
 pub enum ActionRq {
     LoadFrame { name_ptr: u32, data_ptr: u32 },
     Histogram { frame_id:u128, name_ptr: u32 },
-    Convert { frame_id:u128, name_ptr: u32, pattern_ptr: u32 },
+    Convert { frame_id:u128, name_ptr: u32, pattern_ptr: u32, to_type_ptr:u32 },
     DataLump { frame_id:u128, offset:usize, limit:usize},
     ApplyFilter { frame_id:u128, filter:Filter}
 }
@@ -33,6 +34,7 @@ pub enum ActionRq {
 pub enum ActionRs {
     LoadFrame {frame: WaFrame},
     Histogram {frame_id:u128, histogram:Histogram},
+    Convert { frame_id:u128, name: String, new_type:SummaryColumnType },
     DataLump { frame_id:u128, lump:DataLump},
     Err { msg:String},
 }
@@ -162,6 +164,14 @@ impl WapukuAppModel {
             debug!("wapuku:add_frame: Ok");
         } else {
             debug!("wapuku::add_frame: model locked ");
+        }
+    }
+
+    pub fn change_column_type(&mut self, frame_id:u128, column_name:String, dtype:SummaryColumnType) {
+        if let Some(frame) = self.frames.get_mut(&frame_id) {
+            frame.change_column_type(column_name, dtype);
+        } else {
+            debug!("wapuku: no frame_id={}", frame_id); //TODO err msg
         }
     }
 
