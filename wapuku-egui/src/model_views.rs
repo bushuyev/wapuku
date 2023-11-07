@@ -181,24 +181,23 @@ pub trait View {
                         }
                     }
                 });
-
-                match column_summary.dtype() {
-                    SummaryColumnType::Numeric { data} => {
-
-                        label_cell(&mut row, format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max()), column_summary.name());
-
-                    }
-                    SummaryColumnType::String {data}=> {
-                        row.col(|ui| {
+                row.col(|ui| {
+                    match column_summary.dtype() {
+                        SummaryColumnType::Numeric { data } => {
+                            let label = format!("min: {}, avg: {}, max: {}", data.min(), data.avg(), data.max());
+                            let _name = column_summary.name();
+                            ui.horizontal_centered(|ui| {
+                                ui.add(egui::Label::new(label).wrap(true));
+                            });
+                        }
+                        SummaryColumnType::String { data } => {
                             ui.add(egui::Label::new(data.unique_values()).wrap(true));
-                        });
-                    }
+                        }
 
-                    SummaryColumnType::Boolean => {
-
+                        SummaryColumnType::Boolean => {}
+                        SummaryColumnType::Datetime { .. } => {}
                     }
-                    SummaryColumnType::Datetime { .. } => {}
-                }
+                });
                 row.col(|ui| {
                     if ui.button("H").clicked() {
                         model_ctx.queue_action(ActionRq::Histogram {
@@ -299,7 +298,7 @@ impl View for Filter {
 
                         let selected_condition = model_ctx.filter_new_condition_ctx().selected_condition();
 
-                        if ui.button( if selected_condition.is_some() {"Edit"} else { "Add"}).clicked() {
+                        if ui.button( if selected_condition.is_some() {"Save"} else { "Add"}).clicked() {
 
                             debug!("add filter: {:?}", model_ctx.filter_new_condition_ctx());
 
@@ -627,14 +626,4 @@ impl View for DataLump {
     fn model_id(&self) -> WaModelId {
         WaModelId::DataLump{ frame_id: *self.frame_id(), lump_id: *self.id() }
     }
-}
-
-
-fn label_cell<'a>(row: &mut TableRow, label: impl Into<WidgetText>, _name: &str) {
-
-    row.col(|ui| {
-        ui.horizontal_centered(|ui| {
-            ui.add(egui::Label::new(label).wrap(true));
-        });
-    });
 }
