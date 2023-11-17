@@ -32,21 +32,14 @@ jobs:
         with:
           repository: bushuyev/rayon
           path: rayon
-          ref: my_master_polars_0_31_1
-
-      - name: Checkout my arrow2
-        uses: actions/checkout@v3
-        with:
-          repository: bushuyev/arrow2
-          path: arrow2
-          ref: my_polars_0_32_arrow_0_17_4
+          ref: my_master_polars_0_35_2
 
       - name: Checkout my polars
         uses: actions/checkout@v3
         with:
           repository: bushuyev/polars
           path: polars
-          ref: my_main_0_32
+          ref: my_main_0_35_2
 
       - name: Checkout wasm-bindgen
         uses: actions/checkout@v3
