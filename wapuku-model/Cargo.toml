@@ -19,7 +19,7 @@ polars = {path = "../../polars/crates/polars", default-features = false, feature
     "nightly",
     "lazy",
     "parquet",
-    "dynamic_groupby",
+    "dynamic_group_by",
     "csv",
     "temporal",
     "rolling_window",
@@ -49,7 +49,7 @@ regex = "1.9.5"
 once_cell = "1.18.0"
 
 [dev-dependencies]
-polars = {path = "../../polars/crates/polars", default-features = false, features=["lazy", "parquet", "dynamic_groupby", "csv", "temporal", "rolling_window", "describe", "fmt"]}
+polars = {path = "../../polars/crates/polars", default-features = false, features=["lazy", "parquet", "dynamic_group_by", "csv", "temporal", "rolling_window", "describe", "fmt"]}
 simplelog = "0.10.2"
 ctor = "0.1.21"
 

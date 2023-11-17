@@ -97,7 +97,7 @@ impl PolarsData {
         debug!("group_by_categoric column={:?}", column);
 
         let groupby_df = self.df.clone().lazy()
-            .groupby([col(column.as_str())])
+            .group_by([col(column.as_str())])
             .agg([count().alias("count")])
             .sort("count", Default::default())
             .collect()?;
@@ -203,7 +203,7 @@ impl PolarsData {
                     "({}, {}]",
                     [
                         col(breakpoint_str)
-                            .shift_and_fill(1, lit(min_value))
+                            .shift_and_fill(1, min_value)
                             .cast(column_series.dtype().to_owned())
                         ,
                         col(breakpoint_str)
@@ -238,7 +238,7 @@ impl PolarsData {
 
         let out = out
             .select(["category", column_series.name()])?
-            .groupby(["category"])?
+            .group_by(["category"])?
             .count()?;
 
         debug!("out={:?}", out);
@@ -257,7 +257,7 @@ impl PolarsData {
             val_count.next().expect("property_2_count").iter()
         ).fold(Vec::new(), |mut vec, vv| {
 
-            if let (AnyValue::Categorical(a, RevMapping::Local(b), _c), AnyValue::UInt32(count)) = vv {
+            if let (AnyValue::Categorical(a, RevMapping::Local(b, _), _c), AnyValue::UInt32(count)) = vv {
                 warn!("a={:?}, count={:?}", b.value(a as usize), count);
                 vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
             } else {
@@ -295,7 +295,7 @@ impl PolarsData {
                 val_count.next().expect("property_2_count").iter()
             ).fold(Vec::new(), |mut vec, vv| {
 
-                if let (AnyValue::Categorical(a, RevMapping::Local(b), _c), AnyValue::UInt32(count)) = vv {
+                if let (AnyValue::Categorical(a, RevMapping::Local(b, _), _c), AnyValue::UInt32(count)) = vv {
                     warn!("a={:?}, count={:?}", b.value(a as usize), count);
                     vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
                 } else {
@@ -863,7 +863,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df: &DataFrame, group_by_field: &str,
     let df = df.clone()
         .lazy()
         .sort(group_by_field, SortOptions::default())
-        .groupby_dynamic(
+        .group_by_dynamic(
             col(group_by_field.into()),
             [],
             DynamicGroupOptions {
@@ -871,11 +871,11 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df: &DataFrame, group_by_field: &str,
                 every: Duration::new(step),
                 period: Duration::new(step),
                 offset: Duration::new(offset),
-                truncate: false,
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
                 check_sorted: true,
+                label: Label::DataPoint
             },
         )
         .agg(aggregations)
@@ -906,7 +906,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
             col(primary_group_by_field).alias(primary_field_group)
         ])
         .sort(primary_field_group, Default::default())
-        .groupby_dynamic(
+        .group_by_dynamic(
             col(primary_field_group.into()),
             [],
             DynamicGroupOptions {
@@ -914,11 +914,11 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
                 every: Duration::new(primary_step),
                 period: Duration::new(primary_step),
                 offset: Duration::new(primary_offset),
-                truncate: false,
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
                 check_sorted: true,
+                label: Label::DataPoint
             },
         ).agg([
         col(primary_field_group).alias(primary_field_value)
@@ -948,7 +948,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
     let mut df = df.clone()
         .lazy()
         .sort(secondary_group_by_field, Default::default())
-        .groupby_dynamic(
+        .group_by_dynamic(
             col(secondary_group_by_field.into()),
             [col(primary_field_group)],
             DynamicGroupOptions {
@@ -956,11 +956,11 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
                 every: Duration::new(secondary_step),
                 period: Duration::new(secondary_step),
                 offset: Duration::new(secondary_offset),
-                truncate: false,
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
                 check_sorted: true,
+                label: Label::DataPoint
             },
         )
         .agg(aggregations)
@@ -1746,7 +1746,6 @@ pub(super) mod tests {
                  every: Duration::new(2),
                  period: Duration::new(2),
                  offset: Duration::new(-1),
-                 truncate: false,
                  include_boundaries: true,
                  closed_window: ClosedWindow::Left,
                  start_by: StartBy::WindowBound,
