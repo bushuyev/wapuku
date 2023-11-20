@@ -27,7 +27,8 @@ pub enum ActionRq {
     Histogram { frame_id:u128, name_ptr: u32 },
     Convert { frame_id:u128, name_ptr: u32, pattern_ptr: u32, to_type_ptr:u32 },
     DataLump { frame_id:u128, offset:usize, limit:usize},
-    ApplyFilter { frame_id:u128, filter:Filter}
+    ApplyFilter { frame_id:u128, filter:Filter},
+    Corr { frame_id:u128, column_1_ptr: u32, column_2_ptr: u32 },
 }
 
 #[derive(Debug)]

@@ -203,10 +203,10 @@ impl View for Summary {
                         if ui.button("H").clicked() {
                             model_ctx.queue_action(ActionRq::Histogram {
                                 frame_id: self.frame_id(),
-                                name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
+                                name_ptr: Box::into_raw(Box::new(Box::<String>::new(column_summary.name().into()))) as u32,
                             });
                         }
-                        if ui.checkbox(&mut model_ctx.summary_actions_ctx_mut().corr, "C").clicked() {
+                        if ui.checkbox(&mut model_ctx.summary_actions_ctx_mut().get_selected_for_corr(column_summary.name().into()), "C").clicked() {
                             debug!("Correlations clicked");
                         }
                     });
