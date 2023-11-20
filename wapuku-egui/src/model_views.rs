@@ -66,7 +66,7 @@ pub trait View {
     fn model_id(&self) -> WaModelId;
 }
 
-    impl View for Summary {
+impl View for Summary {
     fn title(&self) -> &str {
         self._title()
     }
@@ -199,12 +199,18 @@ pub trait View {
                     }
                 });
                 row.col(|ui| {
-                    if ui.button("H").clicked() {
-                        model_ctx.queue_action(ActionRq::Histogram {
-                            frame_id: self.frame_id(),
-                            name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
-                        });
-                    }
+                    ui.horizontal(|ui|{
+                        if ui.button("H").clicked() {
+                            model_ctx.queue_action(ActionRq::Histogram {
+                                frame_id: self.frame_id(),
+                                name_ptr: Box::into_raw(Box::new(Box::new(String::from(column_summary.name())))) as u32,
+                            });
+                        }
+                        if ui.checkbox(&mut model_ctx.summary_actions_ctx_mut().corr, "C").clicked() {
+                            debug!("Correlations clicked");
+                        }
+                    });
+
                 });
             })
 
@@ -499,7 +505,6 @@ impl View for Histogram {
         let y_ratio = 1.; // (max_height / max as f32) as f64;
 
         let bars  = values.iter().enumerate().map(|(i, (k, v))|{
-
             Bar::new((i as f32 * width) as f64, *v as f64 * y_ratio )
                 .width(width as f64)
                 .name(val_or_na(k))

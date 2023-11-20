@@ -28,7 +28,8 @@ pub struct FilterNewConditionCtx {
 pub struct SummaryActionsCtx {
     pub is_convret_dialog_open:Option<String>,
     pattern:String,
-    to_type:WapukuDataType
+    to_type:WapukuDataType,
+    pub corr:bool
 }
 
 impl SummaryActionsCtx {
@@ -36,7 +37,8 @@ impl SummaryActionsCtx {
         Self { 
             is_convret_dialog_open:None,
             pattern: "%m/%d/%Y %T".into(),
-            to_type:WapukuDataType::Datetime
+            to_type:WapukuDataType::Datetime,
+            corr:true
         }
     }
 

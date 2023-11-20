@@ -439,6 +439,25 @@ impl DataLump {
         self.data = other.data;
     }
 }
+/////////////////////////
+#[derive(Debug)]
+pub struct Correlations {
+    id:u128,
+    frame_id: u128,
+    title: String,
+    columns:Vec<String>,
+}
+
+impl Correlations {
+    pub fn new(frame_id: u128) -> Self {
+        Self {
+            id: wa_id(),
+            frame_id,
+            title: format!("Correlations"),
+            columns:vec![]
+        }
+    }
+}
 
 ///////////////Data view model////////////////
 

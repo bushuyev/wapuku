@@ -258,7 +258,7 @@ impl PolarsData {
         ).fold(Vec::new(), |mut vec, vv| {
 
             if let (AnyValue::Categorical(a, RevMapping::Local(b, _), _c), AnyValue::UInt32(count)) = vv {
-                warn!("a={:?}, count={:?}", b.value(a as usize), count);
+                // warn!("a={:?}, count={:?}", b.value(a as usize), count);
                 vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
             } else {
                 warn!("unexpected values in build_histogram: {:?}", vv);
@@ -469,7 +469,7 @@ impl Data for PolarsData {
                 let name = c.name();
 
                 let dtype = self.df.column(name).expect(name).dtype();
-                debug!("column={:?} type={:?} mean={:?}", c.name(), dtype, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
+                // debug!("column={:?} type={:?} mean={:?}", c.name(), dtype, desc.get(2).map(|row|row.get(i).map(|v|format!("{}", v))));
 
                 let data_type = map_to_wapuku(dtype);
                 match data_type {

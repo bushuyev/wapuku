@@ -406,6 +406,10 @@ impl eframe::App for WapukuApp {
                         }
                     }
 
+                    if ui.button("C").clicked() {
+
+                    }
+
                     let progress_bar = egui::ProgressBar::new(model_borrowed_mut.memory_allocated());
                     // let progress_bar = egui::ProgressBar::new(0.5).animate(false);
 
@@ -439,7 +443,7 @@ impl eframe::App for WapukuApp {
                 if let Some(layout_rq) = layout_queue.actions_for_frame(&view.model_id()) {
                     match layout_rq {
                         LayoutRequest::Center => {
-                            frame_win = frame_win.current_pos(ctx.available_rect().center());
+                            frame_win = frame_win.current_pos((ctx.available_rect().center() - Pos2::new(300.0,150.0)).to_pos2());
                         }
                     }
                 }
