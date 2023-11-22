@@ -114,16 +114,17 @@ pub async fn run() {
 
             if let Some(action) = model_borrowed.get_next_action(){
                 debug!("wapuku: got action {:?}", action);
+                let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+                let data_map_rc_1 = Rc::clone(&data_map_rc);
+
                 match action {
                     ActionRq::LoadFrame {name_ptr, data_ptr} => {
-
-                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
-                        let data_map_rc_1 = Rc::clone(&data_map_rc);
 
                         pool_worker.run_in_pool( move || {
 
                             let data = unsafe { Box::from_raw(data_ptr as *mut Box<Vec<u8>>) };
                             let name = unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
+
                             // let model = unsafe { Box::from_raw(0x610750 as *mut WapukuAppModel) };
                             debug!("wapuku: running in pool, load file name={:?}", name);
 
@@ -155,9 +156,7 @@ pub async fn run() {
                         });
                     }
                     ActionRq::Histogram { frame_id, name_ptr} => {
-                        let data_map_rc_1 = Rc::clone(&data_map_rc);
-                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
-                        pool_worker.run_in_pool( move || {
+                       pool_worker.run_in_pool( move || {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             debug!("wapuku: running in pool, ::ListUnique name={}", name);
 
@@ -176,8 +175,7 @@ pub async fn run() {
                         });
                     }
                     ActionRq::Convert { frame_id, name_ptr, pattern_ptr, to_type_ptr} => {
-                        let mut data_map_rc_1 = Rc::clone(&data_map_rc);
-                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+
                         pool_worker.run_in_pool( move || {
                             let name = **unsafe { Box::from_raw(name_ptr as *mut Box<String>) };
                             let pattern  = **unsafe { Box::from_raw(pattern_ptr as *mut Box<String>) };
@@ -202,8 +200,7 @@ pub async fn run() {
                         });
                     }
                     ActionRq::DataLump { frame_id , offset, limit} => {
-                        let data_map_rc_1 = Rc::clone(&data_map_rc);
-                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
+
                         pool_worker.run_in_pool( move || {
                             let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).fetch_data(frame_id, offset, limit);
                             match result {
@@ -222,8 +219,6 @@ pub async fn run() {
                         });
                     }
                     ActionRq::ApplyFilter { frame_id, filter } => {
-                        let data_map_rc_1 = Rc::clone(&data_map_rc);
-                        let to_main_rc_1_1 = Rc::clone(&to_main_rc_1);
 
                         pool_worker.run_in_pool( move || {
 
@@ -248,6 +243,30 @@ pub async fn run() {
                                     to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
                                 }
                             }
+                        });
+                    }
+                    ActionRq::Corr { frame_id, column_vec_ptr } => {
+
+
+                        pool_worker.run_in_pool( move || {
+
+                            let names = **unsafe { Box::from_raw(column_vec_ptr as *mut Box<Vec<String>>) };
+
+                            debug!("ActionRq::Corr: names in pool: {:?}", names)
+                            // let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).fetch_data(frame_id, offset, limit);
+                            // match result {
+                            //     Ok(data_lump) => {
+                            //         debug!("wapuku: running in pool, sending data lump");
+                            //
+                            //         to_main_rc_1_1.send(ActionRs::DataLump {
+                            //             frame_id,
+                            //             lump: data_lump,
+                            //         }).expect("ActionRs::DataLump");
+                            //     }
+                            //     Err(e) => {
+                            //         to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                            //     }
+                            // }
                         });
                     }
                 }

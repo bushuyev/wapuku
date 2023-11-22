@@ -59,6 +59,14 @@ impl SummaryActionsCtx {
     pub fn get_selected_for_corr(&mut self,  column:String) -> &mut bool {
         self.corrs.entry(column).or_insert(false)
     }
+
+    pub fn get_columns_for_corr_num(&self) -> usize {
+        self.corrs.values().filter(|v|**v).count()
+    }
+
+    pub fn get_columns_for_corr(&self) -> Vec<String> {
+        self.corrs.iter().filter(|kv|*kv.1).map(|v|v.0.clone()).collect()
+    }
 }
 
 #[derive(Debug)]

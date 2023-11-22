@@ -639,6 +639,17 @@ impl Data for PolarsData {
         });
         self.build_summary(frame_id, Some(column)).columns().first().map(|c|c.clone()).ok_or(WapukuError::DataLoad {msg:"ups".into()})
     }
+
+    fn clc_corrs(&mut self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
+        // let res = self.df.select(pearson_corr(Expr::Column("property_1".into()), Expr::Column("property_1".into()), 0));
+        // let c_expr = columns.into_iter().map(|c| Expr::Column(c.into())).collect();
+        let expr = pearson_corr(Expr::Column(columns[0].clone().into()), Expr::Column(columns[1].clone().into()), 0);
+        let res = self.df.clone().lazy().select(&[expr]).collect();
+        debug!("res={:?}", res.unwrap());
+        // Result::Ok(Corrs::new(frame_id))
+
+        res.map(|v|Corrs::new(frame_id)).map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
+    }
 }
 
 impl From<Filter> for Expr {
@@ -1709,6 +1720,26 @@ pub(super) mod tests {
                 List(Series::new("", ["f", "g"])),
             ])
         );
+    }
+
+    #[test]
+    fn test_corr(){
+        let mut df = df!(
+            "property_1" => &[10,      20,     30,     40,    50,      60,      70,      80,      90,   100],
+            "property_2" => &[1,       2,      3,      4,     5,       6,       7,       8,       9,    10],
+            "property_3" => &["a",     "b",    "c",    "d",   "e",     "f",     "g",     "h",     "i",  "j"],
+            "property_4" => &[10,      9,      8,      7,     6,       5,       4,       3,       2,    1],
+            "property_5" => &[1000,    2000,   3000,   4000,  5000,    6000,    7000,    8000,    9000, 10000]
+        ).unwrap();
+
+
+        debug!("wapuku: {:?}", df);
+
+        let mut polars_data = PolarsData::new(df, String::from("test"));
+
+        let res = polars_data.clc_corrs(0, vec!["property_1".into(), "property_4".into()]);
+
+
     }
 
 

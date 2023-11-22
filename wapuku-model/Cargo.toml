@@ -35,7 +35,9 @@ polars = {path = "../../polars/crates/polars", default-features = false, feature
     "dtype-time",
     "algo",
     "strings",
-    "lazy_regex"
+    "lazy_regex",
+    "rank",
+    "cov"
 ]} # "fmt" // "dtype-categorical" - for transpose
 
 smartstring = "1.0.1"

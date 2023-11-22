@@ -2731,6 +2731,7 @@ dependencies = [
  "polars-core",
  "polars-error",
  "polars-utils",
+ "rand",
  "rayon 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex",
  "smartstring",

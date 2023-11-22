@@ -208,6 +208,13 @@ impl View for Summary {
                         }
                         if ui.checkbox(&mut model_ctx.summary_actions_ctx_mut().get_selected_for_corr(column_summary.name().into()), "C").clicked() {
                             debug!("Correlations clicked");
+                            if model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2 {
+
+                                model_ctx.queue_action(ActionRq::Corr {
+                                    frame_id: self.frame_id(),
+                                    column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
+                                });
+                            }
                         }
                     });
 

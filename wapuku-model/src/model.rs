@@ -377,6 +377,25 @@ impl Histogram {
 
 /////////////////////////
 #[derive(Debug)]
+pub struct Corrs {
+    id:u128,
+    frame_id: u128,
+    columns:Vec<String>,
+    values:HashMap<(String, String), f32>
+}
+
+impl Corrs {
+    pub fn new(frame_id: u128) -> Self {
+        Self {
+            id: wa_id(),
+            frame_id,
+            columns: vec![],
+            values: HashMap::new()
+        }
+    }
+}
+/////////////////////////
+#[derive(Debug)]
 pub struct DataLump {
     id:u128,
     frame_id: u128,
@@ -716,6 +735,8 @@ pub trait Data:Debug {
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
     fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<SummaryColumn, WapukuError>;
+
+    fn clc_corrs(&mut self, frame_id: u128, columns:Vec<String>) -> Result<Corrs, WapukuError>;
 }
 
 #[derive(Debug)]
