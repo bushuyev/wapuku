@@ -276,7 +276,7 @@ impl PolarsData {
               .filter(col(column.as_str()).is_not_null())
               .collect()?.column(column.as_str())?,
             None,
-            bins
+            bins.or(Some(100))
         )?;
         // debug!("wapuku:group_by_numeric rs={:?}", groupby_df);
         //
@@ -643,9 +643,18 @@ impl Data for PolarsData {
     fn clc_corrs(&mut self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
         // let res = self.df.select(pearson_corr(Expr::Column("property_1".into()), Expr::Column("property_1".into()), 0));
         // let c_expr = columns.into_iter().map(|c| Expr::Column(c.into())).collect();
+
+        for (i, column_0) in columns.iter().enumerate() {//TODO itertools
+            for column_1 in columns.iter().skip(i+1) {
+                println!("clc_corrs: column_0={:?}, column_1={:?}", column_0, column_1);
+            }
+        }
+
+
+
         let expr = pearson_corr(Expr::Column(columns[0].clone().into()), Expr::Column(columns[1].clone().into()), 0);
         let res = self.df.clone().lazy().select(&[expr]).collect();
-        debug!("res={:?}", res.unwrap());
+        // debug!("res={:?}", res.unwrap());
         // Result::Ok(Corrs::new(frame_id))
 
         res.map(|v|Corrs::new(frame_id)).map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
@@ -1737,7 +1746,7 @@ pub(super) mod tests {
 
         let mut polars_data = PolarsData::new(df, String::from("test"));
 
-        let res = polars_data.clc_corrs(0, vec!["property_1".into(), "property_4".into()]);
+        let res = polars_data.clc_corrs(0, vec!["property_1".into(), "property_2".into(), "property_3".into(), "property_4".into()]);
 
 
     }

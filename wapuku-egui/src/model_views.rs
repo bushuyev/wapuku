@@ -123,13 +123,27 @@ impl View for Summary {
             header.col(|ui| {
                 ui.strong("Data");
             });
+
             header.col(|ui| {
-                ui.strong("Actions");
+                ui.vertical(|ui|{
+                    ui.strong("Actions");
+                    ui.horizontal(|ui|{
+                        ui.add_space(20.0);//TODO
+                        ui.set_enabled(model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2);
+
+                        if ui.button("➡").clicked() {
+                            debug!("➡➡➡➡");
+                            model_ctx.queue_action(ActionRq::Corr {
+                                frame_id: self.frame_id(),
+                                column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
+                            });
+                        }
+                    })
+                });
+
             });
 
         }).body(|body| {
-
-
 
             body.rows(4. * text_height, self.columns().len(), |row_index, mut row| {
                 let column_summary = &self.columns()[row_index];
@@ -207,14 +221,14 @@ impl View for Summary {
                             });
                         }
                         if ui.checkbox(&mut model_ctx.summary_actions_ctx_mut().get_selected_for_corr(column_summary.name().into()), "C").clicked() {
-                            debug!("Correlations clicked");
-                            if model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2 {
-
-                                model_ctx.queue_action(ActionRq::Corr {
-                                    frame_id: self.frame_id(),
-                                    column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
-                                });
-                            }
+                            // debug!("Correlations clicked");
+                            // if model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2 {
+                            //
+                            //     model_ctx.queue_action(ActionRq::Corr {
+                            //         frame_id: self.frame_id(),
+                            //         column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
+                            //     });
+                            // }
                         }
                     });
 

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use wapuku_model::data_type::WapukuDataType;
-use wapuku_model::model::{Condition, ConditionType, SummaryColumn, SummaryColumnType};
+use wapuku_model::model::{Condition, ConditionType, Corrs, SummaryColumn, SummaryColumnType};
 use crate::model_views::Msg;
 
 
@@ -30,7 +30,7 @@ pub struct SummaryActionsCtx {
     pub is_convret_dialog_open:Option<String>,
     pattern:String,
     to_type:WapukuDataType,
-    corrs:HashMap<String, bool>
+    corrs:HashMap<String, bool>,
 }
 
 impl SummaryActionsCtx {
@@ -39,7 +39,7 @@ impl SummaryActionsCtx {
             is_convret_dialog_open:None,
             pattern: "%m/%d/%Y %T".into(),
             to_type:WapukuDataType::Datetime,
-            corrs:HashMap::new()
+            corrs:HashMap::new(),
         }
     }
 

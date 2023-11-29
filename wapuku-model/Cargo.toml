@@ -39,7 +39,7 @@ polars = {path = "../../polars/crates/polars", default-features = false, feature
     "rank",
     "cov"
 ]} # "fmt" // "dtype-categorical" - for transpose
-
+itertools = "0.12.0"
 smartstring = "1.0.1"
 bytes = "1.4"
 log = "0.4.17"
