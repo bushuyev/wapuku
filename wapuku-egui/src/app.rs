@@ -10,7 +10,7 @@ use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Str
 use log::{debug, error};
 use rfd;
 use wapuku_model::data_type::WapukuDataType;
-use wapuku_model::model::{DataLump, Filter, Histogram, SummaryColumn, SummaryColumnType, WaFrame, WaModelId};
+use wapuku_model::model::{Corrs, DataLump, Filter, Histogram, SummaryColumn, SummaryColumnType, WaFrame, WaModelId};
 
 use crate::edit_models::{FilterNewConditionCtx, SummaryActionsCtx};
 use crate::model_views::{LayoutRequest, View};
@@ -37,6 +37,7 @@ pub enum ActionRs {
     Histogram {frame_id:u128, histogram:Histogram},
     Convert { frame_id:u128, name: String, new_type:SummaryColumn },
     DataLump { frame_id:u128, lump:DataLump},
+    Corr {frame_id:u128, corrs: Corrs},
     Err { msg:String},
 }
 

@@ -106,7 +106,7 @@ impl  Data for TestData {
         todo!()
     }
 
-    fn clc_corrs(&mut self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
+    fn clc_corrs(&self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
         todo!()
     }
 }

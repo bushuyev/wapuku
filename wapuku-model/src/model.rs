@@ -385,13 +385,17 @@ pub struct Corrs {
 }
 
 impl Corrs {
-    pub fn new(frame_id: u128) -> Self {
+    pub fn new(frame_id: u128, values:HashMap<(String, String), f32>) -> Self {
         Self {
             id: wa_id(),
             frame_id,
             columns: vec![],
-            values: HashMap::new()
+            values
         }
+    }
+
+    pub fn values(&self) -> &HashMap<(String, String), f32> {
+        &self.values
     }
 }
 /////////////////////////
@@ -735,8 +739,7 @@ pub trait Data:Debug {
     fn fetch_data(&self, frame_id: u128, offset: usize, limit: usize) -> Result<DataLump, WapukuError>;
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
     fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<SummaryColumn, WapukuError>;
-
-    fn clc_corrs(&mut self, frame_id: u128, columns:Vec<String>) -> Result<Corrs, WapukuError>;
+    fn clc_corrs(&self, frame_id: u128, columns:Vec<String>) -> Result<Corrs, WapukuError>;
 }
 
 #[derive(Debug)]

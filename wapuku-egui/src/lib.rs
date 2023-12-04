@@ -252,21 +252,22 @@ pub async fn run() {
 
                             let names = **unsafe { Box::from_raw(column_vec_ptr as *mut Box<Vec<String>>) };
 
-                            debug!("ActionRq::Corr: names in pool: {:?}", names)
-                            // let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).fetch_data(frame_id, offset, limit);
-                            // match result {
-                            //     Ok(data_lump) => {
-                            //         debug!("wapuku: running in pool, sending data lump");
-                            //
-                            //         to_main_rc_1_1.send(ActionRs::DataLump {
-                            //             frame_id,
-                            //             lump: data_lump,
-                            //         }).expect("ActionRs::DataLump");
-                            //     }
-                            //     Err(e) => {
-                            //         to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
-                            //     }
-                            // }
+                            debug!("ActionRq::Corr: names in pool: {:?}", names);
+
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).clc_corrs(frame_id, names);
+                            match result {
+                                Ok(corrs) => {
+                                    debug!("wapuku: running in pool, sending data lump");
+
+                                    to_main_rc_1_1.send(ActionRs::Corr {
+                                        frame_id,
+                                        corrs,
+                                    }).expect("ActionRs::DataLump");
+                                }
+                                Err(e) => {
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                                }
+                            }
                         });
                     }
                 }
@@ -295,6 +296,10 @@ pub async fn run() {
                     ActionRs::Convert { frame_id, name, new_type } => {
                         debug!("wapuku: ActionRs::Convert frame_id={:?} name={:?} new_type={:?}", frame_id, name, new_type );
                         model_borrowed.change_column_type(frame_id, name, new_type);
+                    }
+
+                    ActionRs::Corr { frame_id, corrs } => {
+                        debug!("wapuku: ActionRs::Corr frame_id={:?} corrs={:?}", frame_id, corrs );
                     }
 
                     ActionRs::Err { msg } => {
