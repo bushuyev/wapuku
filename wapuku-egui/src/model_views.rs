@@ -1,10 +1,7 @@
 use egui::{Color32, Context, FontId, Frame, InnerResponse, RichText, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
-use egui_plot::{
-    Bar, BarChart,
-    Plot,
-};
+use egui_plot::{Bar, BarChart, Plot, PlotPoints, Polygon};
 use log::debug;
 use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::messages::OK;
@@ -541,7 +538,7 @@ impl View for Histogram {
         .color(Color32::LIGHT_BLUE)
         .name(self._title());
 
-        Plot::new("Normal Distribution Demo")
+        Plot::new("Histogram")
 
             .label_formatter(|name, _value| {
                     // debug!("wapuku: name={:?}, value={:?}", name, value);
@@ -578,6 +575,28 @@ impl View for Corrs {
 
     fn ui(&self, ui: &mut Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
         ui.add(egui::Label::new(self.title()));
+
+        Plot::new("Correlations")
+
+            .label_formatter(|name, _value| {
+                // debug!("wapuku: name={:?}, value={:?}", name, value);
+
+                if !name.is_empty() {
+                    name.to_owned()
+                } else {
+                    "".to_owned()
+                }
+            })
+            .allow_zoom(true)
+            .allow_drag(true)
+            .custom_x_axes(vec![])
+            .show(ui, |plot_ui| {
+                let bounds = plot_ui.plot_bounds();
+                // debug!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..... bounds={:?}", bounds);
+                // plot_ui.polygon()
+                plot_ui.polygon(Polygon::new(PlotPoints::Owned(vec![[-10., -10.].into(), [-10., 10.].into(), [10., 10.].into(), [10., -10.].into() ])).fill_color(Color32::LIGHT_YELLOW))
+            });
+
     }
 
     fn model_id(&self) -> WaModelId {
