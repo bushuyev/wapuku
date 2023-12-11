@@ -185,6 +185,14 @@ impl WapukuAppModel {
         }
     }
 
+    pub fn add_corrs(&mut self, frame_id:u128, corrs:Corrs) {
+        if let Some(frame) = self.frames.get_mut(&frame_id) {
+            frame.add_corrs(corrs);
+        } else {
+            debug!("wapuku: no frame_id={}", frame_id); //TODO err msg
+        }
+    }
+
     pub fn add_data_lump(&mut self, frame_id:u128, data_lump:DataLump) {
         if let Some(frame) = self.frames.get_mut(&frame_id) {
             frame.add_data_lump(data_lump);
@@ -215,6 +223,11 @@ impl WapukuAppModel {
                 }
             }
             WaModelId::Filter { frame_id, filter_id:_ } => {
+                if let Some(frame) = self.frames.get_mut(&frame_id) {
+                    frame.purge(id);
+                }
+            }
+            WaModelId::Corrs { frame_id, corrs_id } => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
@@ -251,6 +264,10 @@ impl WapukuAppModel {
 
             for hist in frame.histograms() {
                 (f)(&mut self.ctx, hist, &mut self.layout_queue);
+            }
+
+            for corrs in frame.corrs() {
+                (f)(&mut self.ctx, corrs, &mut self.layout_queue);
             }
 
             if let Some(lump) = frame.data_lump() {

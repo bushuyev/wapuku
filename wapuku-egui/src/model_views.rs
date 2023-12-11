@@ -8,7 +8,7 @@ use egui_plot::{
 use log::debug;
 use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::messages::OK;
-use wapuku_model::model::{CompositeType, Condition, ConditionType, DataLump, Filter, Histogram, Summary, SummaryColumn, SummaryColumnType, WaModelId};
+use wapuku_model::model::{CompositeType, Condition, ConditionType, Corrs, DataLump, Filter, Histogram, Summary, SummaryColumn, SummaryColumnType, WaModelId};
 use wapuku_model::utils::val_or_na;
 
 use crate::app::{ActionRq, ModelCtx, UIAction};
@@ -564,6 +564,24 @@ impl View for Histogram {
 
     fn model_id(&self) -> WaModelId {
         WaModelId::Histogram{ frame_id: self.frame_id(), histogram_id: *self.id()}
+    }
+}
+
+impl View for Corrs {
+    fn title(&self) -> &str {
+        self._title()
+    }
+
+    fn ui_id(&self) -> Id {
+        Id::new(self.id())
+    }
+
+    fn ui(&self, ui: &mut Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
+        ui.add(egui::Label::new(self.title()));
+    }
+
+    fn model_id(&self) -> WaModelId {
+        WaModelId::DataLump{ frame_id: *self.frame_id(), lump_id: *self.id() }
     }
 }
 

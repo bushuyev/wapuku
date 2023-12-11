@@ -300,6 +300,7 @@ pub async fn run() {
 
                     ActionRs::Corr { frame_id, corrs } => {
                         debug!("wapuku: ActionRs::Corr frame_id={:?} corrs={:?}", frame_id, corrs );
+                        model_borrowed.add_corrs(frame_id, corrs);
                     }
 
                     ActionRs::Err { msg } => {

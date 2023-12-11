@@ -22,7 +22,8 @@ pub enum WaModelId {
     Summary{ frame_id: u128},
     Filter{ frame_id: u128, filter_id:u128},
     DataLump{ frame_id: u128, lump_id:u128},
-    Histogram{ frame_id: u128, histogram_id: u128}
+    Histogram{ frame_id: u128, histogram_id: u128},
+    Corrs{ frame_id: u128, corrs_id: u128}
 }
 
 impl WaModelId {
@@ -33,6 +34,9 @@ impl WaModelId {
             }
             WaModelId::Histogram { frame_id:_, histogram_id } => {
                 histogram_id
+            }
+            WaModelId::Corrs { frame_id:_, corrs_id } => {
+                corrs_id
             }
             WaModelId::DataLump { frame_id:_ , lump_id} => {
                 lump_id
@@ -49,6 +53,9 @@ impl WaModelId {
                 None
             }
             WaModelId::Histogram { frame_id, .. } => {
+                Some(frame_id)
+            }
+            WaModelId::Corrs { frame_id, .. } => {
                 Some(frame_id)
             }
             WaModelId::DataLump { frame_id, .. } => {
@@ -68,6 +75,7 @@ pub struct WaFrame {
     name:String,
     summary:Summary,
     histograms:HashMap<u128, Histogram>,
+    corrs:HashMap<u128, Corrs>,
     data_lump:Option<DataLump>,
     filter:Option<Filter>
 }
@@ -79,6 +87,7 @@ impl WaFrame {
             name,
             summary,
             histograms: HashMap::new(),
+            corrs: HashMap::new(),
             data_lump: None,
             filter: None
         }
@@ -150,6 +159,15 @@ impl WaFrame {
         self.histograms.values().into_iter()
     }
 
+
+    pub fn add_corrs(&mut self, corrs:Corrs) {
+        self.corrs.insert(*corrs.id(), corrs);
+    }
+
+    pub fn corrs(&self)->impl Iterator<Item = &Corrs> {
+        self.corrs.values().into_iter()
+    }
+
     pub fn data_lump(&self)->Option<&DataLump> {
         self.data_lump.as_ref()
     }
@@ -158,6 +176,9 @@ impl WaFrame {
         match id {
             WaModelId::Histogram{frame_id:_, histogram_id} => {
                 self.histograms.remove(&histogram_id);
+            },
+            WaModelId::Corrs{frame_id:_, corrs_id} => {
+                self.corrs.remove(&corrs_id);
             },
             WaModelId::DataLump {frame_id:_, lump_id:_} => {
                 self.data_lump.take();
@@ -381,7 +402,8 @@ pub struct Corrs {
     id:u128,
     frame_id: u128,
     columns:Vec<String>,
-    values:HashMap<(String, String), f32>
+    values:HashMap<(String, String), f32>,
+    title: String,
 }
 
 impl Corrs {
@@ -390,12 +412,24 @@ impl Corrs {
             id: wa_id(),
             frame_id,
             columns: vec![],
-            values
+            values,
+            title: format!("Correlations"),//TODO columns
         }
+    }
+
+    pub fn _title(&self) -> &str {
+        &self.title
     }
 
     pub fn values(&self) -> &HashMap<(String, String), f32> {
         &self.values
+    }
+
+    pub fn id(&self) -> &u128 {
+        &self.id
+    }
+    pub fn frame_id(&self) -> &u128 {
+        &self.frame_id
     }
 }
 /////////////////////////
