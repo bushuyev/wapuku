@@ -417,6 +417,8 @@ impl Corrs {
         }
     }
 
+
+
     pub fn _title(&self) -> &str {
         &self.title
     }
@@ -430,6 +432,9 @@ impl Corrs {
     }
     pub fn frame_id(&self) -> &u128 {
         &self.frame_id
+    }
+    pub fn columns(&self) -> &Vec<String> {
+        &self.columns
     }
 }
 /////////////////////////

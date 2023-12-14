@@ -1,7 +1,8 @@
+use std::ops::RangeInclusive;
 use egui::{Color32, Context, FontId, Frame, InnerResponse, RichText, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
-use egui_plot::{Bar, BarChart, Plot, PlotPoints, Polygon};
+use egui_plot::{AxisHints, Bar, BarChart, Plot, PlotPoints, Polygon};
 use log::debug;
 use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::messages::OK;
@@ -576,6 +577,17 @@ impl View for Corrs {
     fn ui(&self, ui: &mut Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
         ui.add(egui::Label::new(self.title()));
 
+        let _columns = vec![String::from("aaa"), String::from("bbb"), String::from("ccc")]; //self.columns();
+        let y_fmt = move |y, _digits, _range: &RangeInclusive<f64>| {
+            if y % 10. == 0. {
+                _columns.get((y / 10.) as usize).map(|v|v.clone()).unwrap_or(String::from(""))
+            } else {
+                String::from("")
+            }
+
+        };
+
+
         Plot::new("Correlations")
 
             .label_formatter(|name, _value| {
@@ -589,7 +601,12 @@ impl View for Corrs {
             })
             .allow_zoom(true)
             .allow_drag(true)
-            .custom_x_axes(vec![])
+            .custom_x_axes(vec![
+                AxisHints::default()
+                    .label("XXX")
+                    .formatter(y_fmt)
+                    .max_digits(4),
+            ])
             .show(ui, |plot_ui| {
                 let bounds = plot_ui.plot_bounds();
                 // debug!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..... bounds={:?}", bounds);
