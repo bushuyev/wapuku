@@ -1,15 +1,18 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
+use std::iter::once;
 
 
 use ::zip::*;
 use ::zip::result::*;
+use itertools::Either;
 use log::{debug, warn};
-use polars::datatypes::DataType::Datetime;
+use polars::datatypes::DataType::{Categorical, Datetime};
 use polars::datatypes::TimeUnit::Milliseconds;
 use polars::export::arrow::io::iterator::StreamingIterator;
 use polars::export::chrono;
 use polars::export::chrono::{NaiveDate, NaiveDateTime, NaiveTime, ParseResult};
+use polars::frame::UniqueKeepStrategy::Any;
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::AnyValue::Null;
@@ -112,22 +115,22 @@ impl PolarsData {
         debug!("groupby_df={:?}", groupby_df);
 
         if groupby_df.shape().0 > 1000 {
-            return Err(WapukuError::DataLoad {msg: "Tooo big".into()}) //TODO
+            return Err(WapukuError::DataLoad { msg: "Tooo big".into() }); //TODO
         }
 
         let mut val_count = groupby_df.iter();
 
         Ok(Histogram::new(frame_id, column, std::iter::zip(
-                val_count.next().expect("val").iter(),
-                val_count.next().expect("count").iter()
-            ).fold(Vec::new(), |mut vec, vv| {
-                if let (AnyValue::Utf8(v1), AnyValue::UInt32(v2)) = vv {
-                    vec.push((v1.to_string(), v2));
-                } else {
-                    warn!("unexpected values in build_histogram: {:?}", vv);
-                }
-                vec
-            })
+            val_count.next().expect("val").iter(),
+            val_count.next().expect("count").iter(),
+        ).fold(Vec::new(), |mut vec, vv| {
+            if let (AnyValue::String(v1), AnyValue::UInt32(v2)) = vv {
+                vec.push((v1.to_string(), v2));
+            } else {
+                warn!("unexpected values in build_histogram: {:?}", vv);
+            }
+            vec
+        }),
         ))
     }
 
@@ -137,7 +140,7 @@ impl PolarsData {
         let df = self.df.clone().lazy()
             .filter(col(column.as_str()).is_not_null())
             .collect()?;
-        let column_series =  df.column(column.as_str())?.sort(false);
+        let column_series = df.column(column.as_str())?.sort(false);
 
         // let mut min = NaiveDateTime::MIN.timestamp_millis();
         // let mut max = NaiveDateTime::MAX.timestamp_millis();
@@ -145,12 +148,12 @@ impl PolarsData {
         debug!("s.dtype()={:?}", column_series.dtype());
 
         let (mut min_value, mut max_value) = (
-            column_series.min().unwrap_or(0), column_series.max().unwrap_or(0)
+            column_series.min()?.unwrap_or(0), column_series.max()?.unwrap_or(0)
         );
 
         let mut time_unit = TimeUnit::Milliseconds;
 
-        match column_series.dtype(){
+        match column_series.dtype() {
             DataType::Date => {}
             DataType::Datetime(unit, _) => {
                 match unit {
@@ -173,7 +176,7 @@ impl PolarsData {
             }
             DataType::Duration(_) => {}
             DataType::Time => {}
-            _=>{
+            _ => {
                 warn!("Unexpected datatype"); //TODO
             }
         }
@@ -191,7 +194,6 @@ impl PolarsData {
 
         let breakpoint_str = &"break_point";
         let bins = Series::new(breakpoint_str, breaks);
-
 
 
         let mut bins = bins.extend_constant(AnyValue::Datetime(max_value, time_unit, &None), 1)?;
@@ -214,7 +216,7 @@ impl PolarsData {
                             .cast(column_series.dtype().to_owned())
                         ,
                         col(breakpoint_str)
-                        .cast(column_series.dtype().to_owned()),
+                            .cast(column_series.dtype().to_owned()),
                     ],
                 )?
                     .alias(category_str),
@@ -226,7 +228,7 @@ impl PolarsData {
         let cuts = cuts_df
             .lazy()
             .with_columns([
-                col(category_str).cast(DataType::Categorical(None)),
+                col(category_str).cast(DataType::Categorical(None, CategoricalOrdering::Lexical)),
                 col(breakpoint_str)
                     .cast(column_series.dtype().to_owned())
                     // .cast(Datetime(Milliseconds, None))
@@ -259,11 +261,10 @@ impl PolarsData {
         let mut val_count = groupby_df.iter();
         val_count.next(); //skip break_point
 
-        Ok(Histogram::new(frame_id, column,  std::iter::zip(
+        Ok(Histogram::new(frame_id, column, std::iter::zip(
             val_count.next().expect("cat").iter(),
-            val_count.next().expect("property_2_count").iter()
+            val_count.next().expect("property_2_count").iter(),
         ).fold(Vec::new(), |mut vec, vv| {
-
             if let (AnyValue::Categorical(a, RevMapping::Local(b, _), _c), AnyValue::UInt32(count)) = vv {
                 // warn!("a={:?}, count={:?}", b.value(a as usize), count);
                 vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
@@ -271,49 +272,35 @@ impl PolarsData {
                 warn!("unexpected values in build_histogram: {:?}", vv);
             }
             vec
-        })
+        }),
         ))
     }
 
-    fn group_by_numeric(&self, frame_id: u128, column: String, bins:Option<usize>) -> Result<Histogram, WapukuError> {
+    fn group_by_numeric(&self, frame_id: u128, column: String, bins: Option<usize>) -> Result<Histogram, WapukuError> {
         debug!("group_by_numeric column={:?}", column);
 
-        let groupby_df = hist(
-            self.df.clone().lazy()
-              .filter(col(column.as_str()).is_not_null())
-              .collect()?.column(column.as_str())?,
-            None,
-            bins.or(Some(100))
-        )?;
-        // debug!("wapuku:group_by_numeric rs={:?}", groupby_df);
-        //
-        // debug!("groupby_df={:?}", groupby_df);
-        //
+        let frame = self.df.clone().lazy()
+            .select([col(column.as_str()).hist(None, bins.or(Some(10)), true, false)])//TODO include_breakpoint false
+            .collect()?;
+        let groupby_df = frame.column(column.as_str())?;
+
         // ┌─────────────┬───────────────────────────────────┬──────────────────┐
         // │ break_point ┆ category                          ┆ property_2_count │
         // │ ---         ┆ ---                               ┆ ---              │
         // │ f64         ┆ cat                               ┆ u32              │
         // ╞═════════════╪═══════════════════════════════════╪══════════════════╡
-        let mut val_count = groupby_df.iter();
-        val_count.next(); //skip break_point
 
-        Ok(Histogram::new(frame_id, column,  std::iter::zip(
-                val_count.next().expect("cat").iter(),
-                val_count.next().expect("property_2_count").iter()
-            ).fold(Vec::new(), |mut vec, vv| {
+        Ok(Histogram::new(frame_id, column, groupby_df.struct_()?.into_iter().fold(Vec::new(), |mut vec, any_x| {
+            vec.push((FloatReformatter::exec(any_x[0].get_str().unwrap()).to_string(), if let AnyValue::UInt32(v) = any_x[1] {
+                v
+            } else {
+                0
+            }));
 
-                if let (AnyValue::Categorical(a, RevMapping::Local(b, _), _c), AnyValue::UInt32(count)) = vv {
-                    warn!("a={:?}, count={:?}", b.value(a as usize), count);
-                    vec.push((FloatReformatter::exec(b.value(a as usize)).to_string(), count));
-                } else {
-                    warn!("unexpected values in build_histogram: {:?}", vv);
-                }
-                vec
-            })
+            vec
+        }),
         ))
-        // Err(WapukuError::ToDo)
     }
-
 }
 
 impl Data for PolarsData {
@@ -352,16 +339,17 @@ impl Data for PolarsData {
         let property_y_name = property_y.property().name().as_str();
 
         let properties_df = self.df.select([property_x_name, property_y_name]).unwrap();
-        let min_df = properties_df.min();
-        let max_df = properties_df.max();
-        debug!("min_df={:?}, max_df={:?}", min_df, max_df);
 
-        let min_x = property_x.min().unwrap_or(min_df.column(property_x_name).expect(property_x_name).get(0).expect("0").try_extract::<f32>().expect("min_x") as i64) as f32;
-        let max_x = property_x.max().unwrap_or(max_df.column(property_x_name).expect(property_x_name).get(0).expect("0").try_extract::<f32>().expect("max_x") as i64) as f32;
+        let min_df = properties_df.min_horizontal().unwrap().unwrap();
+        let max_df = properties_df.max_horizontal().unwrap().unwrap();
+        // debug!("min_df={:?}, max_df={:?}", min_df, max_df);
+
+        let min_x = property_x.min().unwrap_or(min_df.get(0).expect("0").try_extract::<f32>().expect("min_x") as i64) as f32;
+        let max_x = property_x.max().unwrap_or(max_df.get(0).expect("0").try_extract::<f32>().expect("max_x") as i64) as f32;
 
 
-        let min_y = property_y.min().unwrap_or(min_df.column(property_y_name).expect(property_y_name).get(0).expect("0").try_extract::<f32>().expect("min_y") as i64) as f32;
-        let max_y = property_y.max().unwrap_or(max_df.column(property_y_name).expect(property_y_name).get(0).expect("0").try_extract::<f32>().expect("max_y") as i64) as f32;
+        let min_y = property_y.min().unwrap_or(min_df.get(0).expect("0").try_extract::<f32>().expect("min_y") as i64) as f32;
+        let max_y = property_y.max().unwrap_or(max_df.get(0).expect("0").try_extract::<f32>().expect("max_y") as i64) as f32;
 
         let property_x_step = (((max_x - min_x) / x_n as f32).ceil()) as i64;
 
@@ -462,12 +450,12 @@ impl Data for PolarsData {
 
 
         let desc = if let Some(column) = column_op {
-            self.df.column(&column).expect("").clone().into_frame().describe(None).unwrap()
+            describe(&self.df.column(&column).expect("").clone().into_frame().lazy()).unwrap()//TODO describe_with_params
         } else {
-            self.df.describe(None).unwrap()
+            describe(&self.df.clone().lazy()).unwrap()
         };
 
-        debug!("desc={:?}", desc);
+        // debug!("desc={:?}", desc);
         Summary::new(
             wa_id(),
             frame_id,
@@ -532,13 +520,11 @@ impl Data for PolarsData {
                                 )
                             },
                         )
-
                     }
                 }
             }).collect(),
-            format!("{:?}", self.df.shape())
+            format!("{:?}", self.df.shape()),
         )
-
     }
 
     fn build_histogram(&self, frame_id: u128, column: String, bins: Option<usize>) -> Result<Histogram, WapukuError> {
@@ -548,15 +534,15 @@ impl Data for PolarsData {
             // DataType::Boolean => {}
 
             DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 |
-            DataType::Int8  | DataType::Int16  | DataType::Int32  | DataType::Int64  |
-            DataType::Float32 | DataType::Float64  |
+            DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 |
+            DataType::Float32 | DataType::Float64 |
             DataType::Date | DataType::Time
 
             => {
                 Ok(self.group_by_numeric(frame_id, column, bins)?)
             }
             // DataType::Decimal(_, _) => {}
-            DataType::Utf8 => {
+            DataType::String => {
                 Ok(self.group_by_categoric(frame_id, column)?)
             }
             // DataType::Binary => {}
@@ -572,7 +558,7 @@ impl Data for PolarsData {
             // DataType::Struct(_) => {}
             // DataType::Unknown => {}
             dtype => {
-                Err(WapukuError::DataLoad { msg: format!("can't build historgram for {} of type {}", column, dtype)})
+                Err(WapukuError::DataLoad { msg: format!("can't build historgram for {} of type {}", column, dtype) })
             }
         }
     }
@@ -581,7 +567,7 @@ impl Data for PolarsData {
         let columns = self.df.get_columns();
         debug!("columns.len()={}", columns.len());
 
-        columns.into_iter().enumerate().try_fold(DataLump::new(frame_id, offset, limit, columns.len()), |mut a, (col, s)|{
+        columns.into_iter().enumerate().try_fold(DataLump::new(frame_id, offset, limit, columns.len()), |mut a, (col, s)| {
             debug!("col()={}", col);
 
             match s.dtype() {//TODO dtype into wdtype
@@ -597,14 +583,15 @@ impl Data for PolarsData {
                     a.add_column(WapukuDataType::Numeric, s.name())
                 }
 
-                DataType::Utf8 | DataType::Binary | DataType::Date | DataType::Datetime(_,_) | DataType::Duration(_) | DataType::Time | DataType::Array(_,_)  | DataType::List(_) | /*DataType::Object | */
-                DataType::Null | DataType::Categorical(_) | /*DataType::Struct(_) |*/   DataType::Unknown => {
+                DataType::String | DataType::Binary | DataType::Date | DataType::Datetime(_, _) | DataType::Duration(_) | DataType::Time | DataType::Array(_, _) | DataType::List(_) | /*DataType::Object | */
+                DataType::Null | DataType::Categorical(_, _) | /*DataType::Struct(_) |*/   DataType::Unknown => {
                     a.add_column(WapukuDataType::String, s.name())
                 }
-
+                //TODO
+                _ => {}
             };
 
-            s.iter().skip(offset).take(limit).enumerate().map(|(row, v)|(row, v.to_string())).for_each(|(row, v)|{
+            s.iter().skip(offset).take(limit).enumerate().map(|(row, v)| (row, v.to_string())).for_each(|(row, v)| {
                 a.set_value(row, col, v);
             });
 
@@ -619,13 +606,12 @@ impl Data for PolarsData {
             .filter(filter.into())
             .collect()
             .map(|df| FilteredFame::new(Box::new(PolarsData::new(df, String::from("filtered")))))
-            .map_err(|e|WapukuError::DataLoad {msg: e.to_string()})
+            .map_err(|e| WapukuError::DataLoad { msg: e.to_string() })
     }
 
-    fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<SummaryColumn, WapukuError> {
-
-        let res = self.df.apply(column.as_str(), move |str_val:&Series|{
-            str_val.utf8()
+    fn convert_column(&mut self, frame_id: u128, column: String, pattern: String) -> Result<SummaryColumn, WapukuError> {
+        let res = self.df.apply(column.as_str(), move |str_val: &Series| {
+            str_val.str()
                 .unwrap()
                 .into_iter()
                 .map(|opt_name: Option<&str>| {
@@ -636,26 +622,25 @@ impl Data for PolarsData {
                             Ok(v) => Some(v),
 
                             Err(_) => {
-                                NaiveDate::parse_from_str(v, pattern.as_str()).map(|v|NaiveDateTime::new(v, NaiveTime::parse_from_str("00:00","%H:%M").unwrap())).ok()
+                                NaiveDate::parse_from_str(v, pattern.as_str()).map(|v| NaiveDateTime::new(v, NaiveTime::parse_from_str("00:00", "%H:%M").unwrap())).ok()
                             }
                         }
-                    }).map(|v|v.timestamp_millis())
+                    }).map(|v| v.timestamp_millis())
                 })
                 .collect::<Int64Chunked>().into_datetime(TimeUnit::Milliseconds, None)
                 .into_series()
         });
-        self.build_summary(frame_id, Some(column)).columns().first().map(|c|c.clone()).ok_or(WapukuError::DataLoad {msg:"ups".into()})
+        self.build_summary(frame_id, Some(column)).columns().first().map(|c| c.clone()).ok_or(WapukuError::DataLoad { msg: "ups".into() })
     }
 
     fn clc_corrs(&self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
-
         let mut corr_hash: std::collections::HashMap<(String, String), f32> = HashMap::new();
         for (i, column_0) in columns.iter().enumerate() {//TODO itertools
-            for column_1 in columns.iter().skip(i+1) {
+            for column_1 in columns.iter().skip(i + 1) {
                 debug!("clc_corrs: column_0={:?}, column_1={:?}", column_0, column_1);
                 let expr = pearson_corr(
                     Expr::Column(column_0.as_str().into()),
-                    Expr::Column(column_1.as_str().into()), 0
+                    Expr::Column(column_1.as_str().into()), 0,
                 )
                     .alias("corr");
                 let res = self.df.clone().lazy().select(&[expr]).collect();
@@ -672,7 +657,6 @@ impl Data for PolarsData {
 
 impl From<Filter> for Expr {
     fn from(filter: Filter) -> Self {
-
         if let Some(conditions) = filter.conditions() {
             conditions_to_expr(conditions)
         } else {
@@ -698,15 +682,13 @@ fn conditions_to_expr(condition: &ConditionType) -> Expr {
             }
         }
         ConditionType::Compoiste { conditions, ctype } => {
-
             if conditions.len() == 0 {
                 warn!("empty composit condition");
                 Expr::Wildcard
             } else if conditions.len() == 1 {
                 conditions_to_expr(conditions.get(0).unwrap())
-
             } else {
-                conditions.into_iter().skip(1).fold(conditions_to_expr(conditions.get(0).expect("no first condition")), |a, c|{
+                conditions.into_iter().skip(1).fold(conditions_to_expr(conditions.get(0).expect("no first condition")), |a, c| {
                     match ctype {
                         CompositeType::AND => {
                             a.and(conditions_to_expr(c))
@@ -723,65 +705,61 @@ fn conditions_to_expr(condition: &ConditionType) -> Expr {
 
 
 #[cfg(test)]
-mod filter_test{
+mod filter_test {
     use log::debug;
     use polars::prelude::Expr;
     use crate::model::{Condition, ConditionType, Filter};
     use crate::polars_df::tests::dummy_filter;
 
     #[test]
-    pub fn test_string_pattern(){
+    pub fn test_string_pattern() {
         let mut filter = dummy_filter();
-        filter.add_condition(ConditionType::Single {column_name: "property_2".into(), condition: Condition::String {pattern:"aaaa".into()}}, None);
+        filter.add_condition(ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "aaaa".into() } }, None);
 
-        let expr:Expr = filter.into();
+        let expr: Expr = filter.into();
 
         println!("expr={:?}", expr);
 
         assert_eq!("col(\"property_2\").str.contains([Utf8(aaaa)])", format!("{:?}", expr));
-
     }
 
     #[test]
-    pub fn test_num_pattern(){
+    pub fn test_num_pattern() {
         let mut filter = dummy_filter();
-        filter.add_condition(ConditionType::Single {column_name: "property_1".into(), condition: Condition::Numeric {min:-10.0, max:10.0}}, None);
+        filter.add_condition(ConditionType::Single { column_name: "property_1".into(), condition: Condition::Numeric { min: -10.0, max: 10.0 } }, None);
 
-        let expr:Expr = filter.into();
+        let expr: Expr = filter.into();
 
         println!("expr={:?}", expr);
 
         assert_eq!("[([(col(\"property_1\")) >= (-10.0)]) & ([(col(\"property_1\")) <= (10.0)])]", format!("{:?}", expr));
-
     }
 
     #[test]
-    pub fn test_bool_pattern(){
+    pub fn test_bool_pattern() {
         let mut filter = dummy_filter();
-        filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::Boolean {val:true}}, None);
+        filter.add_condition(ConditionType::Single { column_name: "property_3".into(), condition: Condition::Boolean { val: true } }, None);
 
-        let expr:Expr = filter.into();
+        let expr: Expr = filter.into();
 
         println!("expr={:?}", expr);
 
         assert_eq!("[(col(\"property_3\")) == (true)]", format!("{:?}", expr));
-
     }
 
     #[test]
-    pub fn test_and(){
+    pub fn test_and() {
         let mut filter = dummy_filter();
-        filter.add_condition(ConditionType::Single {column_name: "property_2".into(), condition: Condition::String {pattern:"aaaa".into()}}, None);
-        filter.add_condition(ConditionType::Single {column_name: "property_2".into(), condition: Condition::String {pattern:"bbb".into()}}, None);
+        filter.add_condition(ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "aaaa".into() } }, None);
+        filter.add_condition(ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "bbb".into() } }, None);
 
-        let expr:Expr = filter.into();
+        let expr: Expr = filter.into();
 
         assert_eq!("[(col(\"property_2\").str.contains([Utf8(aaaa)])) & (col(\"property_2\").str.contains([Utf8(bbb)]))]", format!("{:?}", expr));
-
     }
 
     #[test]
-    pub fn test_edit_top(){
+    pub fn test_edit_top() {
         let mut filter = dummy_filter();
         let condition_type_0 = ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "aaaa".into() } };
 
@@ -789,7 +767,7 @@ mod filter_test{
 
         let condition_type_0_ptr = filter.top_condition_ptr().expect("top_condition_ptr");
 
-        let Some(ConditionType::Single{column_name, condition:Condition::String{pattern}}) = filter.conditions() else {panic!("no conditions")};
+        let Some(ConditionType::Single { column_name, condition: Condition::String { pattern } }) = filter.conditions() else { panic!("no conditions") };
 
         assert_eq!(column_name, "property_2");
         assert_eq!(pattern, "aaaa");
@@ -798,15 +776,14 @@ mod filter_test{
 
         filter.add_condition(condition_type_1, Some(condition_type_0_ptr));
 
-        let Some(ConditionType::Single{column_name, condition:Condition::String{pattern}}) = filter.conditions() else {panic!("no conditions")};
+        let Some(ConditionType::Single { column_name, condition: Condition::String { pattern } }) = filter.conditions() else { panic!("no conditions") };
 
         assert_eq!(column_name, "property_2");
         assert_eq!(pattern, "bbb");
-
     }
 
     #[test]
-    pub fn test_edit_sub_1(){
+    pub fn test_edit_sub_1() {
         let mut filter = dummy_filter();
         let condition_type_0 = ConditionType::Single { column_name: "property_1".into(), condition: Condition::String { pattern: "aaaa".into() } };
         let condition_type_1 = ConditionType::Single { column_name: "property_2".into(), condition: Condition::String { pattern: "bbbb".into() } };
@@ -816,7 +793,7 @@ mod filter_test{
         filter.add_condition(condition_type_1, None);
 
 
-        let Some(ConditionType::Compoiste{conditions, ctype}) = filter.conditions() else {panic!("no conditions")};
+        let Some(ConditionType::Compoiste { conditions, ctype }) = filter.conditions() else { panic!("no conditions") };
         let condition_type_0_f = conditions.get(0).expect("condition_type_1");
         let condition_type_0_f_ptr = condition_type_0_f as *const _;
         let condition_type_1_f = conditions.get(1).expect("condition_type_1");
@@ -827,15 +804,12 @@ mod filter_test{
         filter.add_condition(condition_type_1, Some(condition_type_1_f_ptr));
 
 
-        let Some(ConditionType::Compoiste{conditions, ctype}) = filter.conditions() else {panic!("no conditions")};
-        let ConditionType::Single{column_name, condition:Condition::String{pattern}} = conditions.get(1).expect("condition_type_1").clone() else {panic!("no condition_type_1")};
+        let Some(ConditionType::Compoiste { conditions, ctype }) = filter.conditions() else { panic!("no conditions") };
+        let ConditionType::Single { column_name, condition: Condition::String { pattern } } = conditions.get(1).expect("condition_type_1").clone() else { panic!("no condition_type_1") };
 
         assert_eq!(column_name, "property_2");
         assert_eq!(pattern, "cccc");
-
     }
-
-
 }
 
 // impl Drop for PolarsData {
@@ -847,11 +821,11 @@ mod filter_test{
 fn map_to_wapuku(d_type: &DataType) -> WapukuDataType {
     //TODO
     match d_type {
-        DataType::Utf8 => WapukuDataType::String,
+        DataType::String => WapukuDataType::String,
 
         DataType::Float64 | DataType::Float32 |
         DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 |
-        DataType:: UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64  => WapukuDataType::Numeric,
+        DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => WapukuDataType::Numeric,
 
         DataType::Boolean => WapukuDataType::Boolean,
 
@@ -904,7 +878,7 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(df: &DataFrame, group_by_field: &str,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
                 check_sorted: true,
-                label: Label::DataPoint
+                label: Label::DataPoint,
             },
         )
         .agg(aggregations)
@@ -947,7 +921,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
                 check_sorted: true,
-                label: Label::DataPoint
+                label: Label::DataPoint,
             },
         ).agg([
         col(primary_field_group).alias(primary_field_value)
@@ -989,7 +963,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
                 check_sorted: true,
-                label: Label::DataPoint
+                label: Label::DataPoint,
             },
         )
         .agg(aggregations)
@@ -1005,8 +979,216 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(df: &DataFrame, primary_group_by_fiel
     Ok(df)
 }
 
+pub fn describe(lf:&LazyFrame) -> PolarsResult<DataFrame> {
+    describe_with_params(
+        lf,
+        true,
+        vec![
+            (
+                "count".to_owned(),
+                Box::new(|dt: &DataType| dt.is_ord()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(|name: &String| {
+                    col(name).count().alias(format!("{} count", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "null_count".to_owned(),
+                Box::new(|dt: &DataType| dt.is_ord()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(|name: &String| {
+                    col(name)
+                        .null_count()
+                        .alias(format!("{} null_count", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "mean".to_owned(),
+                Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(|name: &String| {
+                    col(name).mean().alias(format!("{} mean", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "std".to_owned(),
+                Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(|name: &String| {
+                    col(name).std(1).alias(format!("{} std", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "min".to_owned(),
+                Box::new(|dt: &DataType| dt.is_ord()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(|name: &String| {
+                    col(name).min().alias(format!("{} min", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "25%".to_owned(),
+                Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(move |name: &String| {
+                    col(name)
+                        .quantile(lit(0.25), QuantileInterpolOptions::Nearest)
+                        .alias(format!("0.25 {}", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "50%".to_owned(),
+                Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(move |name: &String| {
+                    col(name)
+                        .quantile(lit(0.5), QuantileInterpolOptions::Nearest)
+                        .alias(format!("0.5 {}", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "75%".to_owned(),
+                Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(move |name: &String| {
+                    col(name)
+                        .quantile(lit(0.75), QuantileInterpolOptions::Nearest)
+                        .alias(format!("0.75 {}", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+            (
+                "max".to_owned(),
+                Box::new(|dt: &DataType| dt.is_ord()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(|name: &String| {
+                    col(name).max().alias(format!("{} max", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            ),
+        ],
+        None,
+    )
+}
+
+type DescribeAggParam = (
+    String,                         //name
+    Box<dyn Fn(&DataType) -> bool>, //when applicable
+    Box<dyn Fn(&String) -> Expr>,   //aggregation expression
+);
+
+pub fn describe_with_params(
+    lf: &LazyFrame,
+    fields_to_header: bool,
+    aggs: Vec<DescribeAggParam>,
+    only_columns: Option<Vec<&str>>,
+) -> PolarsResult<DataFrame> {
+    let exprs = lf
+        .schema()?
+        .iter()
+        .map(|(name, dt)| (name.to_string(), dt))
+        .filter(|(name, _)| {
+            only_columns
+                .as_ref()
+                .map_or(true, |v| v.contains(&name.as_str()))
+        })
+        .enumerate()
+        .flat_map(|(i, (name, dt))| {
+            once(Expr::Literal(LiteralValue::String(name.to_string())).alias(name.as_str()))
+                .chain(aggs.iter().enumerate().map(|(ai, a)| {
+                    if a.1(dt) {
+                        a.2(&name)
+                    } else {
+                        lit(NULL)
+                            .cast(dt.clone())
+                            .alias(format!("{} {}", i, ai).as_str()) //i and ai to keep names unique
+                    }
+                }))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    let columns_len = exprs.len();
+
+    let mut summary_df = lf.clone().select(exprs).collect()?;
+
+    let aggs_len = aggs.len() + 1;
+    let index = (0..columns_len / aggs_len)
+        .flat_map(|i| std::iter::repeat(i as i32).take(aggs_len))
+        .collect::<Vec<i32>>();
+
+    summary_df = summary_df.transpose(None, None)?;
+
+    summary_df.insert_column(
+        0,
+        Series::new(
+            "columns",
+            once("name".to_owned())
+                .chain(aggs.iter().map(|agg| agg.0.clone()))
+                .cycle()
+                .take(columns_len)
+                .collect::<Vec<String>>(),
+        ),
+    )?;
+    summary_df.insert_column(0, Series::new("index", index))?;
+
+    summary_df = pivot::pivot(
+        &summary_df,
+        ["column_0"],
+        ["index"],
+        ["columns"],
+        false,
+        None,
+        None,
+    )?;
+
+    if !fields_to_header {
+        summary_df = summary_df
+            .clone()
+            .lazy()
+            .select(
+                once("name")
+                    .chain(aggs.iter().map(|agg| agg.0.as_str()))
+                    .enumerate()
+                    .map(|(i, name)| {
+                        if i > 0 {
+                            col(name).cast(DataType::Float64)
+                        } else {
+                            col(name)
+                        }
+                    })
+                    .collect::<Vec<Expr>>(),
+            )
+            .collect()?;
+
+        Ok(summary_df)
+    } else {
+        summary_df = summary_df.drop("index")?;
+
+        summary_df = summary_df.transpose(None, Some(Either::Left("name".to_owned())))?;
+
+        summary_df = summary_df
+            .clone()
+            .lazy()
+            .select(
+                lf.schema()?
+                    .iter()
+                    .map(|(name, dt)| {
+                        if dt.is_numeric() {
+                            col(name.as_str()).cast(DataType::Float64)
+                        } else {
+                            col(name.as_str())
+                        }
+                    })
+                    .collect::<Vec<Expr>>(),
+            )
+            .collect()?;
+
+        summary_df.insert_column(
+            0,
+            Series::new(
+                "describe",
+                aggs.iter().map(|q| q.0.clone()).collect::<Vec<String>>(),
+            ),
+        )?;
+
+        Ok(summary_df)
+    }
+}
+
 #[cfg(test)]
 pub(super) mod tests {
+    #![feature(async_fn_in_trait)]
+
     use std::collections::HashSet;
     use std::fs::File;
     use std::iter;
@@ -1025,7 +1207,7 @@ pub(super) mod tests {
 
     use crate::data_type::{WapukuDataType, WapukuDataValues};
     use crate::model::{SummaryColumnType, Data, DataGroup, DataProperty, GroupsGrid, Property, PropertyRange, Summary, Filter, SummaryColumn, NumericColumnSummary, StringColumnSummary, ConditionType, Condition, CompositeType};
-    use crate::polars_df::{group_by_2, PolarsData};
+    use crate::polars_df::{describe, describe_with_params, group_by_2, PolarsData};
     use crate::tests::init_log;
 
     #[ctor::ctor]
@@ -1049,7 +1231,6 @@ pub(super) mod tests {
 
         check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
         check_numeric_column(&summary, 1, "10.0", "20.0", "30.0");
-
     }
 
     #[test]
@@ -1060,7 +1241,7 @@ pub(super) mod tests {
             chrono::NaiveDateTime::parse_from_str("2023-02-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
             chrono::NaiveDateTime::parse_from_str("2023-02-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
             chrono::NaiveDateTime::parse_from_str("2023-03-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
-            chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap()
+            chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
         ], TimeUnit::Milliseconds).into_series();
         // let int_series = Int64Chunked::from_vec("ints", vec![1, 2, 3, 4, 5, 6]).into_series();
 
@@ -1078,15 +1259,12 @@ pub(super) mod tests {
 
         println!("summary={:?}", summary);
 
-        if let SummaryColumnType::Datetime { data } = summary.columns()[0].dtype() {
-
-        } else {
+        if let SummaryColumnType::Datetime { data } = summary.columns()[0].dtype() {} else {
             panic!("column is not date: {:?}", summary.columns()[0].dtype())
         }
 
         // check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
         // check_numeric_column(&summary, 1, "10.0", "20.0", "30.0");
-
     }
 
     #[test]
@@ -1106,12 +1284,10 @@ pub(super) mod tests {
         assert_eq!(y.get(0).unwrap().1, 2);
         assert_eq!(y.get(1).unwrap().1, 3);
         assert_eq!(y.get(2).unwrap().1, 4);
-
     }
 
     #[test]
     fn test_build_date_histogram_f32() {
-
         let df = DataFrame::new(vec![
             DatetimeChunked::from_naive_datetime("registration_dttm", vec![
                 chrono::NaiveDateTime::parse_from_str("2023-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap(),
@@ -1119,7 +1295,7 @@ pub(super) mod tests {
                 chrono::NaiveDateTime::parse_from_str("2023-02-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
                 chrono::NaiveDateTime::parse_from_str("2023-02-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
                 chrono::NaiveDateTime::parse_from_str("2023-03-01 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
-                chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap()
+                chrono::NaiveDateTime::parse_from_str("2023-03-15 00:00:02", "%Y-%m-%d %H:%M:%S").unwrap(),
             ], TimeUnit::Milliseconds).into_series()
         ]).unwrap();
 
@@ -1140,7 +1316,7 @@ pub(super) mod tests {
 
 
     #[test]
-    fn test_convert_date(){
+    fn test_convert_date() {
         let v = NaiveDateTime::parse_from_str("7/9/1972 00:00:00", "%m/%d/%Y %T");
         debug!("v={:?}", v);
 
@@ -1150,7 +1326,6 @@ pub(super) mod tests {
 
     #[test]
     fn test_convert_column_utf8_to_date_time() {
-
         let df = df!(
             "days" => &["2023-01-01 00:00:01",  "2023-01-15 00:00:01",  "2023-02-01 00:00:02"]
         ).unwrap();
@@ -1169,7 +1344,6 @@ pub(super) mod tests {
 
     #[test]
     fn test_convert_column_utf8_to_date() {
-
         let df = df!(
             "days" => &["01/01/2023",  "01/15/2023",  "02/01/2023"]
         ).unwrap();
@@ -1185,7 +1359,6 @@ pub(super) mod tests {
 
         // assert!(ok);
     }
-
 
 
     #[test]
@@ -1210,9 +1383,9 @@ pub(super) mod tests {
         assert_eq!(y.get(3).unwrap().1, 3);
 
 
-        let histogram = data.build_histogram(0u128, String::from("property_3"), Some(10)).expect("build_histogram");
-
-        println!("histogram={:?}", histogram);
+        // let histogram = data.build_histogram(0u128, String::from("property_3"), Some(10)).expect("build_histogram");
+        //
+        // println!("histogram={:?}", histogram);
     }
 
     #[test]
@@ -1227,7 +1400,6 @@ pub(super) mod tests {
         let summary = data.build_summary(0, None);
 
         check_numeric_column(&summary, 0, "1.0", "2.0", "3.0");
-
     }
 
     #[test]
@@ -1245,20 +1417,20 @@ pub(super) mod tests {
             conditions: vec![
                 ConditionType::Compoiste {
                     conditions: vec![
-                        ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"A".into()}},
-                        ConditionType::Single {column_name: "property_2".into(), condition: Condition::Numeric {min: 1.0, max:1.0}},
+                        ConditionType::Single { column_name: "property_3".into(), condition: Condition::String { pattern: "A".into() } },
+                        ConditionType::Single { column_name: "property_2".into(), condition: Condition::Numeric { min: 1.0, max: 1.0 } },
                     ],
-                    ctype:CompositeType::AND
+                    ctype: CompositeType::AND,
                 },
                 ConditionType::Compoiste {
                     conditions: vec![
-                        ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"C".into()}},
-                        ConditionType::Single {column_name: "property_1".into(), condition: Condition::Numeric {min: 3.0, max:3.0}},
+                        ConditionType::Single { column_name: "property_3".into(), condition: Condition::String { pattern: "C".into() } },
+                        ConditionType::Single { column_name: "property_1".into(), condition: Condition::Numeric { min: 3.0, max: 3.0 } },
                     ],
-                    ctype:CompositeType::AND
-                }
+                    ctype: CompositeType::AND,
+                },
             ],
-            ctype:CompositeType::OR
+            ctype: CompositeType::OR,
         }, None);
 
         // filter.add_condition(ConditionType::Single {column_name: "property_3".into(), condition: Condition::String {pattern:"B".into()}}, None);
@@ -1267,12 +1439,11 @@ pub(super) mod tests {
         let summary = filtered_frame.unwrap().data().build_summary(0u128, None);
         let columns = summary.columns();
         let property_3_column = columns.get(2).expect("property_3_column");
-        let SummaryColumnType::String { data} =  property_3_column.dtype() else {panic!("no property_3_column data")};
+        let SummaryColumnType::String { data } = property_3_column.dtype() else { panic!("no property_3_column data") };
 
         // debug!("data.unique_values()={:?}", data.unique_values());
 
         assert_eq!("\"AB1\", \"BC1\"", data.unique_values())
-
     }
 
     pub(crate) fn dummy_filter() -> Filter {
@@ -1281,7 +1452,7 @@ pub(super) mod tests {
             vec![
                 SummaryColumn::new("property_1", SummaryColumnType::Numeric { data: NumericColumnSummary::new("0", "1", "2") }),
                 SummaryColumn::new("property_2", SummaryColumnType::String { data: StringColumnSummary::new("aaa bbb ccc") }),
-                SummaryColumn::new("property_3", SummaryColumnType::Boolean)
+                SummaryColumn::new("property_3", SummaryColumnType::Boolean),
             ])
     }
 
@@ -1289,7 +1460,7 @@ pub(super) mod tests {
     fn test_fetch_data() {
         // let column_vec = iter::repeat(3).map(|_|Some(String::from("XXX"))).collect::<Vec<Option<String>>>();
 
-        let column_vec = (0..3).map(|_|Some(String::from("XXX"))).collect::<Vec<Option<String>>>();
+        let column_vec = (0..3).map(|_| Some(String::from("XXX"))).collect::<Vec<Option<String>>>();
 
         let mut df = df!(
             "property_1" => &[1i32,   2i32,   3i32,  10i32,    20i32,   30i32,    100i32,    200i32,   300i32],
@@ -1305,7 +1476,6 @@ pub(super) mod tests {
 
 
         // println!("alasdfsafsa");
-
     }
 
     fn check_numeric_column(summary: &Summary, i: usize, min: &str, avg: &str, max: &str) {
@@ -1686,11 +1856,10 @@ pub(super) mod tests {
         debug!("all_properties={:?}", all_properties);
 
         let (property_1, property_2, property_3) = {
-
             (
-             *all_properties.iter().find(|p|p.name().eq("property_1")).expect("property_1"),
-             *all_properties.iter().find(|p|p.name().eq("property_2")).expect("property_2"),
-             *all_properties.iter().find(|p|p.name().eq("property_3")).expect("property_3")
+                *all_properties.iter().find(|p| p.name().eq("property_1")).expect("property_1"),
+                *all_properties.iter().find(|p| p.name().eq("property_2")).expect("property_2"),
+                *all_properties.iter().find(|p| p.name().eq("property_3")).expect("property_3")
             )
         };
 
@@ -1741,7 +1910,7 @@ pub(super) mod tests {
     }
 
     #[test]
-    fn test_corr(){
+    fn test_corr() {
         let mut df = df!(
             "property_1" => &[10,      20,     30,     40,    50,      60,      70,      80,      90,   100],
             "property_2" => &[1,       2,      3,      4,     5,       6,       7,       8,       9,    10],
@@ -1823,10 +1992,255 @@ pub(super) mod tests {
         // ).unwrap()
 
         df!(
-       "property_1" => &(0..10_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
-       "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), //
-       "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
-    ).unwrap()
+           "property_1" => &(0..10_000).into_iter().map(|i|i / 100).collect::<Vec<i64>>(), // 10 X 0, 10 X 1 ...
+           "property_2" => &(0..10_000).into_iter().map(|i|i - (i/100)*100 ).collect::<Vec<i64>>(), //
+           "property_3" => &(0..10_000).into_iter().map(|i|i).collect::<Vec<i32>>(),
+        ).unwrap()
     }
 
+
+    #[test]
+    fn test_describe() -> PolarsResult<()> {
+        std::env::set_var("POLARS_FMT_MAX_COLS", "100"); //FMT_MAX_COLS is pub(crate) in polars_core :(
+        std::env::set_var("POLARS_FMT_MAX_ROWS", "100");
+
+        let df = all_types_df();
+
+        let summary_df = describe(&df.lazy())?;
+
+        let desc_cl = summary_df
+            .column("describe")?
+            .str()?
+            .into_iter()
+            .map(|v| v.unwrap_or_default())
+            .collect::<Vec<&str>>();
+
+        let float_cl = summary_df
+            .column("float")?
+            .f64()?
+            .into_iter()
+            .map(|v| format!("{:.5}", v.unwrap_or_default()))
+            .collect::<Vec<String>>();
+
+        let int_cl = summary_df
+            .column("int")?
+            .f64()?
+            .into_iter()
+            .map(|v| format!("{:.5}", v.unwrap_or_default()))
+            .collect::<Vec<String>>();
+        let bool_cl = summary_df
+            .column("bool")?
+            .str()?
+            .into_iter()
+            .map(|v| v.unwrap_or_default())
+            .collect::<Vec<&str>>();
+        let str_cl = summary_df
+            .column("str")?
+            .str()?
+            .into_iter()
+            .map(|v| v.unwrap_or_default())
+            .collect::<Vec<&str>>();
+        let str2_cl = summary_df
+            .column("str2")?
+            .str()?
+            .into_iter()
+            .map(|v| v.unwrap_or_default())
+            .collect::<Vec<&str>>();
+        let date_cl = summary_df
+            .column("date")?
+            .str()?
+            .into_iter()
+            .map(|v| v.unwrap_or_default())
+            .collect::<Vec<&str>>();
+
+        /*      from py-polars/polars/dataframe/frame.py:4394
+               ┌────────────┬──────────┬──────────┬───────┬──────┬──────┬────────────┐
+               │ describe   ┆ float    ┆ int      ┆ bool  ┆ str  ┆ str2 ┆ date      │
+               │ ---        ┆ ---      ┆ ---      ┆ ---   ┆ ---  ┆ ---  ┆ ---       │
+               │ str        ┆ f64      ┆ f64      ┆ str   ┆ str  ┆ str  ┆ str       │
+               ╞════════════╪══════════╪══════════╪═══════╪══════╪══════╪════════════╡
+               │ count      ┆ 3.0      ┆ 2.0      ┆ 3     ┆ 2    ┆ 2    ┆ 3         │
+               │ null_count ┆ 0.0      ┆ 1.0      ┆ 0     ┆ 1    ┆ 1    ┆ 0         │
+               │ mean       ┆ 2.266667 ┆ 4.5      ┆ null  ┆ null ┆ null ┆ null      │
+               │ std        ┆ 1.101514 ┆ 0.707107 ┆ null  ┆ null ┆ null ┆ null      │
+               │ min        ┆ 1.0      ┆ 4.0      ┆ False ┆ b    ┆ eur  ┆ 2020-01-01│
+               │ 25%        ┆ 2.8      ┆ 4.0      ┆ null  ┆ null ┆ null ┆ null      │
+               │ 50%        ┆ 2.8      ┆ 5.0      ┆ null  ┆ null ┆ null ┆ null      │
+               │ 75%        ┆ 3.0      ┆ 5.0      ┆ null  ┆ null ┆ null ┆ null      │
+               │ max        ┆ 3.0      ┆ 5.0      ┆ True  ┆ c    ┆ usd  ┆ 2022-01-01│
+               └────────────┴──────────┴──────────┴───────┴──────┴──────┴────────────┘
+        */
+
+        assert_eq!(desc_cl[0], "count");
+        assert_eq!(desc_cl[1], "null_count");
+
+        assert_eq!(float_cl[0], "3.00000");
+        assert_eq!(int_cl[0], "2.00000");
+        assert_eq!(bool_cl[0], "3");
+        assert_eq!(str_cl[0], "2");
+        assert_eq!(str2_cl[0], "2");
+        assert_eq!(date_cl[0], "3");
+
+
+        assert_eq!(float_cl[1], "0.00000");
+        assert_eq!(int_cl[1], "1.00000");
+        assert_eq!(bool_cl[1], "0");
+
+        assert_eq!(desc_cl[2], "mean");
+        assert_eq!(float_cl[2], "2.26667");
+        assert_eq!(int_cl[2], "4.50000");
+        assert_eq!(bool_cl[2], "");
+
+        assert_eq!(desc_cl[3], "std");
+        assert_eq!(float_cl[3], "1.10151");
+        assert_eq!(int_cl[3], "0.70711");
+        assert_eq!(bool_cl[3], "");
+
+        assert_eq!(desc_cl[4], "min");
+        assert_eq!(float_cl[4], "1.00000");
+        assert_eq!(int_cl[4], "4.00000");
+        assert_eq!(bool_cl[4], "false");
+
+        assert_eq!(desc_cl[5], "25%");
+        assert_eq!(float_cl[5], "2.80000");
+        assert_eq!(int_cl[5], "4.00000");
+        assert_eq!(bool_cl[5], "");
+        assert_eq!(desc_cl[6], "50%");
+
+        assert_eq!(float_cl[6], "2.80000");
+        assert_eq!(int_cl[6], "5.00000");
+        assert_eq!(bool_cl[6], "");
+
+        assert_eq!(desc_cl[7], "75%");
+        assert_eq!(float_cl[7], "3.00000");
+        assert_eq!(int_cl[7], "5.00000");
+        assert_eq!(bool_cl[7], "");
+
+        assert_eq!(desc_cl[8], "max");
+        assert_eq!(float_cl[8], "3.00000");
+        assert_eq!(int_cl[8], "5.00000");
+        assert_eq!(bool_cl[8], "true");
+
+
+        assert_eq!(str_cl[1], "1");
+        assert_eq!(str2_cl[1], "1");
+        assert_eq!(date_cl[1], "0");
+        assert_eq!(str_cl[2], "");
+        assert_eq!(str2_cl[2], "");
+        assert_eq!(date_cl[2], "");
+        assert_eq!(str_cl[3], "");
+        assert_eq!(str2_cl[3], "");
+        assert_eq!(date_cl[3], "");
+        assert_eq!(str_cl[4], "b");
+        assert_eq!(str2_cl[4], "eur");
+        assert_eq!(date_cl[4], "2020-01-01");
+        assert_eq!(str_cl[5], "");
+        assert_eq!(str2_cl[5], "");
+        assert_eq!(date_cl[5], "");
+        assert_eq!(str_cl[6], "");
+        assert_eq!(str2_cl[6], "");
+        assert_eq!(date_cl[6], "");
+        assert_eq!(str_cl[7], "");
+        assert_eq!(str2_cl[7], "");
+        assert_eq!(date_cl[7], "");
+        assert_eq!(str_cl[8], "c");
+        assert_eq!(str2_cl[8], "usd");
+        assert_eq!(date_cl[8], "2022-01-01");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_describe_with_extra_aggs() -> PolarsResult<()> {
+        std::env::set_var("POLARS_FMT_MAX_COLS", "100");
+        std::env::set_var("POLARS_FMT_MAX_ROWS", "100");
+
+        let df = all_types_df();
+
+        let summary_df = describe_with_params(
+            &df.lazy(),
+            false,
+            vec![(
+                "kurtosis".to_owned(),
+                Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
+                Box::new(move |name: &String| {
+                    col(name)
+                        .kurtosis(true, true)
+                        .alias(format!("{} kurtosis", name).as_str())
+                }) as Box<dyn Fn(&String) -> Expr>,
+            )],
+            Some(vec!["float"]),
+        )?;
+
+        assert_eq!(
+            summary_df
+                .get_columns()
+                .iter()
+                .map(|s| s.name())
+                .collect::<Vec<&str>>(),
+            vec!["name", "kurtosis"]
+        );
+
+        assert_eq!(
+        summary_df
+            .column("name")?
+            .str()?
+            .into_iter()
+            .collect::<Vec<Option<&str>>>()[0],
+        Some("float"),
+    );
+
+        let kurtosis_cl = summary_df
+            .column("kurtosis")?
+            .f64()?
+            .into_iter()
+            .map(|v| format!("{:.5}", v.unwrap_or_default()))
+            .collect::<Vec<String>>();
+
+        assert_eq!(kurtosis_cl, ["-1.50000"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_describe_nan() -> PolarsResult<()> {
+        std::env::set_var("POLARS_FMT_MAX_COLS", "100");
+        std::env::set_var("POLARS_FMT_MAX_ROWS", "100");
+
+        let df = DataFrame::new(vec![Series::new("days", [f32::NAN].as_ref())])?;
+
+        let summary_df = describe(&df.lazy())?;
+
+        assert_eq!(
+            summary_df
+                .column("days")?
+                .f64()?
+                .into_iter()
+                .collect::<Vec<Option<f64>>>()[0..2],
+            vec![
+                Some(1.0),
+                Some(0.0),
+                Some(f64::NAN),
+                None,
+                Some(f64::NAN),
+                Some(f64::NAN),
+                Some(f64::NAN),
+                Some(f64::NAN),
+                Some(f64::NAN)
+            ][0..2]
+        );
+
+        Ok(())
+    }
+
+    fn all_types_df() -> DataFrame {
+        df![
+        "float" => [Some(1.0), Some(2.8), Some(3.0)],
+        "int" =>  [Some(4), Some(5), None],
+        "bool" =>  [true, false, true],
+        "str" =>  [None, Some("b"), Some("c")],
+        "str2" =>  [Some("usd"), Some("eur"), None],
+        "date" =>  [NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2021, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()],
+    ].unwrap()
+    }
 }

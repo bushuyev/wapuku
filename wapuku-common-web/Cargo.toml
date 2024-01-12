@@ -39,4 +39,4 @@ ctor = "0.1.21"
 wasm-bindgen = {path = "../../wasm-bindgen"}
 wasm-bindgen-macro-support = { path = "../../wasm-bindgen/crates/macro-support"}
 
-[workspace]
+#[workspace]

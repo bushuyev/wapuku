@@ -143,8 +143,8 @@ impl View for Summary {
 
         }).body(|body| {
 
-            body.rows(4. * text_height, self.columns().len(), |row_index, mut row| {
-                let column_summary = &self.columns()[row_index];
+            body.rows(4. * text_height, self.columns().len(), | mut row| {
+                let column_summary = &self.columns()[row.index()];
 
                 row.col(|ui| {
                     ui.label(column_summary.name().clone());
@@ -687,7 +687,7 @@ impl View for DataLump {
         }).body(|body| {
             let mut data_iter = self.data().iter();
 
-            body.rows(2. * text_height, self.data().len(), |_row_index, mut row| {
+            body.rows(2. * text_height, self.data().len(), |mut row| {
                 // let column_summary = &self.data()[row_index];
 
                 if let Some(row_data) = data_iter.next(){

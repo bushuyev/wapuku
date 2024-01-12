@@ -16,9 +16,9 @@ rm -rf pkg
 rm -rf www/dist
 
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-cargo +nightly-2023-07-27-x86_64-unknown-linux-gnu build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
+cargo +nightly-2023-12-23-x86_64-unknown-linux-gnu build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 
-(cd ../../wasm-bindgen && cargo +nightly-2023-07-27-x86_64-unknown-linux-gnu run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir ../wapuku/wapuku-egui/pkg/  --target web   ../wapuku/wapuku-egui/target/wasm32-unknown-unknown/release/wapuku_egui.wasm)
+(cd ../../wasm-bindgen && cargo +nightly-2023-12-23-x86_64-unknown-linux-gnu run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir ../wapuku/wapuku-egui/pkg/  --target web   ../wapuku/wapuku-egui/target/wasm32-unknown-unknown/release/wapuku_egui.wasm)
 (cd www && npm run build:main && npm run build:worker)
 #wasm2wat --enable-threads ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm > ./pkg/wapuku_egui.wat
 ## Note the usage of `--target no-modules` here which is required for passing

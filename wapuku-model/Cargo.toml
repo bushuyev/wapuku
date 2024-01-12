@@ -32,12 +32,18 @@ polars = {path = "../../polars/crates/polars", default-features = false, feature
     "dtype-date",
     "dtype-datetime",
     "dtype-duration",
+    "dtype-categorical",
     "dtype-time",
-    "algo",
+    "dtype-struct",
+#    "algo",
     "strings",
     "lazy_regex",
+    "hist",
     "rank",
-    "cov"
+    "cov",
+    "asof_join",
+    "pivot",
+    "moment"
 ]} # "fmt" // "dtype-categorical" - for transpose
 itertools = "0.12.0"
 smartstring = "1.0.1"
@@ -59,4 +65,4 @@ ctor = "0.1.21"
 wasm-bindgen = {path = "../../wasm-bindgen"}
 wasm-bindgen-macro-support = { path = "../../wasm-bindgen/crates/macro-support"}
 
-[workspace]
+#[workspace]

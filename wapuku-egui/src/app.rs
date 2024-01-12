@@ -353,7 +353,7 @@ impl eframe::App for WapukuApp {
 
 
         egui::TopBottomPanel::top("wrap_app_top_bar").show(ctx, |ui| {
-            egui::trace!(ui);
+            // egui::trace!(ui);
 
             ui.horizontal_wrapped(|ui| {
                 // ui.visuals_mut().button_frame = false;
