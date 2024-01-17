@@ -651,7 +651,7 @@ impl Data for PolarsData {
 
         debug!("corr_hash={:?}", corr_hash);
 
-        Ok(Corrs::new(frame_id, corr_hash))
+        Ok(Corrs::new(frame_id, columns, corr_hash))
     }
 }
 

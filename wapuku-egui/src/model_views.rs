@@ -123,9 +123,10 @@ impl View for Summary {
             });
 
             header.col(|ui| {
-                ui.vertical(|ui|{
-                    ui.strong("Actions");
+                // ui.vertical(|ui|{
+
                     ui.horizontal(|ui|{
+                        ui.strong("Actions");
                         ui.add_space(20.0);//TODO
                         ui.set_enabled(model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2);
 
@@ -136,8 +137,8 @@ impl View for Summary {
                                 column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
                             });
                         }
-                    })
-                });
+                    });
+                // });
 
             });
 
@@ -577,12 +578,27 @@ impl View for Corrs {
     fn ui(&self, ui: &mut Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
         ui.add(egui::Label::new(self.title()));
 
-        let _columns = vec![String::from("aaa"), String::from("bbb"), String::from("ccc")]; //self.columns();
-        let y_fmt = move |y, _digits, _range: &RangeInclusive<f64>| {
-            if y % 10. == 0. {
-                _columns.get((y / 10.) as usize).map(|v|v.clone()).unwrap_or(String::from(""))
+        let _columns = self.columns().clone();
+        debug!("_columns={:?}", _columns);
+
+        let x_fmt = move |x:f64, _digits, _range: &RangeInclusive<f64>| {
+            let x_1 = x * 10.;
+            if x >= 0.0 && (x_1).fract() == 0.0 {
+                _columns.get(x_1 as usize).map(|v|v.clone()).unwrap_or(String::from(""))
             } else {
-                String::from("")
+                "".into()
+            }
+
+        };
+
+        let _columns = self.columns().clone();
+
+        let y_fmt = move |y:f64, _digits, _range: &RangeInclusive<f64>| {
+            let y_1 = y * 10.;
+            if y >= 0.0 && (y_1).fract() == 0.0 {
+                _columns.get(y_1 as usize).map(|v|v.clone()).unwrap_or(String::from(""))
+            } else {
+                "".into()
             }
 
         };
@@ -598,12 +614,17 @@ impl View for Corrs {
                 } else {
                     "".to_owned()
                 }
+
             })
             .allow_zoom(true)
             .allow_drag(true)
             .custom_x_axes(vec![
                 AxisHints::default()
-                    .label("XXX")
+                    .formatter(x_fmt)
+                    .max_digits(4),
+            ])
+            .custom_y_axes(vec![
+                AxisHints::default()
                     .formatter(y_fmt)
                     .max_digits(4),
             ])
@@ -611,7 +632,7 @@ impl View for Corrs {
                 let bounds = plot_ui.plot_bounds();
                 // debug!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..... bounds={:?}", bounds);
                 // plot_ui.polygon()
-                plot_ui.polygon(Polygon::new(PlotPoints::Owned(vec![[-10., -10.].into(), [-10., 10.].into(), [10., 10.].into(), [10., -10.].into() ])).fill_color(Color32::LIGHT_YELLOW))
+                // plot_ui.polygon(Polygon::new(PlotPoints::Owned(vec![[-10., -10.].into(), [-10., 10.].into(), [10., 10.].into(), [10., -10.].into() ])).fill_color(Color32::LIGHT_YELLOW))
             });
 
     }

@@ -89,4 +89,4 @@ wasm-bindgen = {path = "../../wasm-bindgen"}
 #wasm-bindgen-cli = {path = "../../wasm-bindgen/crates/cli"}
 wasm-bindgen-macro-support = { path = "../../wasm-bindgen/crates/macro-support"}
 
-#[workspace]
+[workspace]

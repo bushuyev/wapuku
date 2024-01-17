@@ -407,11 +407,11 @@ pub struct Corrs {
 }
 
 impl Corrs {
-    pub fn new(frame_id: u128, values:HashMap<(String, String), f32>) -> Self {
+    pub fn new(frame_id: u128, columns:Vec<String>, values:HashMap<(String, String), f32>) -> Self {
         Self {
             id: wa_id(),
             frame_id,
-            columns: vec![],
+            columns,
             values,
             title: format!("Correlations"),//TODO columns
         }
