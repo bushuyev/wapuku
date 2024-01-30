@@ -46,7 +46,8 @@ pub struct ModelCtx {
     pending_actions: VecDeque<ActionRq>,
     uid_actions: Vec<UIAction>,
     filter_new_condition_ctx:FilterNewConditionCtx,
-    summary_actions_ctx:SummaryActionsCtx
+    summary_actions_ctx:SummaryActionsCtx,
+    is_init: bool
 }
 
 impl ModelCtx {
@@ -55,9 +56,11 @@ impl ModelCtx {
             pending_actions: VecDeque::new(),
             uid_actions: vec![],
             filter_new_condition_ctx:FilterNewConditionCtx::new(),
-            summary_actions_ctx: SummaryActionsCtx::new()
+            summary_actions_ctx: SummaryActionsCtx::new(),
+            is_init: true
         }
     }
+
 
 
 
@@ -83,6 +86,14 @@ impl ModelCtx {
 
     pub fn summary_actions_ctx(&self) -> &SummaryActionsCtx {
         &self.summary_actions_ctx
+    }
+
+    pub fn is_init(&self) -> bool {
+        self.is_init
+    }
+
+    pub fn set_is_init(&mut self, is_init: bool) {
+        self.is_init = is_init;
     }
 }
 
@@ -469,6 +480,8 @@ impl eframe::App for WapukuApp {
 
                 let frame_win = frame_win
                     .open(&mut is_open)
+                    .hscroll(view.allows_scroll())
+                    .vscroll(view.allows_scroll())
                     .show(ctx, |ui| {
                         view.ui(ui, ctx, model_ctx)
                     }).expect("show frame");

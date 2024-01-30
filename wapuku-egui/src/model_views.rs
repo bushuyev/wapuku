@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 use egui::{Color32, Context, FontId, Frame, InnerResponse, RichText, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
-use egui_plot::{AxisHints, Bar, BarChart, Plot, PlotPoints, Polygon};
+use egui_plot::{AxisHints, Bar, BarChart, Plot, PlotBounds, PlotPoints, Polygon};
 use log::debug;
 use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::messages::OK;
@@ -60,6 +60,11 @@ pub trait View {
     fn title(&self) -> &str;
     fn ui_id(&self) -> Id;
     fn ui(&self, ui: &mut egui::Ui, ctx: &Context, model_ctx: &mut ModelCtx);
+
+    fn allows_scroll(&self)->bool {
+        true
+    }
+
 
     fn model_id(&self) -> WaModelId;
 }
@@ -575,37 +580,61 @@ impl View for Corrs {
         Id::new(self.id())
     }
 
+
+
     fn ui(&self, ui: &mut Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
         ui.add(egui::Label::new(self.title()));
 
         let _columns = self.columns().clone();
+        let top_right = _columns.len() as f64;
         debug!("_columns={:?}", _columns);
 
-        let x_fmt = move |x:f64, _digits, _range: &RangeInclusive<f64>| {
-            let x_1 = x * 10.;
+        let x_fmt = move |x: f64, _digits, _range: &RangeInclusive<f64>| {
+            let x_1 = x;
             if x >= 0.0 && (x_1).fract() == 0.0 {
-                _columns.get(x_1 as usize).map(|v|v.clone()).unwrap_or(String::from(""))
+                _columns
+                    .get(x_1 as usize)
+                    .map(|v| v.clone())
+                    .unwrap_or("".into()) //format!("{:?}", x))
             } else {
                 "".into()
             }
-
         };
 
-        let _columns = self.columns().clone();
+        let columns = self.columns().clone();
 
-        let y_fmt = move |y:f64, _digits, _range: &RangeInclusive<f64>| {
-            let y_1 = y * 10.;
+        let charts = columns.iter().enumerate()
+            .map(|(row, c_in_row)| {
+
+                BarChart::new(
+                    columns.iter().enumerate().map(|(i, c)|
+                        Bar::new(i as f64, 1.0).base_offset(-0.5 + row as f64).name(format!("{}", self.get_val(c_in_row, c)))
+                    ).collect::<Vec<_>>()
+                ).width(1.0)
+
+            }).collect::<Vec<BarChart>>();
+
+        let y_fmt = move |y: f64, _digits, _range: &RangeInclusive<f64>| {
+            let y_1 = y;
             if y >= 0.0 && (y_1).fract() == 0.0 {
-                _columns.get(y_1 as usize).map(|v|v.clone()).unwrap_or(String::from(""))
+                columns
+                    .get(y_1 as usize)
+                    .map(|v| v.clone())
+                    .unwrap_or("".into()) //format!("{:?}", y))
             } else {
                 "".into()
             }
-
         };
 
+        let mut center = model_ctx.is_init();
+        model_ctx.set_is_init(false);//TODO move to app
+        if ui.button("center").clicked() {
+            center = true;
+        }
 
-        Plot::new("Correlations")
 
+
+        let plot = Plot::new("Correlations")
             .label_formatter(|name, _value| {
                 // debug!("wapuku: name={:?}, value={:?}", name, value);
 
@@ -614,27 +643,44 @@ impl View for Corrs {
                 } else {
                     "".to_owned()
                 }
-
             })
             .allow_zoom(true)
             .allow_drag(true)
-            .custom_x_axes(vec![
-                AxisHints::default()
-                    .formatter(x_fmt)
-                    .max_digits(4),
-            ])
-            .custom_y_axes(vec![
-                AxisHints::default()
-                    .formatter(y_fmt)
-                    .max_digits(4),
-            ])
+            .custom_x_axes(vec![AxisHints::default().formatter(x_fmt).max_digits(4)])
+            .custom_y_axes(vec![AxisHints::default().formatter(y_fmt).max_digits(4)])
+            .view_aspect(1.0)
+            .data_aspect(1.0)
+            // .include_x([-1., top_right])
+            // .include_y([-1., top_right])
+            .allow_scroll(false)
+            // .height(200.)
+            // .width(200.)
+            .show_grid(false)
             .show(ui, |plot_ui| {
-                let bounds = plot_ui.plot_bounds();
+                if center {
+                    plot_ui.set_plot_bounds(PlotBounds::from_min_max([-1., -1.], [top_right, top_right]));
+                    // plot_ui.zoom_bounds([-10., -10.].into())
+                }
+
+
+                for chart in charts {
+                    plot_ui.bar_chart(chart);
+                }
+
+
+                // let bounds = plot_ui.plot_bounds();
                 // debug!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..... bounds={:?}", bounds);
                 // plot_ui.polygon()
                 // plot_ui.polygon(Polygon::new(PlotPoints::Owned(vec![[-10., -10.].into(), [-10., 10.].into(), [10., 10.].into(), [10., -10.].into() ])).fill_color(Color32::LIGHT_YELLOW))
             });
 
+        ui.set_clip_rect(plot.response.rect);
+        ui.shrink_height_to_current();
+        ui.shrink_width_to_current();
+    }
+
+    fn allows_scroll(&self) -> bool {
+        false
     }
 
     fn model_id(&self) -> WaModelId {

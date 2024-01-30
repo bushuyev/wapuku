@@ -427,6 +427,10 @@ impl Corrs {
         &self.values
     }
 
+    pub fn get_val(&self, c_0:&String, c_1:&String) -> f32{
+        self.values.get(&(c_0.into(), c_1.into())).map(|v|*v).unwrap_or(-1.0)
+    }
+
     pub fn id(&self) -> &u128 {
         &self.id
     }
