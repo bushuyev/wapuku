@@ -16,6 +16,7 @@ use polars::frame::UniqueKeepStrategy::Any;
 use polars::io::parquet::*;
 use polars::prelude::*;
 use polars::prelude::AnyValue::Null;
+use polars::prelude::FunctionExpr::Exp;
 use polars::prelude::StartBy::WindowBound;
 use polars::series::IsSorted;
 
@@ -635,15 +636,70 @@ impl Data for PolarsData {
 
     fn clc_corrs(&self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
         let mut corr_hash: std::collections::HashMap<(String, String), f32> = HashMap::new();
-        for (i, column_0) in columns.iter().enumerate() {//TODO itertools
-            for column_1 in columns.iter().skip(i + 1) {
+
+        let mut l_df = self.df.clone().lazy();
+        let mut new_columns = vec![];
+
+            fn udf(vals: Series) ->  Result<Option<Series>, PolarsError> {
+                debug!("series={:?}", vals);
+                debug!("unique_vals={:?}", vals.unique()?);
+
+                let u_s = vals.unique()?;
+                let unique_vals_map = u_s.iter().enumerate().fold(HashMap::new(), |mut m, (i, v)|{
+                    m.insert(v, i);
+                    m
+                });
+
+                let mut result: Vec<f32> = vec![];
+                for val in vals.iter() {
+
+                    result.push(*unique_vals_map.get(&val).unwrap_or(&0) as f32);
+                }
+                // let output: ChunkedArray<Float32Type> = result.into_iter().collect();
+                return Ok(Some(Series::new("zzz", result)));
+            }
+
+
+            for column_name in columns.clone() {
+                match self.df.column(&column_name)?.dtype() {
+
+                    DataType::String => {
+
+                        debug!("clc_corrs: replace={:?}", column_name);
+
+                        let new_column_name = format!("{}_num", &column_name);
+
+                        l_df = l_df.clone().with_column(
+                            col(&column_name).apply(move |s| udf(s), GetOutput::from_type(DataType::Float32)).alias(new_column_name.as_str())
+
+                            // when(col(&column_name).eq(lit("a")))
+                            //     .then(lit(0))
+                            //     .otherwise(lit(1))
+                            //     .alias(new_column_name.as_str())
+                        );
+
+                        new_columns.push(new_column_name)
+                    }
+
+                    _ => {
+                        new_columns.push(column_name.to_string())
+                    }
+                    }
+        }
+
+        debug!("l_df={:?}", l_df.clone().collect());
+
+
+        for (i, column_0) in new_columns.iter().enumerate() {//TODO itertools
+            for column_1 in new_columns.iter().skip(i + 1) {
+
                 debug!("clc_corrs: column_0={:?}, column_1={:?}", column_0, column_1);
                 let expr = pearson_corr(
                     Expr::Column(column_0.as_str().into()),
                     Expr::Column(column_1.as_str().into()), 0,
                 )
                     .alias("corr");
-                let res = self.df.clone().lazy().select(&[expr]).collect();
+                let res = l_df.clone().select(&[expr]).collect();
 
                 corr_hash.insert((column_0.clone(), column_1.clone()), res.as_ref()?.column("corr")?.f64()?.get(0).expect("corr") as f32);
             }
@@ -1914,7 +1970,7 @@ pub(super) mod tests {
         let mut df = df!(
             "property_1" => &[10,      20,     30,     40,    50,      60,      70,      80,      90,   100],
             "property_2" => &[1,       2,      3,      4,     5,       6,       7,       8,       9,    10],
-            "property_3" => &["a",     "b",    "c",    "d",   "e",     "f",     "g",     "h",     "i",  "j"],
+            "property_3" => &["a",     "a",    "b",    "b",   "c",     "c",     "d",     "d",     "e",  "e"],
             "property_4" => &[10,      9,      8,      7,     6,       5,       4,       3,       2,    1],
             "property_5" => &[1000,    2000,   3000,   4000,  5000,    6000,    7000,    8000,    9000, 10000]
         ).unwrap();
@@ -1930,6 +1986,7 @@ pub(super) mod tests {
 
         assert_eq!(corrs.values().get(&("property_1".into(), "property_2".into())).expect("property_1 property_2"), &1.);
         assert_eq!(corrs.values().get(&("property_1".into(), "property_4".into())).expect("property_1 property_2"), &-1.);
+        assert_eq!(corrs.values().get(&("property_1".into(), "property_3_num".into())).expect("property_1 property_3"), &-1.);
     }
 
 
