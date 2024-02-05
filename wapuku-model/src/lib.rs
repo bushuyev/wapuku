@@ -8,11 +8,7 @@ pub mod utils;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::model::*;
-    use crate::polars_df::*;
     use log::LevelFilter;
-    use polars::df;
-    use polars::prelude::*;
     use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 
     pub(crate) fn init_log() {
@@ -35,7 +31,7 @@ pub(crate) mod tests {
         //std::env::set_var("POLARS_FMT_MAX_ROWS", "20");
 
         //parquet_scan();
-        println!("Ok")
+        println!("Ok 2")
     }
     //
     //
