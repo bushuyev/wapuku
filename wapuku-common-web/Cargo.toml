@@ -15,9 +15,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.17"
-rayon = {path= "../../rayon"}
 js-sys = "0.3.63"
-wasm-bindgen = {path = "../../wasm-bindgen/"}
+wasm-bindgen = "0.2.90"
 wasm-bindgen-futures = "0.4.36"
 web-sys = { version = "0.3.63", features = [
     "Document",
@@ -33,10 +32,5 @@ web-sys = { version = "0.3.63", features = [
 [dev-dependencies]
 simplelog = "0.10.2"
 ctor = "0.1.21"
-
-
-[patch.crates-io]
-wasm-bindgen = {path = "../../wasm-bindgen"}
-wasm-bindgen-macro-support = { path = "../../wasm-bindgen/crates/macro-support"}
 
 #[workspace]

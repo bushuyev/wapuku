@@ -17,8 +17,3 @@ authors = ["Yevgen Bushuyev"]
 description = "A short description of my package"
 documentation = "https://example.com/bar"
 
-
-[patch.crates-io]
-wasm-bindgen = {path = "../wasm-bindgen"}
-wasm-bindgen-macro-support = { path = "../wasm-bindgen/crates/macro-support"}
-

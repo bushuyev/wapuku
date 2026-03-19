@@ -1,4 +1,3 @@
-#![feature(async_fn_in_trait)]
 #[allow(mixed_script_confusables)]
 
 mod state;
@@ -20,7 +19,6 @@ use log::{debug};
 use winit::{event::*, event, event_loop::{ControlFlow}, window::WindowBuilder};
 use winit::dpi::{PhysicalSize};
 use winit::event_loop::EventLoopBuilder;
-use rayon::*;
 
 use wasm_bindgen::prelude::*;
 use winit::platform::web::WindowExtWebSys;
@@ -33,7 +31,6 @@ use crate::visualization::VisualDataController;
 use wapuku_common_web::workers::*;
 
 pub use wapuku_common_web::init_worker;
-pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::run_in_pool;
 use wapuku_common_web::log;

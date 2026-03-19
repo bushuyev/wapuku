@@ -38,7 +38,7 @@ console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 wgpu = { version = "0.16.0", features = ["webgl"]}
 
-wasm-bindgen = {path = "../../wasm-bindgen/"}
+wasm-bindgen = "0.2.90"
 
 futures = "0.3.28"
 wasm-bindgen-futures = "0.4.36"
@@ -55,15 +55,9 @@ wapuku-common-web = {path = "../wapuku-common-web" }
 wapuku-model = {path = "../wapuku-model" }
 wapuku-resources = {path = "../wapuku-resources" }
 
-rayon = {path= "../../rayon"}
-
 lazy_static = "1.4.0"
 wasm-tracing-allocator = "0.1.0"
 proc-macro2 = "1.0.66"
-
-[patch.crates-io]
-wasm-bindgen = {path= "../../wasm-bindgen"}
-#https://github.com/rust-lang/rust/issues/113152
 
 
 [dev-dependencies]
@@ -76,8 +70,3 @@ wasm-bindgen-test = "0.3.34"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
-
-
-[unstable]
-async-fn-in-trait = true
-#[workspace]

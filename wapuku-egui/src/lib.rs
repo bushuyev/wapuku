@@ -7,7 +7,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use log::{debug, trace};
 
 pub use wapuku_common_web::allocator::tracing::*;
-pub use wapuku_common_web::get_pool;
 pub use wapuku_common_web::init_pool;
 pub use wapuku_common_web::init_worker;
 pub use wapuku_common_web::run_in_pool;
@@ -336,4 +335,3 @@ pub async fn run() {
     .await
     .expect("failed to start eframe")});
 }
-

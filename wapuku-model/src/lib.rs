@@ -1,4 +1,3 @@
-#![feature(async_fn_in_trait)]
 pub mod data_type;
 pub mod messages;
 pub mod model;
