@@ -1,13 +1,13 @@
 const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
  
   mode: "development",
   plugins: [
-    new CopyWebpackPlugin([ { from: 'data', to: 'data' } ])
+    new CopyWebpackPlugin({
+      patterns: [{ from: 'data', to: 'data' }],
+    }),
 
   ],
   experiments: {
