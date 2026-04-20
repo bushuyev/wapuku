@@ -4,20 +4,16 @@ use std::iter::once;
 
 use ::zip::result::*;
 use ::zip::*;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use itertools::Either;
 use log::{debug, warn};
-use polars::datatypes::DataType::{Categorical, Datetime};
 use polars::datatypes::TimeUnit::Milliseconds;
-use polars::export::arrow::io::iterator::StreamingIterator;
-use polars::export::chrono;
-use polars::export::chrono::{NaiveDate, NaiveDateTime, NaiveTime, ParseResult};
-use polars::frame::UniqueKeepStrategy::Any;
-use polars::io::parquet::*;
-use polars::prelude::AnyValue::Null;
-use polars::prelude::FunctionExpr::Exp;
 use polars::prelude::StartBy::WindowBound;
 use polars::prelude::*;
 use polars::series::IsSorted;
+use polars_io::prelude::CsvReader;
+#[cfg(feature = "parquet")]
+use polars_io::prelude::ParquetReader;
 
 use polars::time::Duration;
 
@@ -51,7 +47,19 @@ pub fn format_date_str<E: AsRef<[Expr]>>(format: &str, args: E) -> PolarsResult<
         }
     }
 
-    Ok(concat_str(exprs, ""))
+    Ok(concat_str(exprs, "", true))
+}
+
+fn scalar_to_i64(value: &Scalar) -> Option<i64> {
+    match value.value() {
+        AnyValue::Date(v) => Some(i64::from(*v)),
+        AnyValue::Datetime(v, _, _) | AnyValue::DatetimeOwned(v, _, _) => Some(*v),
+        AnyValue::Duration(v, _) | AnyValue::Time(v) | AnyValue::Int64(v) => Some(*v),
+        AnyValue::Int32(v) => Some(i64::from(*v)),
+        AnyValue::UInt32(v) => Some(i64::from(*v)),
+        AnyValue::UInt64(v) => i64::try_from(*v).ok(),
+        _ => None,
+    }
 }
 
 impl From<PolarsError> for WapukuError {
@@ -71,6 +79,15 @@ impl From<&PolarsError> for WapukuError {
 }
 
 const NA: &str = "n/a";
+
+pub fn demo_df() -> DataFrame {
+    df!(
+        "property_1" => &(0..10_000).map(|i| i / 100).collect::<Vec<i64>>(),
+        "property_2" => &(0..10_000).map(|i| i - (i / 100) * 100).collect::<Vec<i64>>(),
+        "property_3" => &(0..10_000).collect::<Vec<i32>>(),
+    )
+    .unwrap()
+}
 
 #[derive(Debug)]
 pub struct PolarsData {
@@ -120,8 +137,8 @@ impl PolarsData {
             .clone()
             .lazy()
             .group_by([col(column.as_str())])
-            .agg([count().alias("count")])
-            .sort("count", Default::default())
+            .agg([len().alias("count")])
+            .sort(["count"], SortMultipleOptions::default())
             .collect()?;
 
         debug!("groupby_df={:?}", groupby_df);
@@ -132,7 +149,7 @@ impl PolarsData {
             }); //TODO
         }
 
-        let mut val_count = groupby_df.iter();
+        let mut val_count = groupby_df.materialized_column_iter();
 
         Ok(Histogram::new(
             frame_id,
@@ -142,8 +159,9 @@ impl PolarsData {
                 val_count.next().expect("count").iter(),
             )
             .fold(Vec::new(), |mut vec, vv| {
-                if let (AnyValue::String(v1), AnyValue::UInt32(v2)) = vv {
-                    vec.push((v1.to_string(), v2));
+                let (ref v1, ref v2) = vv;
+                if let Ok(v2) = v2.try_extract::<u32>() {
+                    vec.push((v1.str_value().into_owned(), v2));
                 } else {
                     warn!("unexpected values in build_histogram: {:?}", vv);
                 }
@@ -161,16 +179,18 @@ impl PolarsData {
             .lazy()
             .filter(col(column.as_str()).is_not_null())
             .collect()?;
-        let column_series = df.column(column.as_str())?.sort(false);
+        let column_series = df
+            .column(column.as_str())?
+            .sort(SortOptions::default())?;
 
         // let mut min = NaiveDateTime::MIN.timestamp_millis();
         // let mut max = NaiveDateTime::MAX.timestamp_millis();
 
         debug!("s.dtype()={:?}", column_series.dtype());
 
-        let (mut min_value, mut max_value) = (
-            column_series.min()?.unwrap_or(0),
-            column_series.max()?.unwrap_or(0),
+        let (min_value, max_value) = (
+            scalar_to_i64(&column_series.min_reduce()?).unwrap_or(0),
+            scalar_to_i64(&column_series.max_reduce()?).unwrap_or(0),
         );
 
         let mut time_unit = TimeUnit::Milliseconds;
@@ -229,10 +249,10 @@ impl PolarsData {
         let interval = (max_value - min_value) / bin_count;
         let breaks: Vec<i64> = (0..(bin_count)).map(|b| min_value + b * interval).collect();
 
-        let breakpoint_str = &"break_point";
-        let bins = Series::new(breakpoint_str, breaks);
+        let breakpoint_str = "break_point";
+        let bins = Series::new(breakpoint_str.into(), breaks);
 
-        let mut bins = bins.extend_constant(AnyValue::Datetime(max_value, time_unit, &None), 1)?;
+        let mut bins = bins.extend_constant(AnyValue::Datetime(max_value, time_unit, None), 1)?;
         bins.set_sorted_flag(IsSorted::Ascending);
 
         let cuts_df = df![
@@ -249,7 +269,7 @@ impl PolarsData {
                     [
                         col(breakpoint_str)
                             .shift_and_fill(1, min_value)
-                            .cast(column_series.dtype().to_owned()),
+                            .cast(column_series.dtype().clone()),
                         col(breakpoint_str).cast(column_series.dtype().to_owned()),
                     ],
                 )?
@@ -261,22 +281,24 @@ impl PolarsData {
 
         let cuts = cuts_df
             .lazy()
-            .with_columns([
-                col(category_str).cast(DataType::Categorical(None, CategoricalOrdering::Lexical)),
+            .with_column(
                 col(breakpoint_str)
-                    .cast(column_series.dtype().to_owned())
-                    // .cast(Datetime(Milliseconds, None))
+                    .cast(column_series.dtype().clone())
                     .set_sorted_flag(IsSorted::Ascending),
-            ])
+            )
             .collect()?;
 
-        let out = column_series.clone().into_frame().join_asof(
+        let out = column_series.clone().into_frame()._join_asof(
             &cuts,
-            column_series.name(),
-            breakpoint_str,
+            column_series.as_materialized_series(),
+            cuts.column(breakpoint_str)?.as_materialized_series(),
             AsofStrategy::Forward,
             None,
             None,
+            None,
+            true,
+            true,
+            true,
         )?;
 
         let out = out
@@ -289,11 +311,11 @@ impl PolarsData {
         let groupby_df = cuts
             .left_join(&out, [category_str], [category_str])?
             .fill_null(FillNullStrategy::Zero)?
-            .sort(["category"], false, false)?;
+            .sort(["category"], SortMultipleOptions::default())?;
 
         debug!("groupby_df={:?}", groupby_df);
 
-        let mut val_count = groupby_df.iter();
+        let mut val_count = groupby_df.materialized_column_iter();
         val_count.next(); //skip break_point
 
         Ok(Histogram::new(
@@ -304,16 +326,9 @@ impl PolarsData {
                 val_count.next().expect("property_2_count").iter(),
             )
             .fold(Vec::new(), |mut vec, vv| {
-                if let (
-                    AnyValue::Categorical(a, RevMapping::Local(b, _), _c),
-                    AnyValue::UInt32(count),
-                ) = vv
-                {
-                    // warn!("a={:?}, count={:?}", b.value(a as usize), count);
-                    vec.push((
-                        FloatReformatter::exec(b.value(a as usize)).to_string(),
-                        count,
-                    ));
+                let (ref cat, ref count) = vv;
+                if let Ok(count) = count.try_extract::<u32>() {
+                    vec.push((FloatReformatter::exec(cat.str_value().as_ref()).to_string(), count));
                 } else {
                     warn!("unexpected values in build_histogram: {:?}", vv);
                 }
@@ -344,24 +359,20 @@ impl PolarsData {
         // │ f64         ┆ cat                               ┆ u32              │
         // ╞═════════════╪═══════════════════════════════════╪══════════════════╡
 
+        let struct_fields = groupby_df.struct_()?.fields_as_series();
+        let categories = struct_fields.get(1).expect("category");
+        let counts = struct_fields.get(2).expect("count");
+
         Ok(Histogram::new(
             frame_id,
             column,
-            groupby_df
-                .struct_()?
-                .into_iter()
-                .fold(Vec::new(), |mut vec, any_x| {
-                    vec.push((
-                        FloatReformatter::exec(any_x[0].get_str().unwrap()).to_string(),
-                        if let AnyValue::UInt32(v) = any_x[1] {
-                            v
-                        } else {
-                            0
-                        },
-                    ));
-
-                    vec
-                }),
+            std::iter::zip(categories.iter(), counts.iter()).fold(Vec::new(), |mut vec, (category, count)| {
+                vec.push((
+                    FloatReformatter::exec(category.str_value().as_ref()).to_string(),
+                    count.try_extract::<u32>().unwrap_or(0),
+                ));
+                vec
+            }),
         ))
     }
 }
@@ -600,8 +611,8 @@ impl Data for PolarsData {
             wa_id(),
             frame_id,
             self.name.clone(),
-            desc.get_columns()
-                .into_iter()
+            desc.columns()
+                .iter()
                 .enumerate()
                 .skip(1)
                 .map(|(i, c)| {
@@ -615,7 +626,7 @@ impl Data for PolarsData {
                         WapukuDataType::Numeric { .. } => {
                             // let min = desc.get(4).and_then(|row|row.get(i).map(|v|ToString::to_string(v))).unwrap_or(String::from("n/a"));
                             SummaryColumn::new(
-                                String::from(name),
+                                name.to_string(),
                                 SummaryColumnType::Numeric {
                                     data: NumericColumnSummary::new(
                                         desc.get(4)
@@ -644,7 +655,8 @@ impl Data for PolarsData {
                                 .column(name)
                                 .and_then(|v| v.unique())
                                 .map(|u| {
-                                    u.rechunk()
+                                    u.as_materialized_series()
+                                        .rechunk()
                                         .iter()
                                         .take(3)
                                         .map(|v| ToString::to_string(&v))
@@ -656,7 +668,7 @@ impl Data for PolarsData {
                             debug!("unique_values={:?}", unique_values);
 
                             SummaryColumn::new(
-                                String::from(name),
+                                name.to_string(),
                                 SummaryColumnType::String {
                                     data: StringColumnSummary::new(unique_values),
                                 },
@@ -664,10 +676,10 @@ impl Data for PolarsData {
                         }
 
                         WapukuDataType::Boolean => {
-                            SummaryColumn::new(String::from(name), SummaryColumnType::Boolean)
+                            SummaryColumn::new(name.to_string(), SummaryColumnType::Boolean)
                         }
                         WapukuDataType::Datetime => SummaryColumn::new(
-                            String::from(name),
+                            name.to_string(),
                             SummaryColumnType::Datetime {
                                 data: NumericColumnSummary::new(
                                     desc.get(4)
@@ -735,34 +747,34 @@ impl Data for PolarsData {
         offset: usize,
         limit: usize,
     ) -> Result<DataLump, WapukuError> {
-        let columns = self.df.get_columns();
+        let columns = self.df.columns();
         debug!("columns.len()={}", columns.len());
 
-        columns.into_iter().enumerate().try_fold(DataLump::new(frame_id, offset, limit, columns.len()), |mut a, (col, s)| {
+        columns.iter().enumerate().try_fold(DataLump::new(frame_id, offset, limit, columns.len()), |mut a, (col, s)| {
             debug!("col()={}", col);
 
             match s.dtype() {//TODO dtype into wdtype
                 DataType::Boolean => {
-                    a.add_column(WapukuDataType::Boolean, s.name())
+                    a.add_column(WapukuDataType::Boolean, s.name().to_string())
                 }
 
                 DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 | DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
-                    a.add_column(WapukuDataType::Numeric, s.name())
+                    a.add_column(WapukuDataType::Numeric, s.name().to_string())
                 }
 
                 DataType::Float32 | DataType::Float64 => {
-                    a.add_column(WapukuDataType::Numeric, s.name())
+                    a.add_column(WapukuDataType::Numeric, s.name().to_string())
                 }
 
                 DataType::String | DataType::Binary | DataType::Date | DataType::Datetime(_, _) | DataType::Duration(_) | DataType::Time | DataType::Array(_, _) | DataType::List(_) | /*DataType::Object | */
-                DataType::Null | DataType::Categorical(_, _) | /*DataType::Struct(_) |*/   DataType::Unknown => {
-                    a.add_column(WapukuDataType::String, s.name())
+                DataType::Null | DataType::Categorical(_, _) | /*DataType::Struct(_) |*/ DataType::Unknown(_) => {
+                    a.add_column(WapukuDataType::String, s.name().to_string())
                 }
                 //TODO
                 _ => {}
             };
 
-            s.iter().skip(offset).take(limit).enumerate().map(|(row, v)| (row, v.to_string())).for_each(|(row, v)| {
+            s.as_materialized_series().iter().skip(offset).take(limit).enumerate().map(|(row, v)| (row, v.to_string())).for_each(|(row, v)| {
                 a.set_value(row, col, v);
             });
 
@@ -787,8 +799,9 @@ impl Data for PolarsData {
         column: String,
         pattern: String,
     ) -> Result<SummaryColumn, WapukuError> {
-        let res = self.df.apply(column.as_str(), move |str_val: &Series| {
+        let _res = self.df.apply(column.as_str(), move |str_val: &Column| {
             str_val
+                .as_materialized_series()
                 .str()
                 .unwrap()
                 .into_iter()
@@ -810,7 +823,7 @@ impl Data for PolarsData {
                                     .ok(),
                             }
                         })
-                        .map(|v| v.timestamp_millis())
+                        .map(|v: NaiveDateTime| v.timestamp_millis())
                 })
                 .collect::<Int64Chunked>()
                 .into_datetime(TimeUnit::Milliseconds, None)
@@ -826,40 +839,36 @@ impl Data for PolarsData {
     fn clc_corrs(&self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
         let mut corr_hash: HashMap<(String, String), f32> = HashMap::new();
 
-        let mut l_df = self.df.clone().lazy();
-
-        fn num_unique(vals: Series) -> Result<Option<Series>, PolarsError> {
-
-            let unique_series = vals.unique()?.sort(false);
-
-            let unique_vals_map = unique_series
-                .iter()
-                .enumerate()
-                .fold(HashMap::new(), |mut m, (i, v)| {
-                    m.insert(v, i);
-                    m
-                });
-
-            return Ok(Some(Series::from_iter(vals.iter().map(|val| *unique_vals_map.get(&val).unwrap_or(&0) as f64))));
-        }
+        let mut corr_df = self.df.clone();
 
         for column_name in columns.clone() {
-
             match self.df.column(&column_name)?.dtype() {
                 DataType::String => {
                     debug!("clc_corrs: replace={:?}", column_name);
 
-                    l_df = l_df.clone().with_column(
-                        col(&column_name)
-                            .apply(move |s| num_unique(s), GetOutput::from_type(DataType::Float64)),
+                    let values = self.df.column(&column_name)?.as_materialized_series();
+                    let unique_series = values.unique()?.sort(SortOptions::default())?;
+                    let unique_vals_map = unique_series
+                        .iter()
+                        .enumerate()
+                        .fold(HashMap::new(), |mut m, (i, v)| {
+                            m.insert(v.to_string(), i);
+                            m
+                        });
+                    let encoded = Series::new(
+                        column_name.clone().into(),
+                        values
+                            .iter()
+                            .map(|val| *unique_vals_map.get(val.to_string().as_str()).unwrap_or(&0) as f64)
+                            .collect::<Vec<f64>>(),
                     );
-
+                    corr_df.replace(&column_name, encoded.into())?;
                 }
-
                 _ => {},
             }
         }
 
+        let l_df = corr_df.lazy();
         debug!("l_df={:?}", l_df.clone().collect());
 
         for (i, column_0) in columns.iter().enumerate() {
@@ -872,7 +881,6 @@ impl Data for PolarsData {
                 let expr = pearson_corr(
                     Expr::Column(column_0.as_str().into()),
                     Expr::Column(column_1.as_str().into()),
-                    0,
                 )
                 .alias("corr");
                 let res = l_df.clone().select(&[expr]).collect();
@@ -895,7 +903,7 @@ impl From<Filter> for Expr {
         if let Some(conditions) = filter.conditions() {
             conditions_to_expr(conditions)
         } else {
-            Expr::Wildcard
+            lit(true)
         }
     }
 }
@@ -917,7 +925,7 @@ fn conditions_to_expr(condition: &ConditionType) -> Expr {
         ConditionType::Compoiste { conditions, ctype } => {
             if conditions.len() == 0 {
                 warn!("empty composit condition");
-                Expr::Wildcard
+                lit(true)
             } else if conditions.len() == 1 {
                 conditions_to_expr(conditions.get(0).unwrap())
             } else {
@@ -1189,10 +1197,18 @@ pub fn load_csv(csv_bytes: Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
         .map_err(|e| e.into())
 }
 
+#[cfg(feature = "parquet")]
 pub fn load_parquet(parquet_bytes: Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
     ParquetReader::new(Cursor::new(parquet_bytes.as_slice()))
         .finish()
         .map_err(|e| e.into())
+}
+
+#[cfg(not(feature = "parquet"))]
+pub fn load_parquet(_parquet_bytes: Box<Vec<u8>>) -> Result<DataFrame, WapukuError> {
+    Err(WapukuError::DataLoad {
+        msg: "Parquet loading is not enabled in this build".into(),
+    })
 }
 
 pub(crate) fn group_by_1<E: AsRef<[Expr]>>(
@@ -1202,14 +1218,17 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(
     aggregations: E,
     offset: i64,
 ) -> WapukuResult<DataFrame> {
-    let df = df.sort([group_by_field], vec![true], false)?;
+    let df = df.sort(
+        [group_by_field],
+        SortMultipleOptions::default().with_order_descending(false),
+    )?;
 
     let df = df
         .clone()
         .lazy()
-        .sort(group_by_field, SortOptions::default())
+        .sort([group_by_field], SortMultipleOptions::default())
         .group_by_dynamic(
-            col(group_by_field.into()),
+            col(group_by_field),
             [],
             DynamicGroupOptions {
                 index_column: group_by_field.into(),
@@ -1219,7 +1238,6 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
-                check_sorted: true,
                 label: Label::DataPoint,
             },
         )
@@ -1229,9 +1247,12 @@ pub(crate) fn group_by_1<E: AsRef<[Expr]>>(
         // ])
         .collect()?;
 
-    let mut df = df.sort([group_by_field], vec![true], false)?;
+    let mut df = df.sort(
+        [group_by_field],
+        SortMultipleOptions::default().with_order_descending(false),
+    )?;
 
-    df.rename(group_by_field, "group_by_field")
+    df.rename(group_by_field, "group_by_field".into())
         .expect("rename group_by_field");
     // let df = df.clone().lazy().with_column(lit(1).alias("primary_field_group")).collect()?;
     // df.rename(group_by_field, "secondary_group_field");
@@ -1259,9 +1280,9 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(
         .select(&[
             col(primary_group_by_field).alias(primary_field_group)
         ])
-        .sort(primary_field_group, Default::default())
+        .sort([primary_field_group], SortMultipleOptions::default())
         .group_by_dynamic(
-            col(primary_field_group.into()),
+            col(primary_field_group),
             [],
             DynamicGroupOptions {
                 index_column: primary_field_group.into(),
@@ -1271,19 +1292,29 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
-                check_sorted: true,
                 label: Label::DataPoint,
             },
         ).agg([
         col(primary_field_group).alias(primary_field_value)
-    ])/*.with_row_count("primary_index", None)*/
-        .explode([primary_field_value]).collect()?; //primary_field_in_group not used, for debug
+    ])
+        .explode(
+            cols([primary_field_value]),
+            ExplodeOptions {
+                empty_as_null: false,
+                keep_nulls: false,
+            },
+        )
+        /*.with_row_count("primary_index", None)*/
+        .collect()?; //primary_field_in_group not used, for debug
 
     debug!(
         "wapuku: primary_field_grouped_and_expanded={:?}",
         primary_field_grouped_and_expanded
     );
-    let mut df = df.sort([primary_group_by_field], vec![true], false)?;
+    let mut df = df.sort(
+        [primary_group_by_field],
+        SortMultipleOptions::default().with_order_descending(false),
+    )?;
 
     let df = df
         .with_column(primary_field_grouped_and_expanded.column(primary_field_group).unwrap().clone())?
@@ -1294,7 +1325,10 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(
         //     series
         // })?
         ;
-    let df = df.sort([secondary_group_by_field], vec![true], false)?;
+    let df = df.sort(
+        [secondary_group_by_field],
+        SortMultipleOptions::default().with_order_descending(false),
+    )?;
 
     // let mut df = df.left_join(&primary_field_grouped_and_expanded, [primary_group_by_field], ["primary_field_value"] )?;
 
@@ -1303,9 +1337,9 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(
     let mut df = df
         .clone()
         .lazy()
-        .sort(secondary_group_by_field, Default::default())
+        .sort([secondary_group_by_field], SortMultipleOptions::default())
         .group_by_dynamic(
-            col(secondary_group_by_field.into()),
+            col(secondary_group_by_field),
             [col(primary_field_group)],
             DynamicGroupOptions {
                 index_column: secondary_group_by_field.into(),
@@ -1315,7 +1349,6 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(
                 include_boundaries: true,
                 closed_window: ClosedWindow::Left,
                 start_by: WindowBound,
-                check_sorted: true,
                 label: Label::DataPoint,
             },
         )
@@ -1325,7 +1358,7 @@ pub(crate) fn group_by_2<E: AsRef<[Expr]>>(
         // ])
         .collect()?;
 
-    df.rename(secondary_group_by_field, "secondary_group_field")
+    df.rename(secondary_group_by_field, "secondary_group_field".into())
         .expect("rename secondary_group_field");
 
     debug!("wapuku: df grouped={:?}", df);
@@ -1377,7 +1410,7 @@ pub fn describe(lf: &LazyFrame) -> PolarsResult<DataFrame> {
                 Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
                 Box::new(move |name: &String| {
                     col(name)
-                        .quantile(lit(0.25), QuantileInterpolOptions::Nearest)
+                        .quantile(lit(0.25), QuantileMethod::Nearest)
                         .alias(format!("0.25 {}", name).as_str())
                 }) as Box<dyn Fn(&String) -> Expr>,
             ),
@@ -1386,7 +1419,7 @@ pub fn describe(lf: &LazyFrame) -> PolarsResult<DataFrame> {
                 Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
                 Box::new(move |name: &String| {
                     col(name)
-                        .quantile(lit(0.5), QuantileInterpolOptions::Nearest)
+                        .quantile(lit(0.5), QuantileMethod::Nearest)
                         .alias(format!("0.5 {}", name).as_str())
                 }) as Box<dyn Fn(&String) -> Expr>,
             ),
@@ -1395,7 +1428,7 @@ pub fn describe(lf: &LazyFrame) -> PolarsResult<DataFrame> {
                 Box::new(|dt: &DataType| dt.is_numeric()) as Box<dyn Fn(&DataType) -> bool>,
                 Box::new(move |name: &String| {
                     col(name)
-                        .quantile(lit(0.75), QuantileInterpolOptions::Nearest)
+                        .quantile(lit(0.75), QuantileMethod::Nearest)
                         .alias(format!("0.75 {}", name).as_str())
                 }) as Box<dyn Fn(&String) -> Expr>,
             ),
@@ -1422,8 +1455,17 @@ pub fn describe_with_params(
     aggs: Vec<DescribeAggParam>,
     only_columns: Option<Vec<&str>>,
 ) -> PolarsResult<DataFrame> {
-    let exprs = lf
-        .schema()?
+    let schema = lf.clone().collect_schema()?;
+    let selected_columns = schema
+        .iter()
+        .map(|(name, dt)| (name.to_string(), dt.clone()))
+        .filter(|(name, _)| {
+            only_columns
+                .as_ref()
+                .map_or(true, |v| v.contains(&name.as_str()))
+        })
+        .collect::<Vec<_>>();
+    let exprs = schema
         .iter()
         .map(|(name, dt)| (name.to_string(), dt))
         .filter(|(name, _)| {
@@ -1433,7 +1475,7 @@ pub fn describe_with_params(
         })
         .enumerate()
         .flat_map(|(i, (name, dt))| {
-            once(Expr::Literal(LiteralValue::String(name.to_string())).alias(name.as_str()))
+            once(lit(name.to_string()).alias(name.as_str()))
                 .chain(aggs.iter().enumerate().map(|(ai, a)| {
                     if a.1(dt) {
                         a.2(&name)
@@ -1452,87 +1494,78 @@ pub fn describe_with_params(
     let mut summary_df = lf.clone().select(exprs).collect()?;
 
     let aggs_len = aggs.len() + 1;
-    let index = (0..columns_len / aggs_len)
-        .flat_map(|i| std::iter::repeat(i as i32).take(aggs_len))
-        .collect::<Vec<i32>>();
+    let summary_df = summary_df.transpose(None, None)?;
+    let values = summary_df.column("column_0")?;
 
-    summary_df = summary_df.transpose(None, None)?;
+    let mut names = Vec::with_capacity(columns_len / aggs_len);
+    let mut agg_values = aggs
+        .iter()
+        .map(|_| Vec::<Option<String>>::with_capacity(columns_len / aggs_len))
+        .collect::<Vec<_>>();
+
+    for column_idx in 0..(columns_len / aggs_len) {
+        let base_idx = column_idx * aggs_len;
+        names.push(values.get(base_idx)?.str_value().into_owned());
+
+        for (agg_idx, agg_col) in agg_values.iter_mut().enumerate() {
+            let value = values.get(base_idx + agg_idx + 1)?;
+            if value.is_null() {
+                agg_col.push(None);
+            } else {
+                agg_col.push(Some(value.to_string()));
+            }
+        }
+    }
+
+    let height = names.len();
+    let mut out_columns = vec![Series::new("name".into(), names).into()];
+    for (agg, values) in aggs.iter().zip(agg_values) {
+        out_columns.push(Series::new(agg.0.clone().into(), values).into());
+    }
+
+    let mut summary_df = DataFrame::new(height, out_columns)?;
+
+    if !fields_to_header {
+        return summary_df
+            .clone()
+            .lazy()
+            .select(
+                once(col("name"))
+                    .chain(aggs.iter().map(|agg| col(agg.0.as_str()).cast(DataType::Float64)))
+                    .collect::<Vec<Expr>>(),
+            )
+            .collect();
+    }
+
+    summary_df = summary_df.transpose(None, Some(Either::Left("name".to_owned())))?;
+
+    summary_df = summary_df
+        .clone()
+        .lazy()
+        .select(
+            selected_columns
+                .iter()
+                .map(|(name, dt)| {
+                    if dt.is_numeric() {
+                        col(name.as_str()).cast(DataType::Float64)
+                    } else {
+                        col(name.as_str())
+                    }
+                })
+                .collect::<Vec<Expr>>(),
+        )
+        .collect()?;
 
     summary_df.insert_column(
         0,
         Series::new(
-            "columns",
-            once("name".to_owned())
-                .chain(aggs.iter().map(|agg| agg.0.clone()))
-                .cycle()
-                .take(columns_len)
-                .collect::<Vec<String>>(),
-        ),
-    )?;
-    summary_df.insert_column(0, Series::new("index", index))?;
-
-    summary_df = pivot::pivot(
-        &summary_df,
-        ["column_0"],
-        ["index"],
-        ["columns"],
-        false,
-        None,
-        None,
+            "describe".into(),
+            aggs.iter().map(|q| q.0.clone()).collect::<Vec<String>>(),
+        )
+        .into(),
     )?;
 
-    if !fields_to_header {
-        summary_df = summary_df
-            .clone()
-            .lazy()
-            .select(
-                once("name")
-                    .chain(aggs.iter().map(|agg| agg.0.as_str()))
-                    .enumerate()
-                    .map(|(i, name)| {
-                        if i > 0 {
-                            col(name).cast(DataType::Float64)
-                        } else {
-                            col(name)
-                        }
-                    })
-                    .collect::<Vec<Expr>>(),
-            )
-            .collect()?;
-
-        Ok(summary_df)
-    } else {
-        summary_df = summary_df.drop("index")?;
-
-        summary_df = summary_df.transpose(None, Some(Either::Left("name".to_owned())))?;
-
-        summary_df = summary_df
-            .clone()
-            .lazy()
-            .select(
-                lf.schema()?
-                    .iter()
-                    .map(|(name, dt)| {
-                        if dt.is_numeric() {
-                            col(name.as_str()).cast(DataType::Float64)
-                        } else {
-                            col(name.as_str())
-                        }
-                    })
-                    .collect::<Vec<Expr>>(),
-            )
-            .collect()?;
-
-        summary_df.insert_column(
-            0,
-            Series::new(
-                "describe",
-                aggs.iter().map(|q| q.0.clone()).collect::<Vec<String>>(),
-            ),
-        )?;
-
-        Ok(summary_df)
-    }
+    Ok(summary_df)
 }
 
 #[cfg(test)]

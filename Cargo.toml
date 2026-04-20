@@ -4,7 +4,6 @@ members = [
     "wapuku-model",
     "wapuku-resources",
     "wapuku-common-web",
-    "wapuku-ui",
     "wapuku-egui",
 ]
 
@@ -17,3 +16,6 @@ authors = ["Yevgen Bushuyev"]
 description = "A short description of my package"
 documentation = "https://example.com/bar"
 
+[patch.crates-io]
+polars-ops = { path = "vendor/polars-ops" }
+polars-plan = { path = "vendor/polars-plan" }

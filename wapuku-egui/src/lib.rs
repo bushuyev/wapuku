@@ -1,47 +1,83 @@
+#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+
+#[cfg(target_arch = "wasm32")]
 use std::alloc::System;
+#[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
+#[cfg(target_arch = "wasm32")]
 use std::collections::HashMap;
+#[cfg(target_arch = "wasm32")]
 use std::rc::Rc;
+#[cfg(target_arch = "wasm32")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(target_arch = "wasm32")]
 use log::{debug, trace};
 
+#[cfg(target_arch = "wasm32")]
 pub use wapuku_common_web::allocator::tracing::*;
+#[cfg(target_arch = "wasm32")]
 pub use wapuku_common_web::init_pool;
+#[cfg(target_arch = "wasm32")]
 pub use wapuku_common_web::init_worker;
+#[cfg(target_arch = "wasm32")]
 pub use wapuku_common_web::run_in_pool;
+#[cfg(target_arch = "wasm32")]
 use wapuku_common_web::workers::PoolWorker;
+#[cfg(target_arch = "wasm32")]
 use wapuku_model::data_type::WapukuDataType;
+#[cfg(target_arch = "wasm32")]
 use wapuku_model::model::{Data, wa_id, WaFrame};
+#[cfg(target_arch = "wasm32")]
 use wapuku_model::polars_df::PolarsData;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
 use app::ActionRs;
+#[cfg(target_arch = "wasm32")]
 pub use app::WapukuApp;
 
+#[cfg(target_arch = "wasm32")]
 use crate::app::{ActionRq, WapukuAppModel};
 
+#[cfg(target_arch = "wasm32")]
 mod app;
+#[cfg(target_arch = "wasm32")]
 mod model_views;
+#[cfg(target_arch = "wasm32")]
 mod edit_models;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub struct WapukuApp;
+#[cfg(not(target_arch = "wasm32"))]
+pub struct WapukuAppModel;
+#[cfg(not(target_arch = "wasm32"))]
+pub enum ActionRq {}
+#[cfg(not(target_arch = "wasm32"))]
+pub enum ActionRs {}
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     pub fn log(s: &str);
 }
 
+#[cfg(target_arch = "wasm32")]
 static TOTAL_MEM:f32 = 50000.0 * 65536.0;
 
+#[cfg(target_arch = "wasm32")]
 static ALLOCATED:AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 #[allow(unused)]
 pub extern "C" fn on_alloc(size: usize, align: usize, pointer: *mut u8) {
     ALLOCATED.fetch_add(size, Ordering::Relaxed);
 }
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 #[allow(unused)]
 pub extern "C" fn on_dealloc(size: usize, align: usize, pointer: *mut u8) {
@@ -49,12 +85,14 @@ pub extern "C" fn on_dealloc(size: usize, align: usize, pointer: *mut u8) {
 }
 
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 #[allow(unused)]
 pub extern "C" fn on_alloc_zeroed(size: usize, align: usize, pointer: *mut u8) {
     ALLOCATED.fetch_add(size, Ordering::Relaxed);
 }
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 #[allow(unused)]
 pub extern "C" fn on_realloc(
@@ -67,9 +105,11 @@ pub extern "C" fn on_realloc(
     ALLOCATED.fetch_add(new_size - old_size, Ordering::Relaxed);
 }
 
+#[cfg(target_arch = "wasm32")]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: TracingAllocator<System> = TracingAllocator(System);
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub async fn run() {
     let window = web_sys::window().unwrap();
@@ -334,4 +374,9 @@ pub async fn run() {
     )
     .await
     .expect("failed to start eframe")});
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn run() {
+    panic!("wapuku-egui is only supported on wasm32 targets");
 }

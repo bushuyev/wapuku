@@ -78,7 +78,7 @@ pub async fn run() {//async should be ok https://github.com/rustwasm/wasm-bindge
 
     winit_window.set_inner_size(PhysicalSize::new(width, height));
 
-    let data = PolarsData::new(fake_df());
+    let data = PolarsData::new(demo_df(), String::from("demo"));
     let visual_data_controller_rc = Rc::new(RefCell::new(VisualDataController::new(&data, width, height)));
     let data_rc = Rc::new(data);
 
