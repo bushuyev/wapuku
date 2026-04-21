@@ -62,6 +62,36 @@ fn scalar_to_i64(value: &Scalar) -> Option<i64> {
     }
 }
 
+fn any_value_to_u32(value: AnyValue<'_>) -> Option<u32> {
+    match value {
+        AnyValue::UInt8(v) => Some(u32::from(v)),
+        AnyValue::UInt16(v) => Some(u32::from(v)),
+        AnyValue::UInt32(v) => Some(v),
+        AnyValue::UInt64(v) => u32::try_from(v).ok(),
+        AnyValue::Int8(v) => u32::try_from(v).ok(),
+        AnyValue::Int16(v) => u32::try_from(v).ok(),
+        AnyValue::Int32(v) => u32::try_from(v).ok(),
+        AnyValue::Int64(v) => u32::try_from(v).ok(),
+        _ => None,
+    }
+}
+
+fn any_value_to_f32(value: AnyValue<'_>) -> Option<f32> {
+    match value {
+        AnyValue::Float32(v) => Some(v),
+        AnyValue::Float64(v) => Some(v as f32),
+        AnyValue::UInt8(v) => Some(f32::from(v)),
+        AnyValue::UInt16(v) => Some(f32::from(v)),
+        AnyValue::UInt32(v) => Some(v as f32),
+        AnyValue::UInt64(v) => Some(v as f32),
+        AnyValue::Int8(v) => Some(f32::from(v)),
+        AnyValue::Int16(v) => Some(f32::from(v)),
+        AnyValue::Int32(v) => Some(v as f32),
+        AnyValue::Int64(v) => Some(v as f32),
+        _ => None,
+    }
+}
+
 impl From<PolarsError> for WapukuError {
     fn from(value: PolarsError) -> Self {
         WapukuError::DataFrame {
@@ -360,8 +390,37 @@ impl PolarsData {
         // ╞═════════════╪═══════════════════════════════════╪══════════════════╡
 
         let struct_fields = groupby_df.struct_()?.fields_as_series();
-        let categories = struct_fields.get(1).expect("category");
-        let counts = struct_fields.get(2).expect("count");
+        let categories = struct_fields
+            .iter()
+            .find(|field| {
+                let name = field.name().as_str();
+                name == "category" || (!name.ends_with("_count") && name != "count" && name != "break_point")
+            })
+            .ok_or_else(|| WapukuError::DataFrame {
+                msg: format!(
+                    "unexpected histogram category fields: {:?}",
+                    struct_fields
+                        .iter()
+                        .map(|field| field.name().to_string())
+                        .collect::<Vec<_>>()
+                ),
+            })?;
+        let counts = struct_fields
+            .iter()
+            .find(|field| {
+                let name = field.name().as_str();
+                name == "count" || name.ends_with("_count")
+            })
+            .or_else(|| struct_fields.last())
+            .ok_or_else(|| WapukuError::DataFrame {
+                msg: format!(
+                    "unexpected histogram count fields: {:?}",
+                    struct_fields
+                        .iter()
+                        .map(|field| field.name().to_string())
+                        .collect::<Vec<_>>()
+                ),
+            })?;
 
         Ok(Histogram::new(
             frame_id,
@@ -369,7 +428,7 @@ impl PolarsData {
             std::iter::zip(categories.iter(), counts.iter()).fold(Vec::new(), |mut vec, (category, count)| {
                 vec.push((
                     FloatReformatter::exec(category.str_value().as_ref()).to_string(),
-                    count.try_extract::<u32>().unwrap_or(0),
+                    any_value_to_u32(count).unwrap_or(0),
                 ));
                 vec
             }),
@@ -884,10 +943,22 @@ impl Data for PolarsData {
                 )
                 .alias("corr");
                 let res = l_df.clone().select(&[expr]).collect();
+                let corr_series = res.as_ref()?.column("corr")?.as_materialized_series();
+                let corr_value = corr_series
+                    .iter()
+                    .next()
+                    .and_then(any_value_to_f32)
+                    .ok_or_else(|| WapukuError::DataFrame {
+                        msg: format!(
+                            "invalid corr dtype/value: dtype={:?}, value={:?}",
+                            corr_series.dtype(),
+                            corr_series.iter().next()
+                        ),
+                    })?;
 
                 corr_hash.insert(
                     (column_0.clone(), column_1.clone()),
-                    res.as_ref()?.column("corr")?.f64()?.get(0).expect("corr") as f32,
+                    corr_value,
                 );
             }
         }
