@@ -7,6 +7,11 @@ members = [
     "wapuku-egui",
 ]
 
+exclude = [
+    "vendor/wasm-bindgen-cli",
+    "vendor/wbg114",
+]
+
 resolver = "2"
 
 [workspace.package]

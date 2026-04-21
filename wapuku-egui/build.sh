@@ -1,6 +1,9 @@
 #!/bin/sh
 
-set -ex
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$SCRIPT_DIR"
 
 # A couple of steps are necessary to get this build working which makes it slightly
 # nonstandard compared to most other builds.
@@ -18,7 +21,44 @@ rm -rf www/dist
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
 cargo +nightly build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 
-(cd ../../wasm-bindgen && cargo +nightly run --package wasm-bindgen-cli --bin wasm-bindgen -- --out-dir ../wapuku/wapuku-egui/pkg/  --target web   ../wapuku/wapuku-egui/target/wasm32-unknown-unknown/release/wapuku_egui.wasm)
+if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then
+    ../vendor/wbg114/cli/target/debug/wasm-bindgen \
+        --out-dir ./pkg \
+        --target web \
+        ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
+elif [ -f ../vendor/wbg114/cli/Cargo.toml ]; then
+    cargo +nightly build --locked --manifest-path ../vendor/wbg114/cli/Cargo.toml --bin wasm-bindgen
+    ../vendor/wbg114/cli/target/debug/wasm-bindgen \
+        --out-dir ./pkg \
+        --target web \
+        ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
+elif command -v wasm-bindgen >/dev/null 2>&1; then
+    wasm-bindgen --out-dir ./pkg --target web ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
+elif [ -x ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen ]; then
+    ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen \
+        --out-dir ./pkg \
+        --target web \
+        ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
+elif [ -f ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml ]; then
+    cargo +nightly build --locked --manifest-path ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml --bin wasm-bindgen
+    ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen \
+        --out-dir ./pkg \
+        --target web \
+        ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
+elif [ -d ../../wasm-bindgen ]; then
+    (
+        cd ../../wasm-bindgen
+        cargo +nightly build --locked --package wasm-bindgen-cli --bin wasm-bindgen
+        ./target/debug/wasm-bindgen \
+            --out-dir ../wapuku/wapuku-egui/pkg \
+            --target web \
+            ../wapuku/wapuku-egui/target/wasm32-unknown-unknown/release/wapuku_egui.wasm
+    )
+else
+    echo "wapuku-egui: need a wasm-bindgen CLI binary or ../../wasm-bindgen checkout" >&2
+    exit 1
+fi
+
 (cd www && npm run build:main && npm run build:worker)
 #wasm2wat --enable-threads ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm > ./pkg/wapuku_egui.wat
 ## Note the usage of `--target no-modules` here which is required for passing
