@@ -20,7 +20,7 @@ pub fn init_worker(ptr: u32) {
 }
 
 #[wasm_bindgen]
-pub async fn init_pool(_threads: usize) {
+pub fn init_pool(_threads: usize) {
     // The app's background work currently runs through a dedicated Web Worker,
     // so this initialization hook only needs to preserve the JS-facing API.
 }
