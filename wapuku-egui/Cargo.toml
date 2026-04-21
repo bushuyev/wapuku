@@ -58,7 +58,7 @@ web-sys = { version = "=0.3.64", features = [
 js-sys = "0.3.63"
 
 wapuku-common-web = {path = "../wapuku-common-web" }
-wapuku-model = {path = "../wapuku-model" }
+wapuku-model = { path = "../wapuku-model", features = ["parquet"] }
 wapuku-resources = {path = "../wapuku-resources" }
 
 lazy_static = "1.4.0"
