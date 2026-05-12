@@ -684,7 +684,7 @@ impl View for Corrs {
     }
 
     fn model_id(&self) -> WaModelId {
-        WaModelId::DataLump{ frame_id: *self.frame_id(), lump_id: *self.id() }
+        WaModelId::Corrs{ frame_id: *self.frame_id(), corrs_id: *self.id() }
     }
 }
 
