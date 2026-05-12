@@ -309,6 +309,26 @@ pub async fn run() {
                             }
                         });
                     }
+                    ActionRq::PlotColumns { frame_id, column_vec_ptr } => {
+                        pool_worker.run_in_pool( move || {
+                            let names = **unsafe { Box::from_raw(column_vec_ptr as *mut Box<Vec<String>>) };
+
+                            debug!("ActionRq::PlotColumns: names in pool: {:?}", names);
+
+                            let result = data_map_rc_1.borrow().get(&frame_id).expect(format!("no data for frame_id={}", frame_id).as_str()).plot_columns(frame_id, names);
+                            match result {
+                                Ok(columns_plot) => {
+                                    to_main_rc_1_1.send(ActionRs::ColumnsPlot {
+                                        frame_id,
+                                        columns_plot,
+                                    }).expect("ActionRs::ColumnsPlot");
+                                }
+                                Err(e) => {
+                                    to_main_rc_1_1.send(ActionRs::Err { msg: String::from(e.to_string()) }).expect("send");
+                                }
+                            }
+                        });
+                    }
                 }
             }
             model_borrowed.run_ui_actions();
@@ -340,6 +360,11 @@ pub async fn run() {
                     ActionRs::Corr { frame_id, corrs } => {
                         debug!("wapuku: ActionRs::Corr frame_id={:?} corrs={:?}", frame_id, corrs );
                         model_borrowed.add_corrs(frame_id, corrs);
+                    }
+
+                    ActionRs::ColumnsPlot { frame_id, columns_plot } => {
+                        debug!("wapuku: ActionRs::ColumnsPlot frame_id={:?} columns_plot={:?}", frame_id, columns_plot );
+                        model_borrowed.add_columns_plot(frame_id, columns_plot);
                     }
 
                     ActionRs::Err { msg } => {

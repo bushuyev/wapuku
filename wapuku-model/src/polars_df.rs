@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Cursor, Read};
 use std::iter::once;
 
@@ -90,6 +90,63 @@ fn any_value_to_f32(value: AnyValue<'_>) -> Option<f32> {
         AnyValue::Int64(v) => Some(v as f32),
         _ => None,
     }
+}
+
+fn any_value_to_f64(value: AnyValue<'_>) -> Option<f64> {
+    match value {
+        AnyValue::Boolean(v) => Some(if v { 1.0 } else { 0.0 }),
+        AnyValue::Float32(v) => Some(f64::from(v)),
+        AnyValue::Float64(v) => Some(v),
+        AnyValue::UInt8(v) => Some(f64::from(v)),
+        AnyValue::UInt16(v) => Some(f64::from(v)),
+        AnyValue::UInt32(v) => Some(f64::from(v)),
+        AnyValue::UInt64(v) => Some(v as f64),
+        AnyValue::UInt128(v) => Some(v as f64),
+        AnyValue::Int8(v) => Some(f64::from(v)),
+        AnyValue::Int16(v) => Some(f64::from(v)),
+        AnyValue::Int32(v) => Some(f64::from(v)),
+        AnyValue::Int64(v) => Some(v as f64),
+        AnyValue::Int128(v) => Some(v as f64),
+        AnyValue::Date(v) => Some(f64::from(v)),
+        AnyValue::Datetime(v, _, _) | AnyValue::DatetimeOwned(v, _, _) => Some(v as f64),
+        AnyValue::Duration(v, _) | AnyValue::Time(v) => Some(v as f64),
+        _ => None,
+    }
+}
+
+fn series_points_for_plot(series: &Series) -> Vec<(f64, f64)> {
+    let numeric_points = series
+        .iter()
+        .enumerate()
+        .filter_map(|(row, value)| any_value_to_f64(value).map(|y| (row as f64, y)))
+        .collect::<Vec<_>>();
+
+    if !numeric_points.is_empty() {
+        return numeric_points;
+    }
+
+    let mut labels = BTreeMap::new();
+    for value in series.iter().filter(|value| !matches!(value, AnyValue::Null)) {
+        let label = value.to_string();
+        if !labels.contains_key(&label) {
+            let index = labels.len();
+            labels.insert(label, index);
+        }
+    }
+
+    series
+        .iter()
+        .enumerate()
+        .filter_map(|(row, value)| {
+            if matches!(value, AnyValue::Null) {
+                None
+            } else {
+                labels
+                    .get(value.to_string().as_str())
+                    .map(|index| (row as f64, *index as f64))
+            }
+        })
+        .collect()
 }
 
 impl From<PolarsError> for WapukuError {
@@ -966,6 +1023,21 @@ impl Data for PolarsData {
         debug!("corr_hash={:?}", corr_hash);
 
         Ok(Corrs::new(frame_id, columns, corr_hash))
+    }
+
+    fn plot_columns(&self, frame_id: u128, columns: Vec<String>) -> Result<ColumnsPlot, WapukuError> {
+        let series = columns
+            .iter()
+            .map(|column_name| {
+                let column = self.df.column(column_name)?;
+                Ok(ColumnPlotSeries::new(
+                    column_name.clone(),
+                    series_points_for_plot(column.as_materialized_series()),
+                ))
+            })
+            .collect::<Result<Vec<_>, WapukuError>>()?;
+
+        Ok(ColumnsPlot::new(frame_id, columns, series))
     }
 }
 

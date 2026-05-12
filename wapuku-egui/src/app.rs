@@ -10,7 +10,7 @@ use egui::{Align, Align2, Color32, emath, epaint, Frame, Layout, Pos2, Rect, Str
 use log::{debug, error};
 use rfd;
 use wapuku_model::data_type::WapukuDataType;
-use wapuku_model::model::{Corrs, DataLump, Filter, Histogram, SummaryColumn, SummaryColumnType, WaFrame, WaModelId};
+use wapuku_model::model::{ColumnsPlot, Corrs, DataLump, Filter, Histogram, SummaryColumn, SummaryColumnType, WaFrame, WaModelId};
 
 use crate::edit_models::{FilterNewConditionCtx, SummaryActionsCtx};
 use crate::model_views::{LayoutRequest, View};
@@ -29,6 +29,7 @@ pub enum ActionRq {
     DataLump { frame_id:u128, offset:usize, limit:usize},
     ApplyFilter { frame_id:u128, filter:Filter},
     Corr { frame_id:u128, column_vec_ptr: u32 },
+    PlotColumns { frame_id:u128, column_vec_ptr: u32 },
 }
 
 #[derive(Debug)]
@@ -38,6 +39,7 @@ pub enum ActionRs {
     Convert { frame_id:u128, name: String, new_type:SummaryColumn },
     DataLump { frame_id:u128, lump:DataLump},
     Corr {frame_id:u128, corrs: Corrs},
+    ColumnsPlot {frame_id:u128, columns_plot: ColumnsPlot},
     Err { msg:String},
 }
 
@@ -204,6 +206,14 @@ impl WapukuAppModel {
         }
     }
 
+    pub fn add_columns_plot(&mut self, frame_id:u128, columns_plot:ColumnsPlot) {
+        if let Some(frame) = self.frames.get_mut(&frame_id) {
+            frame.add_columns_plot(columns_plot);
+        } else {
+            debug!("wapuku: no frame_id={}", frame_id); //TODO err msg
+        }
+    }
+
     pub fn add_data_lump(&mut self, frame_id:u128, data_lump:DataLump) {
         if let Some(frame) = self.frames.get_mut(&frame_id) {
             frame.add_data_lump(data_lump);
@@ -239,6 +249,11 @@ impl WapukuAppModel {
                 }
             }
             WaModelId::Corrs { frame_id, corrs_id } => {
+                if let Some(frame) = self.frames.get_mut(&frame_id) {
+                    frame.purge(id);
+                }
+            }
+            WaModelId::ColumnsPlot { frame_id, columns_plot_id:_ } => {
                 if let Some(frame) = self.frames.get_mut(&frame_id) {
                     frame.purge(id);
                 }
@@ -279,6 +294,10 @@ impl WapukuAppModel {
 
             for corrs in frame.corrs() {
                 (f)(&mut self.ctx, corrs, &mut self.layout_queue);
+            }
+
+            for columns_plot in frame.columns_plots() {
+                (f)(&mut self.ctx, columns_plot, &mut self.layout_queue);
             }
 
             if let Some(lump) = frame.data_lump() {
@@ -544,4 +563,3 @@ impl eframe::App for WapukuApp {
 
     }
 }
-

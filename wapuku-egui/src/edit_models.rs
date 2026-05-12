@@ -30,7 +30,7 @@ pub struct SummaryActionsCtx {
     pub is_convret_dialog_open:Option<String>,
     pattern:String,
     to_type:WapukuDataType,
-    corrs:HashMap<String, bool>,
+    corrs:HashMap<u128, HashMap<String, bool>>,
 }
 
 impl SummaryActionsCtx {
@@ -56,16 +56,26 @@ impl SummaryActionsCtx {
         &self.to_type
     }
 
-    pub fn get_selected_for_corr(&mut self,  column:String) -> &mut bool {
-        self.corrs.entry(column).or_insert(false)
+    pub fn get_selected_for_corr(&mut self, frame_id:u128, column:String) -> &mut bool {
+        self.corrs
+            .entry(frame_id)
+            .or_insert_with(HashMap::new)
+            .entry(column)
+            .or_insert(false)
     }
 
-    pub fn get_columns_for_corr_num(&self) -> usize {
-        self.corrs.values().filter(|v|**v).count()
+    pub fn get_columns_for_corr_num(&self, frame_id:u128) -> usize {
+        self.corrs
+            .get(&frame_id)
+            .map(|corrs| corrs.values().filter(|v|**v).count())
+            .unwrap_or(0)
     }
 
-    pub fn get_columns_for_corr(&self) -> Vec<String> {
-        self.corrs.iter().filter(|kv|*kv.1).map(|v|v.0.clone()).collect()
+    pub fn get_columns_for_corr(&self, frame_id:u128) -> Vec<String> {
+        self.corrs
+            .get(&frame_id)
+            .map(|corrs| corrs.iter().filter(|kv|*kv.1).map(|v|v.0.clone()).collect())
+            .unwrap_or_default()
     }
 }
 

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::data_type::WapukuDataType;
-use crate::model::{Corrs, Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, FilteredFame, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, SummaryColumn, WapukuError};
+use crate::model::{ColumnsPlot, Corrs, Data, DataBounds, DataGroup, DataLump, DataProperty, Filter, FilteredFame, GroupsGrid, Histogram, PropertiesSet, Property, PropertyRange, SimpleDataGroup, SimplePropertiesSet, Summary, SummaryColumn, WapukuError};
 
 
 #[derive(Debug)]
@@ -107,6 +107,10 @@ impl  Data for TestData {
     }
 
     fn clc_corrs(&self, frame_id: u128, columns: Vec<String>) -> Result<Corrs, WapukuError> {
+        todo!()
+    }
+
+    fn plot_columns(&self, frame_id: u128, columns: Vec<String>) -> Result<ColumnsPlot, WapukuError> {
         todo!()
     }
 }

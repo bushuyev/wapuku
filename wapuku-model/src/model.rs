@@ -23,7 +23,8 @@ pub enum WaModelId {
     Filter{ frame_id: u128, filter_id:u128},
     DataLump{ frame_id: u128, lump_id:u128},
     Histogram{ frame_id: u128, histogram_id: u128},
-    Corrs{ frame_id: u128, corrs_id: u128}
+    Corrs{ frame_id: u128, corrs_id: u128},
+    ColumnsPlot{ frame_id: u128, columns_plot_id: u128}
 }
 
 impl WaModelId {
@@ -37,6 +38,9 @@ impl WaModelId {
             }
             WaModelId::Corrs { frame_id:_, corrs_id } => {
                 corrs_id
+            }
+            WaModelId::ColumnsPlot { frame_id:_, columns_plot_id } => {
+                columns_plot_id
             }
             WaModelId::DataLump { frame_id:_ , lump_id} => {
                 lump_id
@@ -58,6 +62,9 @@ impl WaModelId {
             WaModelId::Corrs { frame_id, .. } => {
                 Some(frame_id)
             }
+            WaModelId::ColumnsPlot { frame_id, .. } => {
+                Some(frame_id)
+            }
             WaModelId::DataLump { frame_id, .. } => {
                 Some(frame_id)
             }
@@ -76,6 +83,7 @@ pub struct WaFrame {
     summary:Summary,
     histograms:HashMap<u128, Histogram>,
     corrs:HashMap<u128, Corrs>,
+    columns_plots:HashMap<u128, ColumnsPlot>,
     data_lump:Option<DataLump>,
     filter:Option<Filter>
 }
@@ -88,6 +96,7 @@ impl WaFrame {
             summary,
             histograms: HashMap::new(),
             corrs: HashMap::new(),
+            columns_plots: HashMap::new(),
             data_lump: None,
             filter: None
         }
@@ -168,6 +177,14 @@ impl WaFrame {
         self.corrs.values().into_iter()
     }
 
+    pub fn add_columns_plot(&mut self, columns_plot:ColumnsPlot) {
+        self.columns_plots.insert(*columns_plot.id(), columns_plot);
+    }
+
+    pub fn columns_plots(&self)->impl Iterator<Item = &ColumnsPlot> {
+        self.columns_plots.values().into_iter()
+    }
+
     pub fn data_lump(&self)->Option<&DataLump> {
         self.data_lump.as_ref()
     }
@@ -179,6 +196,9 @@ impl WaFrame {
             },
             WaModelId::Corrs{frame_id:_, corrs_id} => {
                 self.corrs.remove(&corrs_id);
+            },
+            WaModelId::ColumnsPlot{frame_id:_, columns_plot_id} => {
+                self.columns_plots.remove(&columns_plot_id);
             },
             WaModelId::DataLump {frame_id:_, lump_id:_} => {
                 self.data_lump.take();
@@ -439,6 +459,64 @@ impl Corrs {
     }
     pub fn columns(&self) -> &Vec<String> {
         &self.columns
+    }
+}
+/////////////////////////
+#[derive(Debug)]
+pub struct ColumnPlotSeries {
+    name:String,
+    points:Vec<(f64, f64)>,
+}
+
+impl ColumnPlotSeries {
+    pub fn new(name:String, points:Vec<(f64, f64)>) -> Self {
+        Self {
+            name,
+            points,
+        }
+    }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn points(&self) -> &Vec<(f64, f64)> {
+        &self.points
+    }
+}
+
+#[derive(Debug)]
+pub struct ColumnsPlot {
+    id:u128,
+    frame_id: u128,
+    title: String,
+    series:Vec<ColumnPlotSeries>,
+}
+
+impl ColumnsPlot {
+    pub fn new(frame_id: u128, columns:Vec<String>, series:Vec<ColumnPlotSeries>) -> Self {
+        Self {
+            id: wa_id(),
+            frame_id,
+            title: format!("Data plot/{}", columns.join(", ")),
+            series,
+        }
+    }
+
+    pub fn id(&self) -> &u128 {
+        &self.id
+    }
+
+    pub fn frame_id(&self) -> &u128 {
+        &self.frame_id
+    }
+
+    pub fn _title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn series(&self) -> &Vec<ColumnPlotSeries> {
+        &self.series
     }
 }
 /////////////////////////
@@ -783,6 +861,7 @@ pub trait Data:Debug {
     fn apply_filter(&self, frame_id: u128, filter:Filter) -> Result<FilteredFame, WapukuError>;
     fn convert_column(&mut self, frame_id: u128, column:String, pattern:String) -> Result<SummaryColumn, WapukuError>;
     fn clc_corrs(&self, frame_id: u128, columns:Vec<String>) -> Result<Corrs, WapukuError>;
+    fn plot_columns(&self, frame_id: u128, columns:Vec<String>) -> Result<ColumnsPlot, WapukuError>;
 }
 
 #[derive(Debug)]

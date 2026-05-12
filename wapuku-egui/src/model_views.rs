@@ -2,11 +2,11 @@ use std::ops::RangeInclusive;
 use egui::{Color32, Context, FontId, Frame, InnerResponse, RichText, Ui, WidgetText};
 use egui::Id;
 use egui_extras::{Column, TableBuilder, TableRow};
-use egui_plot::{AxisHints, Bar, BarChart, Plot, PlotBounds, PlotPoints, Polygon};
+use egui_plot::{AxisHints, Bar, BarChart, Legend, Line, Plot, PlotBounds, PlotPoints, Polygon};
 use log::debug;
 use wapuku_model::data_type::WapukuDataType;
 use wapuku_model::messages::OK;
-use wapuku_model::model::{CompositeType, Condition, ConditionType, Corrs, DataLump, Filter, Histogram, Summary, SummaryColumn, SummaryColumnType, WaModelId};
+use wapuku_model::model::{ColumnsPlot, CompositeType, Condition, ConditionType, Corrs, DataLump, Filter, Histogram, Summary, SummaryColumn, SummaryColumnType, WaModelId};
 use wapuku_model::utils::val_or_na;
 
 use crate::app::{ActionRq, ModelCtx, UIAction};
@@ -133,13 +133,20 @@ impl View for Summary {
                     ui.horizontal(|ui|{
                         ui.strong("Actions");
                         ui.add_space(20.0);//TODO
-                        ui.set_enabled(model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2);
+                        ui.set_enabled(model_ctx.summary_actions_ctx().get_columns_for_corr_num(self.frame_id()) >=2);
 
                         if ui.button("➡").clicked() {
                             debug!("➡➡➡➡");
                             model_ctx.queue_action(ActionRq::Corr {
                                 frame_id: self.frame_id(),
-                                column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
+                                column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr(self.frame_id())))) as u32,
+                            });
+                        }
+
+                        if ui.button("📈").clicked() {
+                            model_ctx.queue_action(ActionRq::PlotColumns {
+                                frame_id: self.frame_id(),
+                                column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr(self.frame_id())))) as u32,
                             });
                         }
                     });
@@ -224,13 +231,13 @@ impl View for Summary {
                                 name_ptr: Box::into_raw(Box::new(Box::<String>::new(column_summary.name().into()))) as u32,
                             });
                         }
-                        if ui.checkbox(&mut model_ctx.summary_actions_ctx_mut().get_selected_for_corr(column_summary.name().into()), "C").clicked() {
+                        if ui.checkbox(model_ctx.summary_actions_ctx_mut().get_selected_for_corr(self.frame_id(), column_summary.name().into()), "C").clicked() {
                             // debug!("Correlations clicked");
-                            // if model_ctx.summary_actions_ctx().get_columns_for_corr_num() >=2 {
+                            // if model_ctx.summary_actions_ctx().get_columns_for_corr_num(self.frame_id()) >=2 {
                             //
                             //     model_ctx.queue_action(ActionRq::Corr {
                             //         frame_id: self.frame_id(),
-                            //         column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr()))) as u32,
+                            //         column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(model_ctx.summary_actions_ctx().get_columns_for_corr(self.frame_id())))) as u32,
                             //     });
                             // }
                         }
@@ -583,7 +590,16 @@ impl View for Corrs {
 
 
     fn ui(&self, ui: &mut Ui, ctx: &Context, model_ctx: &mut ModelCtx) {
-        ui.add(egui::Label::new(self.title()));
+        ui.horizontal(|ui| {
+            ui.add(egui::Label::new(self.title()));
+
+            if ui.button("Plot data").clicked() {
+                model_ctx.queue_action(ActionRq::PlotColumns {
+                    frame_id: *self.frame_id(),
+                    column_vec_ptr: Box::into_raw(Box::new(Box::<Vec<String>>::new(self.columns().clone()))) as u32,
+                });
+            }
+        });
 
         let _columns = self.columns().clone();
         let top_right = _columns.len() as f64;
@@ -685,6 +701,60 @@ impl View for Corrs {
 
     fn model_id(&self) -> WaModelId {
         WaModelId::Corrs{ frame_id: *self.frame_id(), corrs_id: *self.id() }
+    }
+}
+
+impl View for ColumnsPlot {
+    fn title(&self) -> &str {
+        self._title()
+    }
+
+    fn ui_id(&self) -> Id {
+        Id::new(self.id())
+    }
+
+    fn ui(&self, ui: &mut Ui, _ctx: &Context, _model_ctx: &mut ModelCtx) {
+        let plot = Plot::new(("ColumnsPlot", *self.id()))
+            .legend(Legend::default())
+            .allow_zoom(true)
+            .allow_drag(true)
+            .allow_scroll(false)
+            .show_grid(true)
+            .show(ui, |plot_ui| {
+                for series in self.series() {
+                    let points = series
+                        .points()
+                        .iter()
+                        .filter_map(|(x, y)| {
+                            if x.is_finite() && y.is_finite() {
+                                Some([*x, *y])
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    if !points.is_empty() {
+                        plot_ui.line(
+                            Line::new(points)
+                                .name(series.name())
+                                .width(1.5_f32)
+                        );
+                    }
+                }
+            });
+
+        ui.set_clip_rect(plot.response.rect);
+        ui.shrink_height_to_current();
+        ui.shrink_width_to_current();
+    }
+
+    fn allows_scroll(&self) -> bool {
+        false
+    }
+
+    fn model_id(&self) -> WaModelId {
+        WaModelId::ColumnsPlot{ frame_id: *self.frame_id(), columns_plot_id: *self.id() }
     }
 }
 
