@@ -16,33 +16,33 @@ jobs:
           echo "Ok"
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           path: wapuku
 
       - name: Checkout my crossbeam
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           repository: bushuyev/crossbeam
           path: crossbeam
           ref: my_master
 
       - name: Checkout my rayon
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           repository: bushuyev/rayon
           path: rayon
           ref: my_master_polars_0_35_2
 
       - name: Checkout my polars
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           repository: bushuyev/polars
           path: polars
           ref: my_main_0_35_2
 
       - name: Checkout wasm-bindgen
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           repository: bushuyev/wasm-bindgen
           path: wasm-bindgen
