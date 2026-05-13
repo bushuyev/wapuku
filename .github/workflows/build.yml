@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           path: wapuku
+          ref: master
 
       - name: Checkout my crossbeam
         uses: actions/checkout@v6
@@ -65,6 +66,15 @@ jobs:
           ls -R /home/runner/work/
           rustup toolchain list
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: verify wapuku checkout
+        run: |
+          cd wapuku
+          echo "wapuku HEAD: $(git rev-parse HEAD)"
+          git status --short
+          test -f vendor/getrandom/Cargo.toml
+          cargo +"$WAPUKU_RUST_TOOLCHAIN" metadata --format-version 1 --filter-platform wasm32-unknown-unknown --locked \
+            | python3 -c 'import json, sys; data = json.load(sys.stdin); pkgs = [p for p in data["packages"] if p["name"] == "getrandom" and p["version"] == "0.2.17"]; assert pkgs, "getrandom 0.2.17 missing from metadata"; manifest = pkgs[0]["manifest_path"]; print("getrandom 0.2.17 manifest:", manifest); assert "/vendor/getrandom/" in manifest, manifest'
 
       - name: build-wapuku
         run: |
