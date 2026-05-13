@@ -18,15 +18,9 @@ build_vendor_wasm_bindgen() {
     )
 }
 
-# A couple of steps are necessary to get this build working which makes it slightly
-# nonstandard compared to most other builds.
-#
-# * First, the Rust standard library needs to be recompiled with atomics
-#   enabled. to do that we use Cargo's unstable `-Zbuild-std` feature.
-#
-# * Next we need to compile everything with the `atomics` and `bulk-memory`
-#   features enabled, ensuring that LLVM will generate atomic instructions,
-#   shared memory, passive segments, etc.
+# The GitHub Pages deployment cannot set the COOP/COEP headers required for
+# shared Wasm memory. Build the app as a normal single-memory Wasm module; the
+# worker wrapper falls back to inline execution when shared memory is unavailable.
 
 rm -rf pkg
 rm -rf www/dist
@@ -34,7 +28,6 @@ rm -rf www/dist
 cargo_toolchain metadata --manifest-path ../Cargo.toml --format-version 1 --filter-platform wasm32-unknown-unknown --locked \
     | python3 -c 'import json, sys; data = json.load(sys.stdin); pkgs = [p for p in data["packages"] if p["name"] == "getrandom" and p["version"] == "0.2.17"]; assert pkgs, "getrandom 0.2.17 missing from metadata"; manifest = pkgs[0]["manifest_path"]; print("getrandom 0.2.17 manifest:", manifest); assert "/vendor/getrandom/" in manifest, manifest'
 
-#RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
 cargo_toolchain build --manifest-path ../Cargo.toml -p wapuku-egui --locked --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort --features getrandom/js
 
 if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then

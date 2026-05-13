@@ -6,13 +6,6 @@ runner = 'cargo run -p wasm-bindgen-cli --bin wasm-bindgen-test-runner --'
 rustflags = [
     # Enabled unstable APIs from web_sys
     "--cfg=web_sys_unstable_apis",
-    # Enables features which are required for shared-memory
-    "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
-    # Enables the possibility to import memory into wasm.
-    # Without --shared-memory it is not possible to use shared WebAssembly.Memory.
-    # wasm-bindgen's thread transform needs __heap_base; recent nightlies no
-    # longer export it implicitly in this build.
-    "-C", "link-args=--shared-memory --import-memory --max-memory=4294967296 --export=__heap_base",
 ]
 
 [unstable]
