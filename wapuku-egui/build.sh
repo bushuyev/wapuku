@@ -24,8 +24,11 @@ cargo_toolchain() {
 rm -rf pkg
 rm -rf www/dist
 
+cargo_toolchain metadata --manifest-path ../Cargo.toml --format-version 1 --filter-platform wasm32-unknown-unknown --locked \
+    | python3 -c 'import json, sys; data = json.load(sys.stdin); pkgs = [p for p in data["packages"] if p["name"] == "getrandom" and p["version"] == "0.2.17"]; assert pkgs, "getrandom 0.2.17 missing from metadata"; manifest = pkgs[0]["manifest_path"]; print("getrandom 0.2.17 manifest:", manifest); assert "/vendor/getrandom/" in manifest, manifest'
+
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-cargo_toolchain build --locked --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort --features getrandom/js
+cargo_toolchain build --manifest-path ../Cargo.toml -p wapuku-egui --locked --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort --features getrandom/js
 
 if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then
     ../vendor/wbg114/cli/target/debug/wasm-bindgen \
