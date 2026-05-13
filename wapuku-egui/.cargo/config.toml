@@ -10,7 +10,9 @@ rustflags = [
     "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
     # Enables the possibility to import memory into wasm.
     # Without --shared-memory it is not possible to use shared WebAssembly.Memory.
-    "-C", "link-args=--shared-memory --import-memory --max-memory=4294967296",
+    # wasm-bindgen's thread transform needs __heap_base; recent nightlies no
+    # longer export it implicitly in this build.
+    "-C", "link-args=--shared-memory --import-memory --max-memory=4294967296 --export=__heap_base",
 ]
 
 [unstable]
