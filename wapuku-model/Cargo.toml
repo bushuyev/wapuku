@@ -61,6 +61,7 @@ polars = { version = "0.53", default-features = false, features=[
 ]}
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 polars = { version = "0.53", default-features = false, features=[
     "lazy",
     "dynamic_group_by",

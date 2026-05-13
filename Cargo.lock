@@ -112,7 +112,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77c3a9648d43b9cd48db467b3f87fdd6e146bcc88ab0180006cef2179fe11d01"
 dependencies = [
  "cfg-if",
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
  "once_cell",
  "serde",
  "version_check",
@@ -1896,9 +1896,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.12"
+version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
+checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3330,7 +3330,7 @@ version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899852b723e563dc3cbdc7ea833b14ec44e61309f55df29ba86d45cfd6bc141a"
 dependencies = [
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
  "getrandom 0.3.4",
  "polars-arrow",
  "polars-buffer",
@@ -3362,7 +3362,7 @@ dependencies = [
  "dyn-clone",
  "either",
  "ethnum",
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
  "getrandom 0.3.4",
  "half",
  "hashbrown 0.16.1",
@@ -4148,7 +4148,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
 ]
 
 [[package]]
@@ -4261,7 +4261,7 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a18479200779601e498ada4e8c1e1f50e3ee19deb0259c25825a98b5603b2cb4"
 dependencies = [
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
  "libredox 0.0.1",
  "thiserror 1.0.56",
 ]
@@ -4433,7 +4433,7 @@ checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
 dependencies = [
  "cc",
  "cfg-if",
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
@@ -5590,7 +5590,7 @@ dependencies = [
  "egui_plot",
  "env_logger",
  "futures",
- "getrandom 0.2.12",
+ "getrandom 0.2.17",
  "js-sys",
  "lazy_static",
  "log",
@@ -5615,6 +5615,7 @@ dependencies = [
  "cgmath",
  "chrono",
  "ctor",
+ "getrandom 0.2.17",
  "itertools 0.12.0",
  "log",
  "once_cell",
