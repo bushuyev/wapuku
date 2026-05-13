@@ -11,6 +11,13 @@ cargo_toolchain() {
     cargo +"$RUST_TOOLCHAIN" "$@"
 }
 
+build_vendor_wasm_bindgen() {
+    (
+        cd "$1"
+        cargo +"$RUST_TOOLCHAIN" build --locked --bin wasm-bindgen
+    )
+}
+
 # A couple of steps are necessary to get this build working which makes it slightly
 # nonstandard compared to most other builds.
 #
@@ -36,7 +43,7 @@ if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then
         --target web \
         ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
 elif [ -f ../vendor/wbg114/cli/Cargo.toml ]; then
-    cargo_toolchain build --locked --manifest-path ../vendor/wbg114/cli/Cargo.toml --bin wasm-bindgen
+    build_vendor_wasm_bindgen ../vendor/wbg114/cli
     ../vendor/wbg114/cli/target/debug/wasm-bindgen \
         --out-dir ./pkg \
         --target web \
@@ -49,7 +56,7 @@ elif [ -x ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen ]; the
         --target web \
         ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
 elif [ -f ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml ]; then
-    cargo_toolchain build --locked --manifest-path ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml --bin wasm-bindgen
+    build_vendor_wasm_bindgen ../vendor/wasm-bindgen-cli/crates/cli
     ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen \
         --out-dir ./pkg \
         --target web \
