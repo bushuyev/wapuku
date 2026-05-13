@@ -25,7 +25,7 @@ rm -rf pkg
 rm -rf www/dist
 
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-cargo_toolchain build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
+cargo_toolchain build --locked --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort --features getrandom/js
 
 if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then
     ../vendor/wbg114/cli/target/debug/wasm-bindgen \
