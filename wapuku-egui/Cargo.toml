@@ -47,6 +47,7 @@ wasm-bindgen = "0.2.90"
 #wasm-bindgen-cli = {path = "../../wasm-bindgen/crates/cli"}
 
 futures = "0.3.28"
+getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-futures = "=0.4.45"
 web-sys = { version = "=0.3.64", features = [
     "Document",

@@ -5590,6 +5590,7 @@ dependencies = [
  "egui_plot",
  "env_logger",
  "futures",
+ "getrandom 0.2.12",
  "js-sys",
  "lazy_static",
  "log",
