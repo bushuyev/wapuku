@@ -23,5 +23,6 @@ documentation = "https://example.com/bar"
 
 [patch.crates-io]
 ethnum = { path = "vendor/ethnum" }
+getrandom = { path = "vendor/getrandom" }
 polars-ops = { path = "vendor/polars-ops" }
 polars-plan = { path = "vendor/polars-plan" }
