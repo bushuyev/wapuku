@@ -5,6 +5,12 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR"
 
+RUST_TOOLCHAIN=${WAPUKU_RUST_TOOLCHAIN:-nightly}
+
+cargo_toolchain() {
+    cargo +"$RUST_TOOLCHAIN" "$@"
+}
+
 # A couple of steps are necessary to get this build working which makes it slightly
 # nonstandard compared to most other builds.
 #
@@ -19,7 +25,7 @@ rm -rf pkg
 rm -rf www/dist
 
 #RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-cargo +nightly build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
+cargo_toolchain build --target-dir ./target --target wasm32-unknown-unknown --release -Z build-std=std,panic_abort
 
 if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then
     ../vendor/wbg114/cli/target/debug/wasm-bindgen \
@@ -27,7 +33,7 @@ if [ -x ../vendor/wbg114/cli/target/debug/wasm-bindgen ]; then
         --target web \
         ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
 elif [ -f ../vendor/wbg114/cli/Cargo.toml ]; then
-    cargo +nightly build --locked --manifest-path ../vendor/wbg114/cli/Cargo.toml --bin wasm-bindgen
+    cargo_toolchain build --locked --manifest-path ../vendor/wbg114/cli/Cargo.toml --bin wasm-bindgen
     ../vendor/wbg114/cli/target/debug/wasm-bindgen \
         --out-dir ./pkg \
         --target web \
@@ -40,7 +46,7 @@ elif [ -x ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen ]; the
         --target web \
         ./target/wasm32-unknown-unknown/release/wapuku_egui.wasm
 elif [ -f ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml ]; then
-    cargo +nightly build --locked --manifest-path ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml --bin wasm-bindgen
+    cargo_toolchain build --locked --manifest-path ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml --bin wasm-bindgen
     ../vendor/wasm-bindgen-cli/crates/cli/target/debug/wasm-bindgen \
         --out-dir ./pkg \
         --target web \
@@ -48,7 +54,7 @@ elif [ -f ../vendor/wasm-bindgen-cli/crates/cli/Cargo.toml ]; then
 elif [ -d ../../wasm-bindgen ]; then
     (
         cd ../../wasm-bindgen
-        cargo +nightly build --locked --package wasm-bindgen-cli --bin wasm-bindgen
+        cargo +"$RUST_TOOLCHAIN" build --locked --package wasm-bindgen-cli --bin wasm-bindgen
         ./target/debug/wasm-bindgen \
             --out-dir ../wapuku/wapuku-egui/pkg \
             --target web \

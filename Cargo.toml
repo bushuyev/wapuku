@@ -22,5 +22,6 @@ description = "A short description of my package"
 documentation = "https://example.com/bar"
 
 [patch.crates-io]
+ethnum = { path = "vendor/ethnum" }
 polars-ops = { path = "vendor/polars-ops" }
 polars-plan = { path = "vendor/polars-plan" }
